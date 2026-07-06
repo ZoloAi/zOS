@@ -16,7 +16,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from .constants import MODE_CLI as _MODE_CLI
+from .constants import (
+    BIFROST_ONLY_STEP_KEYS as _BIFROST_ONLY_STEP_KEYS,
+    CLI_ONLY_STEP_KEYS as _CLI_ONLY_STEP_KEYS,
+    MODE_BIFROST as _MODE_BIFROST,
+    MODE_CLI as _MODE_CLI,
+)
 from .utils.colors import BOLD, GREEN, RED, RESET
 from .utils.reporter import fail_step, pass_step, warn_step
 
@@ -34,11 +39,28 @@ class BaseStepRunner:
     # ── Mode-aware step resolution ───────────────────────────────────────────
 
     @staticmethod
-    def _resolve_mode_step(cfg: dict, mode: str) -> dict | None:
+    def _infer_step_mode(cfg: dict) -> str | None:
+        """Infer a wrapperless step's mode from its primitive vocabulary.
+
+        Returns 'cli', 'bifrost', or None (shared — zAssert/zMarker/zLogger only).
+        zSubmit is the one collision: scalar → CLI stdin, dict → WS gate submit.
+        """
+        if any(k in cfg for k in _BIFROST_ONLY_STEP_KEYS):
+            return _MODE_BIFROST
+        if any(k in cfg for k in _CLI_ONLY_STEP_KEYS):
+            return _MODE_CLI
+        submit = cfg.get("zSubmit")
+        if submit is not None:
+            return _MODE_BIFROST if isinstance(submit, dict) else _MODE_CLI
+        return None
+
+    @classmethod
+    def _resolve_mode_step(cls, cfg: dict, mode: str) -> dict | None:
         """Resolve a step config for the current runner mode.
 
         Rules:
-          - cfg has no zCLI/zBifrost keys → shared step, return cfg unchanged
+          - cfg has no zCLI/zBifrost keys → infer mode from the primitive
+            vocabulary: matching or shared → return cfg, other mode → skip
           - cfg has the current-mode key   → return that key's dict as the step cfg
           - cfg has only the other-mode key → return None (skip silently)
           - cfg has both keys              → pick the current-mode key
@@ -50,7 +72,10 @@ class BaseStepRunner:
         has_cli = "zCLI" in cfg
         has_bif = "zBifrost" in cfg
         if not has_cli and not has_bif:
-            return cfg  # shared step — run as-is in both modes
+            inferred = cls._infer_step_mode(cfg)
+            if inferred is not None and inferred != mode:
+                return None  # other-mode step — skip silently
+            return cfg  # matching or shared step — run as-is
         if mode == _MODE_CLI:
             if not has_cli:
                 return None  # Bifrost-only step, skip

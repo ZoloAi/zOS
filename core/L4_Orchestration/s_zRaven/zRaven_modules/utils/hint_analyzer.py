@@ -3,10 +3,10 @@
 z raven --hint — analyze zRaven/runs.csv and surface agent-level hints.
 
 Data sources:
-    zRaven/runs.csv             — one row per run (mode, result, error_class, …)
-    zRaven/.last_raven_result   — last run JSON (fallback if runs.csv absent)
-    zRaven/zVersions/           — archived revision names per UI version
-    zRaven/zRaven.<name>.zolo   — line count of active raven file
+    zRaven/output/runs.csv           — one row per run (mode, result, error_class, …)
+    zRaven/output/.last_raven_result — last run JSON (fallback if runs.csv absent)
+    zVersions/tests/                 — archived revision names per UI version
+    zRaven/zRaven.<name>.zolo        — line count of active raven file
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ def _collect(workspace: Path, raven_name: str) -> dict:
 
     runs     = _read_runs(output_dir)
     last     = runs[-1] if runs else _read_last_result_fallback(output_dir)
-    archived = _list_archived(raven_dir, raven_name)
+    archived = _list_archived(workspace, raven_name)
     lines    = _count_lines(raven_dir, raven_name)
     raven_meta = _parse_raven_file(raven_dir, raven_name)
 
@@ -102,9 +102,14 @@ def _read_last_result_fallback(output_dir: Path) -> Optional[dict]:
         return None
 
 
-def _list_archived(raven_dir: Path, raven_name: str) -> dict[str, list[str]]:
-    """Return {ui_ver: [revision_names]} from zRaven/zVersions/."""
-    ver_dir = raven_dir / "zVersions"
+def _list_archived(workspace: Path, raven_name: str) -> dict[str, list[str]]:
+    """Return {ui_ver: [revision_names]} from zVersions/tests/.
+
+    NB: archives live at {workspace}/zVersions/tests/ — the same path the
+    generator writes and --run --r N resolves (raven_command). The old
+    zRaven/zVersions/ location never existed, so rollback hints never fired.
+    """
+    ver_dir = workspace / "zVersions" / "tests"
     if not ver_dir.exists():
         return {}
     result: dict[str, list[str]] = {}

@@ -18,6 +18,23 @@ MODE_BIFROST = "bifrost"
 CLI_ONLY_PREFIXES     = ("CLI_",)
 BIFROST_ONLY_PREFIXES = ("Browser_", "Bifrost_", "zBifrost_")
 
+# ── Step-mode vocabulary (SSOT for wrapperless mode inference) ────────────────
+# A step's primitives usually determine its mode on their own, so the
+# zCLI:/zBifrost: step wrappers are optional. Wrappers remain honored and are
+# still needed for the genuinely ambiguous cases (e.g. a zLogger-only assert
+# step that must be scoped to one mode).
+CLI_ONLY_STEP_KEYS = frozenset({
+    "zPick", "zExpect", "zCapture", "zVar", "zAllowError",
+    "zMenu", "zWizard", "zFill",
+})
+BIFROST_ONLY_STEP_KEYS = frozenset({
+    "zOpen", "zViewport", "zType", "zClick", "zWait", "zShot", "zScreenshot",
+    "zDrag", "zUpload", "zHistory", "zFetch", "zClean", "zExecute", "zBoot",
+})
+# zSubmit is the one true collision: a scalar value is a CLI stdin submit,
+# a dict ({path, gate, value}) is a WS wizard-gate submit. zAssert/zMarker/
+# zLogger are shared vocabulary and never force a mode.
+
 # ── Output layout (under the app dir) ──────────────────────────────────────────
 RAVEN_DIRNAME  = "zRaven"
 OUTPUT_DIRNAME = "output"

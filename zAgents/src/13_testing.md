@@ -1,5 +1,5 @@
 <!-- cursor: description="zRaven — zOS tests its own work: z raven --gen writes the test from zSpark+zUI, --run boots + walks it green/red; string-first .zolo, one Tests: block; fix the zUI not the test" globs="**/zRaven.*.zolo,**/zRaven/**" alwaysApply=false -->
-zRaven: zOS proves its own work | `--gen` writes the test from your zUI, `--run` boots+walks it green/red | one Tests: block; `zCLI:`/`zBifrost:` scope mode, `zAssert:`/`zMarker:` shared | terminal-first — CLI green before browser | fix the zUI, never the test
+zRaven: zOS proves its own work | `--gen` writes the test from your zUI, `--run` boots+walks it green/red | one Tests: block; bare primitives infer their mode, `zAssert:`/`zMarker:` shared | terminal-first — CLI green before browser | fix the zUI, never the test
 
 core: the loop — spark first, always
     --gen <name>   — read zSpark+zUI, WRITE zRaven/zRaven.<name>.zolo (never hand-write the skeleton)
@@ -7,20 +7,22 @@ core: the loop — spark first, always
     --hint         — read last runs, suggest next move (rollback to archived rN, narrow scope)
     <name>         — spark middle stem (zSpark.zLogin.zolo → zLogin); optional if one spark; `--spark <path>` = full path
     scope          — one page = one zSpark that BOOTS that page; !script a journey to reach it; zOpen derived FROM spark
-    RED step       — the zUI drifted: fix source + regenerate; tuned zSubmit values survive --gen
+    RED step       — the zUI drifted: fix source + regenerate; tuned zFill/zSubmit values survive --gen
     dev            — !put `zRaven:` in zSpark during dev (auto-runs every boot, noisy) — run `--run` explicitly
     alpha          — --gen coverage still catching up to full grammar (inputs, gates, rich widgets)
 
 shape: string-first .zolo, one block of named steps — top→bottom, `zMarker: done` closes
     Tests:
-        Open_Home:
-            zBifrost:
-                zOpen: zSpark
+        Open_Home:                       #> compound: primitives run in fixed order <#
+            zOpen: zSpark
             zAssert:
                 dom: {selector: h1, contains: I intend}
         Read_FAQ:
-            zCLI:
-                zPick: FAQ
+            zPick: FAQ                   #> bare primitive — mode inferred (zCLI) <#
+        Add_Contact:
+            zFill:                       #> declarative form fill — 1 line per field <#
+                name: Ada Lovelace
+                email: ada@test.local
         Done:
             zMarker: done
 
@@ -28,12 +30,16 @@ modes: two runners, one grammar — zMode in zSpark picks
     zCLI      — drives terminal stdin/stdout; fast, no browser; START here
     zBifrost  — drives headless Chromium (Playwright) + WS leg; screenshots live here
     blocks    — `CLI_*` CLI-only | `Browser_*`/`Bifrost_*`/`zBifrost_*` browser-only | other name = BOTH
-    steps     — `zCLI:`/`zBifrost:` scope a primitive; `zAssert:`/`zMarker:` need no mode key
+    steps     — mode is INFERRED from the primitive (zPick/zFill/zWizard → zCLI; zOpen/zWait/zShot/zClick → zBifrost)
+    wrappers  — `zCLI:`/`zBifrost:` still honored; only needed when vocabulary is ambiguous (zLogger-only step, dict zSubmit)
+    zSubmit   — scalar value → zCLI stdin; dict {path, gate, value} → zBifrost WS gate
+    shared    — `zAssert:`/`zMarker:`/`zLogger:` run in both modes (scope with a wrapper if not intended)
     first     — TERMINAL IS TRUTH: CLI green, then flip to zBifrost (the coat, not a second test)
 
 drive_cli: zCLI step primitives
     zPick: Option            — send that menu option's number (`^opt`, `zBack`, `_`→space work)
     zSubmit: value           — type at the prompt; `$Var` refs resolve from captures
+    zFill: {field: value}    — declarative form fill: per field assert prompt → submit value; tuned values survive --gen
     zVar: Name               — on a zSubmit, remember value as `$Name`
     zAllowError: true        — permit an ERROR: line after this submit (default: ERROR fails)
     zExpect: deny            — prove a gate HOLDS: pair with zPick; PASS when denied, FAIL if let in
@@ -75,7 +81,7 @@ shots: the shippable bar = 3 viewports that read cleanly
     opts    — full_page, format(png/jpeg/webp)+quality, selector, delay, resolution, burst {every, count}
 
 history: every --gen is reversible — archive + replay
-    archive — before overwrite, --gen copies active → {app}/zVersions/tests/zRaven.<name>[uiVer]_rN.zolo
+    archive — before overwrite, --gen copies active → {app}/zVersions/tests/zRaven.<name>[uiVer]_rN.zolo (skipped when byte-identical to last rN)
     name    — [uiVer] = source zUIVersion; _rN = revision (1,2,3… per uiVer)
     edits   — active drifted from last archive → --gen prints "manual edits — archived as rN"
     replay  — --run --r N (revision) | --run --v <uiVer> (latest rN for UI) | --v <uiVer> --r N (exact)
@@ -93,7 +99,7 @@ options: `zRavenOptions:` / `zMeta:` block at top (all optional)
     zConnect: {ws, http}     — URL overrides for standalone `zraven` entry (ignored by `z raven --run`)
 
 seek_as_need: !authoring a test — only if extending zRaven
-    generator  — core/zSys/cli/raven_generator.py (zUI→steps; preserves zSubmit; archives) + raven_command.py (--gen/--run/--hint, revision resolve)
+    generator  — core/zSys/cli/raven_generator.py (zUI→steps; preserves zFill/zSubmit values; archives) + raven_command.py (--gen/--run/--hint, revision resolve)
     runners    — core/L4_Orchestration/s_zRaven: cli/cli_runner.py (stdin/stdout, strict leaf) · ws/ws_runner.py (Playwright+WS, `_BIFROST_PRIMITIVE_ORDER`, zScreenshot→zShot) · base_runner.py (mode, counters)
     asserts    — assertions/evaluator.py (evaluate_assert dom/style/api/result, evaluate_logger_assert)
     parse+guard— utils/parser.py (parse_raven_file) · utils/validator.py (zUI↔zRaven check, vocab from zlsp token_registry) · utils/viewport.py (sizes, block split)

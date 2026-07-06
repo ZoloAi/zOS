@@ -102,6 +102,61 @@ async def _evaluate_style_assert(style_cfg: dict, page: Any) -> tuple[bool, str]
     return True, ""
 
 
+# ── Text assertions (SSOT for both runners) ──────────────────────────────────
+
+def _tail_context(output: str) -> str:
+    """Trim long output to the last ASSERT_CONTEXT_CHARS for failure messages."""
+    if len(output) <= _ASSERT_CONTEXT_CHARS:
+        return output
+    trimmed = len(output) - _ASSERT_CONTEXT_CHARS
+    return f"...[{trimmed} chars trimmed]...\n" + output[-_ASSERT_CONTEXT_CHARS:]
+
+
+def evaluate_text_assert(
+    cfg: dict,
+    output: str,
+    *,
+    case_insensitive: bool = False,
+    underscore_variants: bool = False,
+    resolve: Any = None,
+) -> tuple[bool, str]:
+    """Evaluate contains / not_contains / success against a text buffer.
+
+    Single implementation shared by the CLI runner (case-insensitive, with
+    underscore→space variants so "new_password" matches the rendered label
+    "New Password") and the WS runner (exact matching) — one grammar, one
+    evaluator, per-mode normalization flags.
+
+    resolve: optional callable applied to expected values (e.g. $var expansion).
+    """
+    _resolve = resolve or (lambda s: s)
+
+    if "contains" in cfg:
+        expected = _resolve(str(cfg["contains"]))
+        haystack = output.lower() if case_insensitive else output
+        variants = {expected.lower() if case_insensitive else expected}
+        if underscore_variants:
+            v = expected.replace("_", " ")
+            variants.add(v.lower() if case_insensitive else v)
+        if not any(v in haystack for v in variants):
+            return False, f"expected {expected!r} in:\n{_tail_context(output)}"
+
+    if "not_contains" in cfg:
+        excluded = _resolve(str(cfg["not_contains"]))
+        haystack = output.lower() if case_insensitive else output
+        needle   = excluded.lower() if case_insensitive else excluded
+        if needle in haystack:
+            tail = output[-500:].strip() if len(output) > 500 else output.strip()
+            return False, f"expected {excluded!r} NOT in output\n  Tail:\n{tail}"
+
+    if "success" in cfg and str(cfg["success"]).lower() in ("true", "1", "yes"):
+        if "ERROR:" in output:
+            errors = [l for l in output.splitlines() if "ERROR:" in l]
+            return False, "app output contained ERROR:\n" + "\n".join(errors[:10])
+
+    return True, ""
+
+
 # ── zLogger assertion ─────────────────────────────────────────────────────────
 
 def evaluate_logger_assert(logger_cfg: Any, log_buffer: list) -> tuple[bool, str]:
@@ -282,20 +337,6 @@ async def evaluate_assert(
         if actual != expected:
             return False, f"expected result={expected!r}, got {actual!r}"
 
-    if "contains" in assert_cfg:
-        needle = str(assert_cfg["contains"])
-        if needle not in response_str:
-            snippet = response_str[:_ASSERT_CONTEXT_CHARS]
-            return False, f"expected response to contain {needle!r}\n    got: {snippet!r}"
-
-    if "not_contains" in assert_cfg:
-        needle = str(assert_cfg["not_contains"])
-        if needle in response_str:
-            return False, f"expected response NOT to contain {needle!r}"
-
-    if "success" in assert_cfg:
-        if str(assert_cfg["success"]).lower() in ("true", "1", "yes"):
-            if "ERROR:" in response_str:
-                return False, f"expected success but found ERROR in response"
-
-    return True, ""
+    # contains / not_contains / success share the SSOT text evaluator (exact
+    # matching in WS mode — the CLI runner passes its normalization flags).
+    return evaluate_text_assert(assert_cfg, response_str)

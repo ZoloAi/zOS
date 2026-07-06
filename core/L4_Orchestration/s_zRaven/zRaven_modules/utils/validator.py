@@ -27,7 +27,7 @@ from .viewport import is_browser_block
 
 # Raven-runner-only step primitives (not zUI vocabulary, so not in the registry).
 _RAVEN_PRIMITIVE_KEYS = {
-    "zPick", "zSubmit", "zAssert", "zBoot", "zExecute", "zWait", "zClick",
+    "zPick", "zSubmit", "zFill", "zAssert", "zBoot", "zExecute", "zWait", "zClick",
     "zType", "zShot", "zScreenshot", "zDrag", "zExpect", "zUpload", "zMarker",
     "zViewport", "zOpen", "zFetch", "zClean", "zHistory", "zCapture",
     "zVar", "zAllowError", "zLogger", "zCLI", "zBifrost", "zSetup",

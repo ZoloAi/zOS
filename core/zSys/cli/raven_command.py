@@ -12,8 +12,9 @@ z raven — zRaven test file management.
 
 File layout (under spark workspace):
     zRaven/
-        zRaven.{name}.zolo              ← active (always used by default)
-        zVersions/
+        zRaven.{name}.zolo                  ← active (always used by default)
+    zVersions/
+        tests/
             zRaven.{name}[v2.0.0]_r1.zolo   ← archived snapshots
 """
 
@@ -144,7 +145,6 @@ def _handle_run(boot_logger, spark_path: Path, ui_ver, raven_ver, verbose: bool)
             return exit_code
 
         workspace  = spark_path.parent
-        va_file    = zspark_config.get("zVaFile", "")  # noqa: F841  kept for legacy _derive fallback
 
         # SSOT convention: raven file name == spark middle stem.
         # e.g. zSpark.zLogin_cli.zolo → zRaven.zLogin_cli.zolo
@@ -445,16 +445,6 @@ def _preflight(
         return False
 
     return True
-
-
-def _derive_raven_name(va_file: str, zspark_config: dict) -> str:
-    """
-    Derive raven name from zVaFile + mode.
-    zMode: zCLI → {stem}_cli  (keeps CLI tests separate from browser raven files)
-    """
-    stem = va_file.replace("zUI.", "").replace("zUI_", "")
-    mode = str(zspark_config.get("zMode", "")).lower()
-    return f"{stem}_cli" if mode in ("zcli", "cli") else stem
 
 
 def _print_usage() -> None:

@@ -11,6 +11,8 @@ Primitives:
     not_contains: txt    → stdout since last submit must NOT contain txt
     success: true        → no ERROR: in stdout since last submit
   zPick: option          → find option in rendered menu → send its index
+  zFill: {field: value}  → per field: assert prompt contains field → submit value
+                           (declarative form fill — one step per form)
   zExpect: deny          → PASS when RBAC blocks access, FAIL when it doesn't
   zCapture:
     var:     name        → variable name (referenced as $name in later steps)
@@ -35,9 +37,9 @@ from typing import Any
 
 from zOS.L1_Foundation.a_zConfig.zConfig_modules.loggers.app_emit import parse_cli_log_line
 
+from ..assertions.evaluator import evaluate_text_assert
 from ..base_runner import BaseStepRunner
 from ..constants import (
-    ASSERT_CONTEXT_CHARS as _ASSERT_CONTEXT_CHARS,
     ENV_TARGET as _ENV_TARGET,
     ENV_UNBUFFERED as _ENV_UNBUFFERED,
     MODE_CLI as _MODE_CLI,
@@ -389,6 +391,9 @@ class CLIRunner(BaseStepRunner):
         if "zCapture" in cfg:
             return self._run_capture(step_name, cfg["zCapture"], soft=soft)
 
+        if "zFill" in cfg:
+            return self._run_fill(step_name, cfg["zFill"], soft=soft)
+
         if "zLogger" in cfg:
             return self._run_logger_assert(step_name, cfg["zLogger"], self._app_log_buffer, soft=soft)
 
@@ -470,6 +475,52 @@ class CLIRunner(BaseStepRunner):
         self._record_fail(step_name, msg)
         return False
 
+    def _run_fill(self, step_name: str, fields: Any, soft: bool = False) -> bool:
+        """zFill: declarative form fill — {field: value, ...} in one step.
+
+        For each field, in order: assert the current prompt mentions the field
+        name (same normalization as zAssert contains), submit the value, then
+        apply the post-submit ERROR law. Replaces the per-field
+        Enter_x / zAssert / zSubmit boilerplate the generator used to emit.
+        """
+        if not isinstance(fields, dict) or not fields:
+            msg = "zFill requires a {field: value} mapping"
+            if soft:
+                self._record_warn(step_name, msg)
+                return True
+            self._record_fail(step_name, msg)
+            return False
+
+        for field, value in fields.items():
+            label = f"{step_name}.{field}"
+            if not self._step_buf:
+                self._drain(wait_first=True)
+            buf = "\n".join(self._step_buf)
+            passed, reason = self._check_assert({"contains": field}, buf)
+            if not passed:
+                # Prompt may not have flushed yet — one targeted re-drain.
+                self._drain_until_prompt(timeout=3.0)
+                buf = "\n".join(self._step_buf)
+                passed, reason = self._check_assert({"contains": field}, buf)
+            if not passed:
+                if soft:
+                    self._record_warn(f"{label} [prompt]", reason[:400])
+                    return True
+                self._record_fail(f"{label} [prompt]", reason)
+                return False
+            self._send(self._resolve_vars(str(value)))
+            post_buf = "\n".join(self._step_buf)
+            if "ERROR:" in post_buf:
+                err_lines = [l.strip() for l in post_buf.splitlines() if "ERROR:" in l]
+                reason = "app reported ERROR after submit:\n  " + "\n  ".join(err_lines[:5])
+                if soft:
+                    self._record_warn(f"{label} [error]", reason[:400])
+                    return True
+                self._record_fail(f"{label} [error]", reason)
+                return False
+        self._record_pass(step_name)
+        return True
+
     def _run_pick(self, step_name: str, option: str, soft: bool = False) -> bool:
         # Refresh buffer to capture any menu output that arrived after the last send.
         self._drain(wait_first=not bool(self._step_buf))
@@ -549,27 +600,12 @@ class CLIRunner(BaseStepRunner):
         return None
 
     def _check_assert(self, cfg: dict, output: str) -> tuple[bool, str]:
-        if "contains" in cfg:
-            expected = self._resolve_vars(str(cfg["contains"]))
-            # Check case-insensitively; also try underscore→space variant so
-            # "new_password" matches rendered label "New Password".
-            out_lower = output.lower()
-            variants = {expected.lower(), expected.replace("_", " ").lower()}
-            if not any(v in out_lower for v in variants):
-                buf_display = (
-                    output
-                    if len(output) <= _ASSERT_CONTEXT_CHARS
-                    else f"...[{len(output) - _ASSERT_CONTEXT_CHARS} chars trimmed]...\n"
-                    + output[-_ASSERT_CONTEXT_CHARS:]
-                )
-                return False, f"expected {expected!r} in:\n{buf_display}"
-        if "not_contains" in cfg:
-            excluded = self._resolve_vars(str(cfg["not_contains"]))
-            if excluded in output:
-                tail = output[-500:].strip() if len(output) > 500 else output.strip()
-                return False, f"expected {excluded!r} NOT in output\n  Tail:\n{tail}"
-        if "success" in cfg and cfg["success"] is True:
-            if "ERROR:" in output:
-                errors = [l for l in output.splitlines() if "ERROR:" in l]
-                return False, "app output contained ERROR:\n" + "\n".join(errors[:10])
-        return True, ""
+        # SSOT: same evaluator as the WS runner; CLI adds case-insensitive
+        # matching and underscore→space variants ("new_password" matches the
+        # rendered label "New Password").
+        return evaluate_text_assert(
+            cfg, output,
+            case_insensitive=True,
+            underscore_variants=True,
+            resolve=self._resolve_vars,
+        )

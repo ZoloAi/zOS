@@ -6,6 +6,7 @@ from __future__ import annotations
 # Step keys that require a live browser (Playwright) — not WS primitives.
 BROWSER_PRIMITIVES = frozenset({
     "zType", "zClick", "zWait", "zShot", "zDrag", "zOpen", "zViewport",
+    "zUpload", "zHistory",
 })
 
 # Step keys that require a live WebSocket (zBifrost) connection.
@@ -61,11 +62,24 @@ def classify_viewport(spec) -> str:
     return "desktop"
 
 
+def _effective_step(step_cfg: dict) -> dict:
+    """Merge an optional zBifrost: wrapper into the step view for classification.
+
+    Steps may scope their primitives under a zBifrost: key (legacy/explicit
+    form) or carry them bare (vocabulary-inferred form) — classify both.
+    """
+    inner = step_cfg.get("zBifrost")
+    if isinstance(inner, dict):
+        return {**step_cfg, **inner}
+    return step_cfg
+
+
 def is_browser_block(block_steps: dict) -> bool:
     """True if the block uses any browser-only primitives."""
-    for step_cfg in block_steps.values():
-        if not isinstance(step_cfg, dict):
+    for raw_cfg in block_steps.values():
+        if not isinstance(raw_cfg, dict):
             continue
+        step_cfg = _effective_step(raw_cfg)
         if any(p in step_cfg for p in BROWSER_PRIMITIVES):
             return True
         if "zBoot" in step_cfg and isinstance(step_cfg["zBoot"], dict) and "url" in step_cfg["zBoot"]:
@@ -79,9 +93,10 @@ def is_ws_block(block_steps: dict) -> bool:
     HTTP-only blocks (zFetch / zClean / zLogger) return False so the runner can
     execute them without opening a bifrost WS session.
     """
-    for step_cfg in block_steps.values():
-        if not isinstance(step_cfg, dict):
+    for raw_cfg in block_steps.values():
+        if not isinstance(raw_cfg, dict):
             continue
+        step_cfg = _effective_step(raw_cfg)
         if any(p in step_cfg for p in WS_PRIMITIVES):
             return True
         boot = step_cfg.get("zBoot")

@@ -17,21 +17,26 @@ framework boots). Those are parsed with simple regex key extraction.
 Generation rules
 ----------------
   zDash.sidebar       → panel nav steps + zH2.label assert per panel
-  ~Name*: [items]     → Pick_Item (zCLI: zMenu: zPick:) + action steps (+ zBack for nested)
-  ^Action: zDialog    → zCLI: zWizard fill steps for each declared field
+  ~Name*: [items]     → Pick_Item (bare zPick:) + action steps (+ zBack for nested)
+  ^Action: zDialog    → one declarative zFill: step ({field: value} per line)
   ^Action: zData      → shared zAssert: contains first column / model label
-  ^Action: zWizard    → zCLI: nested wizard confirm/fill steps
+  ^Action: zWizard    → nested zWizard: confirm/fill sub-steps
   Export*/Import*     → sub-menu pick + content steps + zBack
-  ^Button: zLogger    → zBifrost: zClick + zLogger assertions (inlined in Tests:)
+  ^Button: zLogger    → bare zClick + zBifrost-scoped zLogger assertion
 
-Output: single Tests: block — step-level zCLI:/zBifrost: keys dispatch per mode.
-zAssert:/zMarker: steps are shared (no mode key) and run in both modes.
+Output: single Tests: block. Step mode is INFERRED from primitive vocabulary
+(zPick/zFill/zWizard → zCLI; zOpen/zWait/zShot/zClick → zBifrost) so no
+zCLI:/zBifrost: wrappers are emitted; wrappers remain honored by the runners
+and are used only where vocabulary is ambiguous (e.g. a zLogger-only assert).
+zAssert:/zMarker: steps are shared and run in both modes.
 
 Generated file is stamped: # zRavenVersion: <ui_version>
-Re-running z raven --gen regenerates structure but PRESERVES hand-tuned zSubmit
-values for any step that still exists (matched by step name + Enter_<field>).
-The active file is archived to zVersions/tests/ before each overwrite (see
-_archive_current_raven) so a regen is always reversible via --run --r N / --v.
+Re-running z raven --gen regenerates structure but PRESERVES hand-tuned form
+values (zFill fields, legacy Enter_<field> zSubmit) for any step that still
+exists — extracted via the canonical zlsp parse, not regex line-scanning.
+The active file is archived to zVersions/tests/ before each overwrite (skipped
+when byte-identical to the last archive) so a regen is always reversible via
+--run --r N / --v.
 """
 
 from __future__ import annotations
@@ -83,64 +88,72 @@ def _field_default(field: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Preserve hand-tuned zSubmit values across --gen runs
+# Preserve hand-tuned form values across --gen runs
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _parse_existing_submits(text: str) -> Dict[Tuple[str, str], str]:
-    """Map (step_name, Enter_field) → preserved zSubmit value from an existing raven.
+def _parse_zolo_text(text: str, filename: str = "") -> Dict[str, Any]:
+    """Parse raw zolo text via the canonical zlsp parser. {} on failure/empty."""
+    if not text.strip():
+        return {}
+    try:
+        from zlsp import parser as _zolo  # pylint: disable=import-outside-toplevel
+        parsed = _zolo.loads(text, filename=filename or None)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:  # pylint: disable=broad-except
+        return {}
 
-    Lets `z raven --gen` carry hand-tuned form inputs (valid enums, unique keys,
-    real credentials) over a regeneration instead of resetting them to defaults.
+
+def _extract_preserved(old_parsed: Dict[str, Any]) -> Dict[Tuple[str, str], str]:
+    """Map (step_name, field) → hand-tuned value from an existing raven.
+
+    Carries tuned form inputs (valid enums, unique keys, real credentials)
+    over a regeneration instead of resetting them to defaults. Covers both
+    the zFill form and the legacy Enter_<field>/zSubmit form at any nesting
+    depth — extracted from the zlsp parse, not indentation-sensitive regex.
     Coordinates are stable across regens because step names are deterministic.
     """
     preserved: Dict[Tuple[str, str], str] = {}
-    cur_step: Optional[str] = None
-    cur_enter: Optional[str] = None
-    for line in text.splitlines():
-        m_step = re.match(r'^ {4}(\w+):\s*$', line)
-        if m_step:
-            cur_step, cur_enter = m_step.group(1), None
+
+    def _walk(step_name: str, node: Any) -> None:
+        if not isinstance(node, dict):
+            return
+        zfill = node.get("zFill")
+        if isinstance(zfill, dict):
+            for f, v in zfill.items():
+                preserved[(step_name, str(f))] = str(v)
+        for k, v in node.items():
+            if not isinstance(v, dict):
+                continue
+            if k.startswith("Enter_") and "zSubmit" in v:
+                preserved[(step_name, k[len("Enter_"):])] = str(v["zSubmit"])
+            _walk(step_name, v)
+
+    for block in old_parsed.values():
+        if not isinstance(block, dict):
             continue
-        m_enter = re.match(r'^\s+(Enter_\w+):\s*$', line)
-        if m_enter:
-            cur_enter = m_enter.group(1)
-            continue
-        m_submit = re.match(r'^\s+zSubmit:\s*(.+?)\s*$', line)
-        if m_submit and cur_step and cur_enter:
-            preserved[(cur_step, cur_enter)] = m_submit.group(1)
+        for step_name, step_cfg in block.items():
+            if isinstance(step_cfg, dict):
+                _walk(step_name, step_cfg)
     return preserved
 
 
-def _apply_preserved_submits(
-    text: str, preserved: Dict[Tuple[str, str], str]
-) -> Tuple[str, int]:
-    """Rewrite freshly generated zSubmit values with preserved ones. Returns (text, count)."""
-    if not preserved:
-        return text, 0
-    out: List[str] = []
-    cur_step: Optional[str] = None
-    cur_enter: Optional[str] = None
-    count = 0
-    for line in text.splitlines():
-        m_step = re.match(r'^ {4}(\w+):\s*$', line)
-        if m_step:
-            cur_step, cur_enter = m_step.group(1), None
-            out.append(line)
-            continue
-        m_enter = re.match(r'^\s+(Enter_\w+):\s*$', line)
-        if m_enter:
-            cur_enter = m_enter.group(1)
-            out.append(line)
-            continue
-        m_submit = re.match(r'^(\s+)zSubmit:\s*(.+?)\s*$', line)
-        if m_submit and cur_step and cur_enter:
-            key = (cur_step, cur_enter)
-            if key in preserved and preserved[key] != m_submit.group(2):
-                out.append(f"{m_submit.group(1)}zSubmit: {preserved[key]}")
-                count += 1
-                continue
-        out.append(line)
-    return "\n".join(out), count
+def _preserved_value(ctx: Optional[Dict[str, Any]], step_key: str,
+                     field: str, default: str) -> str:
+    """Return the hand-tuned value for (step_key, field) or *default*.
+
+    Bumps ctx['kept'] when a tuned value (differing from the default) is used.
+    """
+    if not ctx:
+        return default
+    preserved = ctx.get("preserved") or {}
+    tuned = preserved.get((step_key, field))
+    if tuned is None:
+        tuned = preserved.get((step_key, _slug(field)))
+    if tuned is None:
+        return default
+    if tuned != default:
+        ctx["kept"] = ctx.get("kept", 0) + 1
+    return tuned
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -290,23 +303,32 @@ def generate_raven(
     is_bifrost = spark_mode not in ("zcli", "cli")
     wait_sel   = _root_class(root_block) or "body"
 
-    # ── Screenshots: explicit flags win; else persist the previous choice from
-    #    the active raven header (# zRavenShots:). zBifrost only.
-    active_existing = workspace / "zRaven" / f"zRaven.{raven_name}.zolo"
-    sticky_shots = (
-        _parse_shot_header(active_existing.read_text(encoding="utf-8"))
-        if active_existing.exists() else []
-    )
+    # ── Previous raven — read ONCE: sticky shots + tuned-value preservation ──
+    default_target = workspace / "zRaven" / f"zRaven.{raven_name}.zolo"
+    target         = out_path if out_path is not None else default_target
+    old_text       = target.read_text(encoding="utf-8") if target.exists() else ""
+
+    # Screenshots: explicit flags win; else persist the previous choice from
+    # the active raven header (# zRavenShots:). zBifrost only.
+    sticky_shots    = _parse_shot_header(old_text) if old_text else []
     effective_shots = list(shots) if shots else sticky_shots
     if effective_shots and not is_bifrost:
         print("⚠️  Screenshots requested but spark is zCLI — skipping (zShot is zBifrost-only)")
         effective_shots = []
 
+    # Form values the user tuned (valid enums, unique keys, real credentials)
+    # are carried over for any step that still exists; new steps fall back to
+    # schema/placeholder defaults.
+    ctx: Dict[str, Any] = {
+        "preserved": _extract_preserved(_parse_zolo_text(old_text, str(target))),
+        "kept":      0,
+    }
+
     lines: List[str] = []
     lines += _header_comment(ui_version, ui_file_path.name, effective_shots)
-    # Single Tests: block — zCLI:/zBifrost: step-level keys route each step to
-    # the correct runner. zMode in the active zSpark selects the path at runtime.
-    # Shared steps (zAssert: contains:, zMarker:) run in both modes unchanged.
+    # Single Tests: block — step mode is inferred from primitive vocabulary
+    # (zPick/zFill → zCLI, zOpen/zWait/zShot → zBifrost); zMode in the active
+    # zSpark selects the runner. Shared steps (zAssert:, zMarker:) run in both.
     lines += ["", "Tests:", ""]
 
     # Bifrost boot at the top so the page is ready for any browser interactions
@@ -318,7 +340,8 @@ def generate_raven(
         if effective_shots:
             lines += _shot_steps(effective_shots, indent=1, wait_selector=wait_sel)
 
-    _walk_block(root_block, lines, workspace, va_folder, zos, indent=1, top_level=True)
+    _walk_block(root_block, lines, workspace, va_folder, zos, indent=1,
+                top_level=True, ctx=ctx)
 
     # ── Bifrost-specific: zLogger assertions (inlined into Tests:) ──────────
     logger_steps = _collect_zlogger_steps(root_block, indent=1)
@@ -334,9 +357,9 @@ def generate_raven(
     raven_dir.mkdir(exist_ok=True)
 
     if out_path is None:
-        out_path    = raven_dir / f"zRaven.{raven_name}.zolo"
+        out_path = default_target
         archived, r_ver, has_edits = _archive_current_raven(
-            out_path, raven_name, ui_version, workspace
+            out_path, old_text, raven_name, ui_version, workspace
         )
         if archived:
             if has_edits:
@@ -346,23 +369,13 @@ def generate_raven(
                 )
             else:
                 print(f"📦 Archived → zVersions/tests/zRaven.{raven_name}[{ui_version}]_r{r_ver}.zolo")
+        elif r_ver:
+            print(f"♻️  Active raven unchanged since r{r_ver} — archive skipped")
 
-    final_text = "\n".join(lines)
+    if ctx["kept"]:
+        print(f"🔁 Preserved {ctx['kept']} tuned value(s) from previous raven")
 
-    # ── Merge: preserve hand-tuned zSubmit values from the previous raven ─────
-    # Structure is regenerated fresh, but form inputs the user tuned (valid enum
-    # values, unique keys, real credentials) are carried over for any step that
-    # still exists. New steps fall back to schema/placeholder defaults.
-    if out_path.exists():
-        try:
-            preserved = _parse_existing_submits(out_path.read_text(encoding="utf-8"))
-            final_text, n_kept = _apply_preserved_submits(final_text, preserved)
-            if n_kept:
-                print(f"🔁 Preserved {n_kept} tuned zSubmit value(s) from previous raven")
-        except Exception:  # pylint: disable=broad-except
-            pass
-
-    out_path.write_text(final_text + "\n", encoding="utf-8")
+    out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out_path
 
 
@@ -379,6 +392,7 @@ def _walk_block(
     indent: int,
     top_level: bool = False,
     panel_name: Optional[str] = None,
+    ctx: Optional[Dict[str, Any]] = None,
 ) -> None:
     if not isinstance(block, dict):
         return
@@ -396,7 +410,7 @@ def _walk_block(
 
         # zDash ────────────────────────────────────────────────────────────────
         if key == "zDash" and isinstance(value, dict):
-            _gen_zdash(value, lines, workspace, zos, indent)
+            _gen_zdash(value, lines, workspace, zos, indent, ctx=ctx)
 
         # Nav*: [items] — navigation menu (with or without tilde anchor prefix)
         # Skip if this key's base label is already an item in a parent nav (sub-menu).
@@ -404,14 +418,16 @@ def _walk_block(
             base_label = key.lstrip("#~").rstrip("*")
             if base_label not in menu_items:
                 _gen_menu(key, value, block, lines, workspace, va_folder,
-                          zos, indent, top_level, menu_items, panel_name=panel_name)
+                          zos, indent, top_level, menu_items,
+                          panel_name=panel_name, ctx=ctx)
 
         # Direct gate actions (^Action) with NO navigation wrapper ────────────
         # These auto-execute when the panel renders (no menu pick step needed).
         elif key.startswith("^") and top_level and not has_nav:
             action_name = key[1:]
             step_prefix = f"{_slug(panel_name)}_" if panel_name else ""
-            _gen_action(action_name, value, lines, indent, step_prefix=step_prefix, zos=zos)
+            _gen_action(action_name, value, lines, indent, step_prefix=step_prefix,
+                        zos=zos, ctx=ctx)
 
         # skip private / gate keys
         # NOTE: the old `!` suffix gate was retired 2026-06 (docs 14/15) — `key!`
@@ -422,7 +438,8 @@ def _walk_block(
         # Structural container — recurse to find nested menus/actions
         elif isinstance(value, dict):
             _walk_block(value, lines, workspace, va_folder, zos,
-                        indent=indent, top_level=top_level, panel_name=panel_name)
+                        indent=indent, top_level=top_level,
+                        panel_name=panel_name, ctx=ctx)
 
 
 def _gen_zdash(
@@ -431,6 +448,7 @@ def _gen_zdash(
     workspace: Path,
     zos: Any,
     indent: int,
+    ctx: Optional[Dict[str, Any]] = None,
 ) -> None:
     sidebar   = dash.get("sidebar", [])
     default   = dash.get("default", sidebar[0] if sidebar else "")
@@ -467,7 +485,7 @@ def _gen_zdash(
                 lines += _step(f"Assert_{_slug(panel)}", _zassert(assert_text, indent), indent=indent)
 
             _walk_block(panel_block, lines, workspace, panel_dir,
-                        zos, indent=indent, top_level=True, panel_name=panel)
+                        zos, indent=indent, top_level=True, panel_name=panel, ctx=ctx)
 
         # All nav menus (Name*) keep the terminal loop inside the panel until
         # the user picks zBack.  Add a zBack step before the next Dash_Pick.
@@ -492,6 +510,7 @@ def _gen_menu(
     top_level: bool,
     menu_items: set,
     panel_name: Optional[str] = None,
+    ctx: Optional[Dict[str, Any]] = None,
 ) -> None:
     label = re.sub(r"^[#~]+|[*]+$", "", key).strip("_")
     lines.append("")
@@ -512,7 +531,7 @@ def _gen_menu(
             if not top_level:
                 # Navigable sub-menu (non-zDash): generate pick steps for sub-items
                 _gen_submenu(submenu_key, block[submenu_key], block, lines, indent,
-                             step_prefix=step_prefix)
+                             step_prefix=step_prefix, ctx=ctx)
             else:
                 # zDash context — X* is a launcher that auto-executes; just picked.
                 # After the launcher, the app returns to the Dashboard Menu.
@@ -523,7 +542,8 @@ def _gen_menu(
                         _zpick(panel_name, indent), indent=indent,
                     )
         elif isinstance(action, dict):
-            action_needs_back = _gen_action(item, action, lines, indent, step_prefix=step_prefix, zos=zos)
+            action_needs_back = _gen_action(item, action, lines, indent,
+                                            step_prefix=step_prefix, zos=zos, ctx=ctx)
         else:
             action_needs_back = False
 
@@ -541,6 +561,7 @@ def _gen_submenu(
     lines: List[str],
     indent: int,
     step_prefix: str = "",
+    ctx: Optional[Dict[str, Any]] = None,
 ) -> None:
     label = key.rstrip("*")
     lines.append("")
@@ -551,7 +572,7 @@ def _gen_submenu(
         lines.append("")
         lines += _step(f"Pick_{step_prefix}{_slug(item)}", _zpick(item, indent), indent=indent)
         if isinstance(action, dict):
-            _gen_action(item, action, lines, indent, step_prefix=step_prefix)
+            _gen_action(item, action, lines, indent, step_prefix=step_prefix, ctx=ctx)
 
     lines += _step(f"Back_From_{step_prefix}{_slug(label)}_Sub", _zpick("zBack", indent), indent=indent)
 
@@ -567,22 +588,23 @@ def _wizard_has_zdelta(wizard: Dict[str, Any]) -> bool:
 
 
 def _gen_action(name: str, action: Dict[str, Any], lines: List[str], indent: int,
-                step_prefix: str = "", zos: Any = None) -> bool:
+                step_prefix: str = "", zos: Any = None,
+                ctx: Optional[Dict[str, Any]] = None) -> bool:
     """Generate test steps for an action.  Returns True when the action ends with
     zDelta (navigates to a sub-panel) so the caller can add a Back step."""
     if "zDialog" in action:
         dialog = action["zDialog"]
         if isinstance(dialog, dict):
             model_path = dialog.get("model") or action.get("model") or ""
-            _gen_dialog_wizard(
+            _gen_dialog_fill(
                 name, dialog.get("fields", []), lines, indent,
-                step_prefix=step_prefix, model_path=str(model_path), zos=zos,
+                step_prefix=step_prefix, model_path=str(model_path), zos=zos, ctx=ctx,
             )
         return False
 
     if "zWizard" in action:
         has_delta = _wizard_has_zdelta(action["zWizard"])
-        _gen_wizard(name, action["zWizard"], lines, indent, step_prefix=step_prefix)
+        _gen_wizard(name, action["zWizard"], lines, indent, step_prefix=step_prefix, ctx=ctx)
         return has_delta
 
     if "zData" in action:
@@ -614,57 +636,59 @@ def _gen_action(name: str, action: Dict[str, Any], lines: List[str], indent: int
     return False
 
 
-def _gen_dialog_wizard(name: str, fields: List[str], lines: List[str], indent: int,
-                       step_prefix: str = "", model_path: str = "", zos: Any = None) -> None:
+def _gen_dialog_fill(name: str, fields: List[str], lines: List[str], indent: int,
+                     step_prefix: str = "", model_path: str = "", zos: Any = None,
+                     ctx: Optional[Dict[str, Any]] = None) -> None:
+    """Emit one declarative zFill step for a dialog form — one line per field.
+
+    The CLI runner asserts each prompt mentions the field name, then submits
+    the value. Values resolve: hand-tuned (preserved) → schema → placeholder.
+    Mode is inferred from zFill (zCLI-only) — no wrapper emitted.
+    """
     p0 = "    " * indent          # step level
-    p1 = "    " * (indent + 1)    # zCLI:
-    p2 = "    " * (indent + 2)    # zWizard:
-    p3 = "    " * (indent + 3)    # Enter_field:
-    p4 = "    " * (indent + 4)    # zAssert: / zSubmit:
+    p1 = "    " * (indent + 1)    # zFill:
+    p2 = "    " * (indent + 2)    # field: value
 
     schema_vals = _schema_defaults(fields, model_path, zos)
+    step_key    = f"Fill_{step_prefix}{_slug(name)}_Form"
 
-    body = [f"{p0}Fill_{step_prefix}{_slug(name)}_Form:", f"{p1}zCLI:", f"{p2}zWizard:"]
+    body = [f"{p0}{step_key}:", f"{p1}zFill:"]
     for field in fields:
-        submit_val = schema_vals.get(field) or _field_default(field)
-        body += [
-            f"{p3}Enter_{_slug(field)}:",
-            f"{p4}zAssert:",
-            f"{p4}    contains: {field}",
-            f"{p4}zSubmit: {submit_val}",
-        ]
+        default = schema_vals.get(field) or _field_default(field)
+        body.append(f"{p2}{field}: {_preserved_value(ctx, step_key, field, default)}")
     lines += body
 
 
 def _gen_wizard(name: str, wizard: Dict[str, Any], lines: List[str], indent: int,
-                step_prefix: str = "") -> None:
+                step_prefix: str = "", ctx: Optional[Dict[str, Any]] = None) -> None:
     if not isinstance(wizard, dict):
         return
     p0 = "    " * indent
-    p1 = "    " * (indent + 1)   # zCLI:
-    p2 = "    " * (indent + 2)   # zWizard:
-    p3 = "    " * (indent + 3)   # step key
-    p4 = "    " * (indent + 4)   # zAssert: / zSubmit:
-    body = [f"{p0}Fill_{step_prefix}{_slug(name)}_Wizard:", f"{p1}zCLI:", f"{p2}zWizard:"]
+    p1 = "    " * (indent + 1)   # zWizard:
+    p2 = "    " * (indent + 2)   # step key
+    p3 = "    " * (indent + 3)   # zAssert: / zSubmit:
+    step_key = f"Fill_{step_prefix}{_slug(name)}_Wizard"
+    body = [f"{p0}{step_key}:", f"{p1}zWizard:"]
     user_steps: List[str] = []
-    for step_key, step_val in wizard.items():
+    for wstep_key, step_val in wizard.items():
         if not isinstance(step_val, dict):
             continue
         if "zBtn" in step_val:
-            btn_label = step_val["zBtn"].get("label", step_key)
+            btn_label = step_val["zBtn"].get("label", wstep_key)
             user_steps += [
-                f"{p3}{step_key}:",
-                f"{p4}zAssert:",
-                f"{p4}    contains: {str(btn_label)[:60]}",
-                f"{p4}zSubmit: y",
+                f"{p2}{wstep_key}:",
+                f"{p3}zAssert:",
+                f"{p3}    contains: {str(btn_label)[:60]}",
+                f"{p3}zSubmit: y",
             ]
         elif "zDialog" in step_val:
             for field in ((step_val["zDialog"] or {}).get("fields", [])):
+                value = _preserved_value(ctx, step_key, field, _field_default(field))
                 user_steps += [
-                    f"{p3}Enter_{_slug(field)}:",
-                    f"{p4}zAssert:",
-                    f"{p4}    contains: {field}",
-                    f"{p4}zSubmit: {_field_default(field)}",
+                    f"{p2}Enter_{_slug(field)}:",
+                    f"{p3}zAssert:",
+                    f"{p3}    contains: {field}",
+                    f"{p3}zSubmit: {value}",
                 ]
     if user_steps:
         lines += body + user_steps
@@ -689,7 +713,11 @@ def _root_class(block: Dict[str, Any]) -> str:
 
 
 def _bifrost_boot_steps(indent: int, wait_selector: str) -> List[str]:
-    """Emit zOpen (zSpark) + zWait steps for Bifrost before any browser interactions.
+    """Emit ONE compound zOpen (zSpark) + zWait step for Bifrost.
+
+    The runner executes compound-step primitives in _BIFROST_PRIMITIVE_ORDER
+    (zOpen before zWait), so open + readiness-wait fit in a single step.
+    Mode is inferred from the primitives — no zBifrost: wrapper needed.
 
     zOpen: zSpark resolves the live server URL at runtime (SSOT) — NEVER hardcode a
     port here. zRaven binds dedicated test ports (live app port + offset), so a
@@ -697,19 +725,15 @@ def _bifrost_boot_steps(indent: int, wait_selector: str) -> List[str]:
     net::ERR_CONNECTION_REFUSED.
     """
     p0 = "    " * indent
-    p1 = "    " * (indent + 1)   # zBifrost:
-    p2 = "    " * (indent + 2)   # zOpen: / zWait:
-    p3 = "    " * (indent + 3)   # selector:
+    p1 = "    " * (indent + 1)   # zOpen: / zWait:
+    p2 = "    " * (indent + 2)   # selector:
     return [
         f"{p0}Open_App:",
-        f"{p1}zBifrost:",
-        f"{p2}zOpen: zSpark",
-        f"{p0}Wait_Ready:",
-        f"{p1}zBifrost:",
-        f"{p2}zWait:",
-        f"{p3}selector: {wait_selector}",
-        f"{p3}state: visible",
-        f"{p3}timeout: 8000",
+        f"{p1}zOpen: zSpark",
+        f"{p1}zWait:",
+        f"{p2}selector: {wait_selector}",
+        f"{p2}state: visible",
+        f"{p2}timeout: 8000",
         "",
     ]
 
@@ -721,7 +745,7 @@ def _header_comment(version: str, filename: str,
         f"# Generated by:  z raven --gen",
         f"# Source:        {filename}",
         "# Re-run z raven --gen to regenerate structural tests.",
-        "# Hand-tuned zSubmit values are preserved across --gen for steps that still exist.",
+        "# Hand-tuned form values (zFill fields, zSubmit) are preserved across --gen.",
         "# The previous version is archived to zVersions/tests/ (replay: z raven --run --r N).",
     ]
     if shots:
@@ -740,7 +764,10 @@ def _parse_shot_header(text: str) -> List[str]:
 
 
 def _shot_steps(shots: List[str], indent: int, wait_selector: str) -> List[str]:
-    """Emit viewport → re-open → wait → full-page zShot per viewport (zBifrost).
+    """Emit ONE compound viewport → re-open → wait → full-page zShot step per
+    viewport (zBifrost). The runner executes compound-step primitives in
+    _BIFROST_PRIMITIVE_ORDER, which is exactly this sequence — so what used to
+    be four steps is one. Mode is inferred from the primitives (no wrapper).
 
     The re-open is essential: the bifrost client renders content for the viewport
     it loaded at, so a post-load resize does NOT re-render — the page goes blank
@@ -753,34 +780,25 @@ def _shot_steps(shots: List[str], indent: int, wait_selector: str) -> List[str]:
     when the last requested shot wasn't desktop.
     """
     p0 = "    " * indent
-    p1 = "    " * (indent + 1)   # zBifrost:
-    p2 = "    " * (indent + 2)   # zViewport: / zOpen: / zWait: / zShot:
-    p3 = "    " * (indent + 3)   # selector: / full_page:
+    p1 = "    " * (indent + 1)   # zViewport: / zOpen: / zWait: / zShot:
+    p2 = "    " * (indent + 2)   # selector: / full_page:
     out: List[str] = []
     for vp in shots:
         out.append("")
         out.append(f"{p0}# ── Screenshot: {vp} " + "─" * max(0, 45 - len(vp)))
-        out.append(f"{p0}Shot_{vp}_viewport:")
-        out.append(f"{p1}zBifrost:")
-        out.append(f"{p2}zViewport: {vp}")
-        out.append(f"{p0}Shot_{vp}_open:")
-        out.append(f"{p1}zBifrost:")
-        out.append(f"{p2}zOpen: zSpark")
-        out.append(f"{p0}Shot_{vp}_ready:")
-        out.append(f"{p1}zBifrost:")
-        out.append(f"{p2}zWait:")
-        out.append(f"{p3}selector: {wait_selector}")
-        out.append(f"{p3}state: visible")
-        out.append(f"{p3}timeout: 8000")
         out.append(f"{p0}Shot_{vp}:")
-        out.append(f"{p1}zBifrost:")
-        out.append(f"{p2}zShot:")
-        out.append(f"{p3}full_page: true")
+        out.append(f"{p1}zViewport: {vp}")
+        out.append(f"{p1}zOpen: zSpark")
+        out.append(f"{p1}zWait:")
+        out.append(f"{p2}selector: {wait_selector}")
+        out.append(f"{p2}state: visible")
+        out.append(f"{p2}timeout: 8000")
+        out.append(f"{p1}zShot:")
+        out.append(f"{p2}full_page: true")
     if shots and shots[-1] != "desktop":
         out.append("")
         out.append(f"{p0}Reset_Viewport_Desktop:")
-        out.append(f"{p1}zBifrost:")
-        out.append(f"{p2}zViewport: desktop")
+        out.append(f"{p1}zViewport: desktop")
     return out
 
 
@@ -794,10 +812,10 @@ def _zassert(text: str, indent: int = 1) -> str:
 
 
 def _zpick(item: str, indent: int = 1) -> str:
-    p1 = "    " * (indent + 1)   # zCLI:
-    p2 = "    " * (indent + 2)   # zMenu:
-    p3 = "    " * (indent + 3)   # zPick:
-    return f"\n{p1}zCLI:\n{p2}zMenu:\n{p3}zPick: {item}"
+    # Bare zPick — mode (zCLI) and container behavior are inferred by the
+    # runner from the primitive vocabulary; no zCLI:/zMenu: shell needed.
+    p1 = "    " * (indent + 1)
+    return f"\n{p1}zPick: {item}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -890,32 +908,21 @@ def _load_panel(panel_dir: Path, panel_name: str, zos: Any) -> Optional[Dict[str
     return None
 
 
-def _panel_label(panel_dir: Path, panel_name: str, zos: Any) -> Optional[str]:
-    parsed = _load_panel(panel_dir, panel_name, zos)
-    if not parsed:
-        return None
-    block = parsed.get(panel_name, {}) or {}
-    if not isinstance(block, dict):
-        return None
-    zh2 = block.get("zH2", {})
-    return zh2.get("label") if isinstance(zh2, dict) else None
-
-
 def _collect_zlogger_steps(block: Dict[str, Any], indent: int = 1) -> List[str]:
-    """Scan a UI block (recursively) for ^Button entries with zLogger and emit zBifrost: steps.
+    """Scan a UI block (recursively) for ^Button entries with zLogger.
 
     Emits per button:
-        Click_<name>:
-            zBifrost:
-                zClick: <name>
+        Click_<name>:               # bare zClick — Bifrost mode inferred
+            zClick:
+                selector: ...
         Assert_Log_<name>:
-            zBifrost:
-                zLogger: <message>
+            zBifrost:               # wrapper REQUIRED: zLogger alone is shared
+                zLogger: <message>  # vocabulary — this scopes it to Bifrost
     """
     lines: List[str] = []
     p0 = "    " * indent
-    p1 = "    " * (indent + 1)   # zBifrost:
-    p2 = "    " * (indent + 2)   # zClick: / zLogger:
+    p1 = "    " * (indent + 1)   # zClick: / zBifrost:
+    p2 = "    " * (indent + 2)   # selector: / zLogger:
     for key, value in block.items():
         if not isinstance(value, dict):
             continue
@@ -926,9 +933,8 @@ def _collect_zlogger_steps(block: Dict[str, Any], indent: int = 1) -> List[str]:
             btn_name = key.lstrip("^")
             slug     = _slug(btn_name)
             lines.append(f"{p0}Click_{slug}:")
-            lines.append(f"{p1}zBifrost:")
-            lines.append(f"{p2}zClick:")
-            lines.append(f"{p2}    selector: \"[data-key='{btn_name}']\"")
+            lines.append(f"{p1}zClick:")
+            lines.append(f"{p1}    selector: \"[data-key='{btn_name}']\"")
 
             lines.append(f"{p0}Assert_Log_{slug}:")
             lines.append(f"{p1}zBifrost:")
@@ -946,15 +952,6 @@ def _collect_zlogger_steps(block: Dict[str, Any], indent: int = 1) -> List[str]:
             # Structural container — recurse
             lines += _collect_zlogger_steps(value, indent=indent)
     return lines
-
-
-def _derive_raven_name_from_spark(spark: dict, va_file: str) -> str:
-    """
-    Derive raven file name from spark config when zRaven key is absent.
-    Both zCLI and zBifrost sparks default to the same stem so they share
-    one unified zRaven file (mode dispatch is at the step level via zCLI:/zBifrost: keys).
-    """
-    return va_file.replace("zUI.", "").replace("zUI_", "")
 
 
 def _resolve_at(path_str: str, workspace: Path) -> Path:
@@ -996,6 +993,7 @@ def _slug(name: str) -> str:
 
 def _archive_current_raven(
     active_path: Path,
+    active_text: str,
     raven_name: str,
     ui_version: str,
     workspace: Path,
@@ -1004,17 +1002,23 @@ def _archive_current_raven(
     Archive the active raven file as a versioned snapshot before overwriting.
 
     Naming:  {workspace}/zVersions/tests/zRaven.{name}[{ui_ver}]_r{N}.zolo
-             (kept in sync with raven_command._resolve_raven_target for --run --r N)
+             (kept in sync with raven_command._resolve_raven_for_run for --run --r N)
+
+    When the active file is byte-identical to the last archive, no new rN is
+    written (no archive churn on repeated --gen with no edits).
 
     Returns
     -------
     (archived_path, raven_version, has_manual_edits)
-        archived_path    : Path of the new archive, or None if nothing to archive
-        raven_version    : the rN number used for the archive
+        archived_path    : Path of the new archive, or None when nothing was
+                           written (no active file, or unchanged since last rN)
+        raven_version    : the rN used — the existing rN when skipped, else the new one
         has_manual_edits : True if active file differs from the previous archive
     """
     if not active_path.exists():
         return None, 0, False
+    if not active_text:
+        active_text = active_path.read_text(encoding="utf-8")
 
     ver_dir = workspace / "zVersions" / "tests"
     ver_dir.mkdir(parents=True, exist_ok=True)
@@ -1027,6 +1031,7 @@ def _archive_current_raven(
         if p.name.startswith(prefix) and p.name.endswith(".zolo")
     )
     next_r    = 1
+    last_r    = 0
     last_path: Optional[Path] = None
 
     if existing:
@@ -1036,19 +1041,19 @@ def _archive_current_raven(
             if m:
                 nums.append((int(m.group(1)), p))
         if nums:
-            _, last_path = max(nums, key=lambda x: x[0])
-            next_r = max(n for n, _ in nums) + 1
+            last_r, last_path = max(nums, key=lambda x: x[0])
+            next_r = last_r + 1
 
     # Drift: does the active file differ from the last archive?
     has_manual_edits = False
     if last_path and last_path.exists():
-        has_manual_edits = (
-            active_path.read_text(encoding="utf-8")
-            != last_path.read_text(encoding="utf-8")
-        )
+        if active_text == last_path.read_text(encoding="utf-8"):
+            # Byte-identical — the last archive already IS this content.
+            return None, last_r, False
+        has_manual_edits = True
 
     archived = ver_dir / f"zRaven.{raven_name}[{ui_version}]_r{next_r}.zolo"
-    archived.write_text(active_path.read_text(encoding="utf-8"), encoding="utf-8")
+    archived.write_text(active_text, encoding="utf-8")
     return archived, next_r, has_manual_edits
 
 
@@ -1057,9 +1062,10 @@ def archive_raven(
     ui_version: str,
     workspace: Path,
 ) -> Tuple[Optional[Path], int, bool]:
-    """Public convenience wrapper used by raven_command --gen."""
+    """Public convenience wrapper — archives the active raven for an app."""
     active = workspace / "zRaven" / f"zRaven.{raven_name}.zolo"
-    return _archive_current_raven(active, raven_name, ui_version, workspace)
+    text   = active.read_text(encoding="utf-8") if active.exists() else ""
+    return _archive_current_raven(active, text, raven_name, ui_version, workspace)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
