@@ -188,9 +188,13 @@ class HTTPRouter:
 
             self.logger.debug(f"[Router] Auto-discovering blocks for {route_path} from {zVaFolder}/{zVaFile}")
 
-            # Resolve zPath notation (@.zViews → zViews/) via the grammar SSOT.
+            # Resolve zPath notation via the grammar SSOT. Dots are SEGMENTS:
+            # @.zViews.zAccount → zViews/zAccount (multi-segment folders were
+            # previously left as "zViews.zAccount" → walk of a nonexistent dir
+            # → 0 discovered routes for any nested zVaFolder).
             if zVaFolder and zVaFolder.startswith(zpath.SIGIL_WORKSPACE):
-                zVaFolder_resolved = zpath.strip_symbol(zVaFolder)
+                segments = zpath.split(zVaFolder).segments
+                zVaFolder_resolved = os.path.join(*segments) if segments else ''
             elif not zVaFolder:
                 zVaFolder_resolved = ''  # Default to empty (root level)
             else:

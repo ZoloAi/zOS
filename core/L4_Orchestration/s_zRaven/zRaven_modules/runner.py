@@ -276,7 +276,11 @@ class ZRavenRunner:
         routes_table: dict = {}
         try:
             router = self._zos.server.route_manager.get_router()
-            routes_table = (getattr(router, "routes", {}) or {}).get("routes", {}) or {}
+            # Explicit routes + auto-discovered page routes (folder = URL) —
+            # zOpen: <zPath> must resolve discovered pages too, not just the
+            # handful declared in zServer.routes.zolo.
+            routes_table = dict(getattr(router, "route_map", {}) or {})
+            routes_table.update(getattr(router, "auto_discovered_routes", {}) or {})
         except Exception:  # pylint: disable=broad-except
             self._logger.debug(f"{_LOG_PREFIX} Route table unavailable for zOpen resolution")
 

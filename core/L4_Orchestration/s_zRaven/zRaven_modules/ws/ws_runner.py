@@ -380,6 +380,22 @@ class ZRaven(BaseStepRunner):
             value = value[0] if value else ""
         return zpath.strip_symbol(str(value or ""))
 
+    @staticmethod
+    def _view_stem(value: Any) -> str:
+        """Normalize a page reference to its zUI file stem for route matching.
+
+        '@.zViews.zAccount.zUI.Login'        → 'zUI.Login'
+        '@.zViews.zAccount.zUI.Login.Login'  → 'zUI.Login'   (trailing block ignored)
+        'zUI.Login'                          → 'zUI.Login'   (route-table zVaFile)
+        """
+        if isinstance(value, (list, tuple)):
+            value = value[0] if value else ""
+        segs = zpath.split(str(value or "")).segments
+        for i, seg in enumerate(segs):
+            if seg == "zUI" and i + 1 < len(segs):
+                return f"zUI.{segs[i + 1]}"
+        return ".".join(segs)
+
     def _url_from_descriptor(self, cfg: dict) -> str:
         """Resolve a structured zOpen descriptor → URL path, using the live route
         table (SSOT). Mirrors zServer route grammar:
@@ -401,7 +417,7 @@ class ZRaven(BaseStepRunner):
             return "/"
 
         want_inja = self._zpath_tail(cfg.get("zLoom")) if cfg.get("zLoom") else ""
-        want_view = self._zpath_tail(cfg.get("zUI") or cfg.get("zVaFile"))
+        want_view = self._view_stem(cfg.get("zUI") or cfg.get("zVaFile"))
         match_path = None
         for path, rc in routes.items():
             if not isinstance(rc, dict):
@@ -409,7 +425,7 @@ class ZRaven(BaseStepRunner):
             if want_inja and self._zpath_tail(rc.get("zLoom")) == want_inja:
                 match_path = path
                 break
-            if want_view and self._zpath_tail(rc.get("zVaFile") or rc.get("zUI")) == want_view:
+            if want_view and self._view_stem(rc.get("zVaFile") or rc.get("zUI")) == want_view:
                 match_path = path
                 break
         if match_path is None:
@@ -460,15 +476,24 @@ class ZRaven(BaseStepRunner):
         except Exception:
             pass  # page has no dialogs/inputs — continue gracefully
 
-        # ── Diagnostic console log ────────────────────────────────────────────
+        # ── Diagnostic console log + content gate ─────────────────────────────
+        diag = None
         try:
-            diag = await self._page.evaluate("""() => ({
-                zbaseLink:      !!document.querySelector('link[href*="zbase.css"]'),
-                zCanvas:        !!document.querySelector('link[href*="zCanvas.css"]'),
-                dashContainer:  !!document.querySelector('.zDash-container'),
-                contentVisible: !!document.querySelector('input[name], [data-dialog-id], .zDash-container'),
-                viewport:       `${window.innerWidth}x${window.innerHeight}`,
-            })""")
+            diag = await self._page.evaluate("""() => {
+                const vaf    = document.querySelector('zVaF');
+                const denial = Array.from(document.querySelectorAll('.zAlert-heading'))
+                    .some(el => /access denied/i.test(el.textContent || ''));
+                return {
+                    zbaseLink:      !!document.querySelector('link[href*="zbase.css"]'),
+                    zCanvas:        !!document.querySelector('link[href*="zCanvas.css"]'),
+                    dashContainer:  !!document.querySelector('.zDash-container'),
+                    contentVisible: !!document.querySelector('input[name], [data-dialog-id], .zDash-container'),
+                    vafChildren:    vaf ? vaf.children.length : -1,
+                    vafText:        vaf ? (vaf.innerText || '').trim().length : 0,
+                    rbacDenied:     denial,
+                    viewport:       `${window.innerWidth}x${window.innerHeight}`,
+                };
+            }""")
             parts = [f"viewport={diag['viewport']}"]
             if not diag['zbaseLink']:  parts.append("⚠ zbase.css link missing")
             if not diag['zCanvas']:    parts.append("⚠ zCanvas.css missing")
@@ -478,6 +503,39 @@ class ZRaven(BaseStepRunner):
         except Exception:
             pass
 
+        # ── Green-run honesty gate ────────────────────────────────────────────
+        # A page that rendered an RBAC denial, or rendered NOTHING at all, must
+        # fail the zOpen step — a screenshot of a blank/denied page is a false
+        # positive. Opt out per-step (zOpen: {…, allow_empty: true}) or globally
+        # (zRavenOptions.allow_empty_page: true) for intentionally bare pages.
+        if diag:
+            allow_empty = bool(
+                (isinstance(route, dict) and route.get("allow_empty"))
+                or self._raven_opts.get("allow_empty_page")
+            )
+            if diag["rbacDenied"]:
+                reason = (f"zOpen {url} → page rendered an RBAC 'Access Denied' alert. "
+                          f"Authenticate first (login steps before this zOpen) or open a public route.")
+                info(f"✗ {reason}")
+                self._last_response = {"event": "open_denied", "error": reason, "url": url}
+                return False
+            page_empty = (
+                not diag["contentVisible"]
+                and diag["vafChildren"] == 0
+                and diag["vafText"] == 0
+            )
+            if page_empty and not allow_empty:
+                reason = (f"zOpen {url} → page rendered no content "
+                          f"(likely RBAC/auth denial or a broken route). "
+                          f"Set allow_empty: true on this zOpen if a bare page is expected.")
+                info(f"✗ {reason}")
+                self._last_response = {"event": "open_empty", "error": reason, "url": url}
+                return False
+            # Redirect drift is informational — a login bounce lands elsewhere.
+            final_path = self._page.url.replace(base, "", 1) or "/"
+            wanted_path = url.replace(base, "", 1) or "/"
+            if final_path.split("?")[0] != wanted_path.split("?")[0]:
+                info(f"  ⚠ redirected: requested {wanted_path} but landed on {final_path}")
 
         self._last_response = {"event": "page_loaded", "url": url}
         return True
