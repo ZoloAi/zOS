@@ -1,0 +1,22 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  zGuard is CLOSED SOURCE.  This directory is the BINARY IMAGE ONLY.
+# ───────────────────────────────────────────────────────────────────────────
+#  Track ONLY the compiled artifacts (.so / .pyd) + package markers
+#  (__init__.py re-export shims, no logic). NEVER track zGuard .py SOURCE here —
+#  that is a closed-source LEAK into the public zOS-OpenCore repo.
+#
+#  zAgent — the image is produced by `zhrsc export` from the private zGuard repo.
+#  Edit zGuard logic THERE, export, then `z patch`. If a non-__init__ .py shows
+#  up under zguard/ here, it is a mistake — do NOT `git add -f` past this rule.
+#  Missing image at runtime → zOS falls back to a local zhrsc install.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Ignore ALL source by default...
+*.py
+
+# ...except package markers (required so the binary package imports cleanly).
+!__init__.py
+
+# The compiled binary image IS tracked (override any parent rules).
+!*.so
+!*.pyd

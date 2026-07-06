@@ -1,0 +1,103 @@
+zData advanced: when one table + one filter aren't enough | shape + combine what comes back, at scale, atomically | still DESCRIBED — no query language, no plumbing — same on csv/sqlite/postgres | builds on the CRUD actions (read/insert/update/delete), not a new grammar
+
+queries: harder questions — across tables, summarized, ranked, in steps
+    every advanced read is still `action: read` (or `aggregate`/`window`/`set`) with more keys — no SQL, no second dialect; result → zTable
+
+filters_deep: the full zFilters dialect (Read leaf gave a taste)
+    string — `age zBETWEEN 30 zAND 35 zAND score > 88` · presence `zKNOWN`/`zNULL` · parens for precedence `(country = USA zOR country = Ireland) zAND score > 85`
+    dict   — each field a line, every line an AND: zAbove · zBelow · zIs · zIN: [..] · zBetween: [a,b] · zNull · zKnown · zIncludes · zStarts · zEnds
+    ex     — `zFilters: {age: {zBetween: [25,40]}, country: {zIN: [Italy, USA]}, occupation: {zIncludes: eng}}`
+
+joins: stitch related rows into one result
+    manual — `tables: [users, orders]` + `joins: [{type: INNER, table: orders, on: users.id = orders.user_id}]`
+    types  — INNER (both) · LEFT (all left, null-fill) · RIGHT · FULL · CROSS (every combo)
+    columns— after join each carries its table name → filter by qualified `table.column` (csv + sql both resolve the dotted key)
+    auto   — `auto_join: true` reads the FK from schema (defaults LEFT); `auto_join: left|right|inner|full` names a type, no `on:`
+
+aggregate: many rows → one answer — `action: aggregate`
+    function — count · count_distinct · sum · avg · min · max · median · stddev · variance · group_concat (string_agg); non-count takes `field:`
+    group_by — `<field>` (one per group) · `[country, occupation]` (per combination) · `alias:` names the computed column
+    filter   — `having: total > 1` (by aggregate) · `where: <expr>` (which rows count) · `distinct: true`
+
+window: an answer per row, keep every row — `action: window`
+    rank/offset — row_number · rank · dense_rank · percent_rank · cume_dist · ntile (+buckets: 4) · lag/lead (+field:, offset: 1)
+    value/agg OVER — first_value · last_value · nth_value · avg/sum/count/min/max (running with order_by)
+    scope — partition_by: (within group) · order_by: score DESC · alias: (new column) · frame: ROWS BETWEEN 2 PRECEDING AND CURRENT ROW (UNBOUNDED/n FOLLOWING work)
+
+subquery: nest a `zData` inside `where` — one query answers another
+    IN     — `where: {country: {zData: {action: read, ..., where: score > 90, distinct: true}}}` (inner runs first)
+    NOT IN — add `zNot: true` beside the nested zData
+    scalar — `where: {score: {$gt: {zData: {action: aggregate, function: avg, field: score}}}}`
+    correlated — `%outer.<field>` inside inner (above THEIR OWN country avg: `where: country = %outer.country`)
+    presence — `where: {zExists: {zData: {...}}}` (has a match) · `zNotExists` (empty) — `where: user_id = %outer.id`
+
+cte: a big question as a stack of named steps
+    `with: {high_scorers: {model, fields, where}}` then `from: high_scorers`
+    chained — a later step reads `from:` an earlier one (high_scorers → top_5)
+    recursive — self-referential walk (org chart/tree): `with: {org: {recursive: true, anchor: {table: members, where: {id: 1}}, step: {table: members}, link: {parent: id, child: manager_id}}}`
+
+set: stack two whole result sets — `action: set`
+    type — union (merge+dedupe) · union_all (keep copies) · intersect (in both) · except (first minus second)
+    `queries: {q1: {model, where, fields}, q2: {...}}` — rule: every query shows the SAME columns via `fields:`
+
+search: a ranked search box over rows
+    `search: italy engineer` + `search_fields: [name, country, occupation]` + `search_mode: any | all | phrase`
+    zOS tokenizes+scores, best first; surface rank with the `_score` field in `fields:`
+
+advanced_writes: batches, returns, referential rules — same declared style + validation as CRUD
+
+returning: any write hands back the rows it touched
+    `returning: true` (all) | `[id, name, score]` (subset) — insert → new row (auto-id) · update → post-write rows · delete → snapshot taken BEFORE removal (ids captured before write, safe even when the changed field is in `where:`)
+
+insert_select: seed a table from a read — no manual entry
+    `select:` on `action: insert` → `select: {model, where, fields}`; reads source, auto-projects to target schema, runs each row through the full insert pipeline, one pass
+
+upsert: insert-or-update per row — `action: upsert`
+    `conflict_fields: [...]` (or `conflict_key:`) decides the match; pairs with a list (bulk) + `returning:`
+
+update_advanced: more than a flat value in `set:`
+    zCase — per-row, first match: `set: {role: {zCase: [{when: score zABOVE 8, then: admin}, {when: score zABOVE 5, then: editor}], else: viewer}}` (when speaks zFilters; no else → unmatched keep value)
+    computed — `{$inc: n}` · `{$dec: n}` · `{$mul: n}` · `{$div: n}` · `{zExpr: price * qty}` (math over the row's own columns, never code)
+    cross-table — `from: {model, on: a.x = b.y}` then reach with `%table.field`; inner-join (no partner → untouched); `%row.field` = the row being written
+    hooks — onBeforeUpdate/onAfterUpdate: &.func · re-validates unique, guards immutable, applies transform on edit
+
+delete_advanced: remove by relationship, not just id
+    on_delete — deleting a parent checks every child `fk:` field: cascade (children first) · restrict (block while children exist) · set_null/set_default (re-point); multi-hop recurses the fk chain
+    soft — `soft_delete: true` routes `action: delete` to stamp `deleted_at` (same call site, no data lost)
+    subquery — `where: {user_id: {zData: {action: read, ..., where: active = false}}}`
+    cross-table — `using: {model, on, where}` (delete from A by a match in B)
+    time purge — `where: joined_date zBELOW zNow()` · capture with `returning: true`
+
+bulk: many rows in one call — no loop
+    insert — `data:` a LIST OF DICTS switches to bulk; every row validates, batch aborts as a whole if any fails
+    upsert — `action: upsert` + `conflict_key:` + a list (+ `returning:`)
+    update — `where: id zIN (1,3)` or `where: <expr>` — SAME value across the set (per-row = zCase)
+    delete — `where: id zIN (...)`; no where → clears every row (id counter keeps climbing); `action: truncate` empties AND resets id to 1 (blocked while a table points at it — clear children first)
+    ui_selection — a `zWizard` `zSelect` `multi: true` returns ticked values as a LIST kept as `zHat[Select]`; next step spends `where: {id: zHat[Select]}` (bare `zHat` keeps type → one `IN (…)`, one write)
+
+transactions: many STEPS as one — commit all, or nothing
+    home — on a `zWizard`: `_transaction: true` → every `zData` across steps shares ONE connection
+    $alias — bind each model dollar-prefixed (`model: $orders`) to keep it on the shared connection; a `@.models…` path opens a fresh AUTO-COMMIT connection per step (a later failure can't undo earlier writes)
+    cross-step — `zHat[StepName]` carries an earlier step's value (a fresh id from `returning:`) into a later `where:`/`data:`
+    lifecycle — no manual commit/rollback: reach the final step cleanly → commit · any step fails/aborts → rewind
+    acid — sqlite+postgres: true atomic ACID · csv: best-effort snapshot restore (same visible outcome)
+    savepoints — mark an OPTIONAL step's zData `_savepoint: true` → on fail rewinds ONLY that step, wizard continues (native SAVEPOINT/RELEASE/ROLLBACK TO on sql, snapshot on csv)
+    alpha — under zServer/zBifrost schemas load at boot so `$<table>` resolves; a bare zCLI run with no server can't resolve a cold `$<table>` → transaction quietly no-ops
+    !scope — isolation/row-locking (SERIALIZABLE, FOR UPDATE) + distributed/2PC — single-connection, one writer — not goals
+
+backends: one schema, three interchangeable stores — swap the store, keep every declaration
+    pick — `Data_Type` in `zMeta`, resolved from a registry at load; shared `type_mapping` makes uuid/json/datetime mean the same everywhere
+        csv — flat files, demos/tiny, zero setup, best-effort ACID, live introspection (reads headers)
+        sqlite — single-file DB, local/dev→prod, full ACID
+        postgresql — networked DB, multi-node/concurrent/production, full ACID
+    connection — `Data_Path` = the store dir for csv/sqlite; networked keeps creds in `.zEnv` via `Data_Source` (never hard-coded), zServer reads the URL at boot
+    ddl (structural, shown as syntax) —
+        `action: create` (from schema; skips existing; `tables: []` builds ALL — first-run bootstrap) · `action: drop` (table + data)
+        `action: head` (declared shape) · `action: list_tables` (SHOW TABLES / \dt) — pure introspection · `action: truncate` (wipe + reset id)
+    indexes — declared `indexes: [status]` or `[{fields: [team_id, role], unique: true, name: uq_...}]`, built at create (real CREATE INDEX on sql, no-op csv)
+        later on existing table — `action: index` / `action: drop_index` with the same field/dict `index:` spec (idempotent, IF [NOT] EXISTS)
+    views — a named saved read: a schema entry carries `view:` instead of `fields:`; read the NAME, zData swaps in the saved read (no CREATE VIEW dialect)
+        virtual (default) — re-resolved every read, always live: `active_admins: {view: {tables: [members], where: {role: admin}, fields: [name, role]}}`
+        materialized — `view: {materialized: true, into: admin_cache, tables, where, fields}` stores rows; `action: refresh` recomputes (fast read, stale until refresh)
+        read like any read (`table:`/`model:` at its name); extra `where:` AND-merges with the view's filter; read-only (writes refused), nests recursively (depth cap + cycle guard)
+    evolution — add/drop/rename column, ALTER in place, change backend → migrations (zData CRUD › migrations)

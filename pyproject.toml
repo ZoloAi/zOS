@@ -1,0 +1,202 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zolo-os"
+version = "1.6.7"
+description = "Zolo Operating System - A full-stack application framework with declarative configuration, layered architecture, and rich subsystems"
+authors = [
+    {name = "Gal Nachshon", email = "gal@zolo.media"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Shells",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Environment :: Console",
+]
+keywords = ["cli", "framework", "yaml", "interactive", "shell", "declarative", "configuration", "menu-driven", "plugin-system", "session-management"]
+dependencies = [
+    "zolo-lsp>=1.1.1",
+    "PyYAML>=6.0",
+    "websockets>=15.0",
+    "requests>=2.32",
+    "platformdirs>=4.0",
+    "python-dotenv>=1.0",
+    "bcrypt>=4.0",
+    "boto3>=1.28.0",
+    "Pygments>=2.17",
+    "jinja2>=3.0",
+    "pandas>=2.0",
+    "playwright>=1.40",
+    # zServer production runner (Axis B):
+    #   waitress — cross-platform, single-process WSGI server (pure-Python, every OS).
+    # The 'dev' runner needs nothing. Multi-process prefork servers (e.g. gunicorn)
+    # are intentionally unsupported: each fork would boot a competing Bifrost WS
+    # bridge. Scale zBifrost horizontally (N instances + sticky LB), not by forking.
+    "waitress>=3.0",
+]
+
+[project.optional-dependencies]
+# zOS desktop webview mode (platform-native: PyObjC/macOS, pygtk/Linux, pythonnet/Windows)
+webview = [
+    "pywebview>=5.0",
+]
+postgresql = [
+    "psycopg2-binary>=2.9",
+]
+monitoring = [
+    "prometheus_client>=0.20",
+]
+all = [
+    "pywebview>=5.0",
+    "psycopg2-binary>=2.9",
+    "prometheus_client>=0.20",
+]
+
+[project.scripts]
+zolo = "zOS.main:main"
+z = "zOS.main:main"
+zraven = "zOS.L4_Orchestration.s_zRaven.entry:main"
+zagents = "zOS.zAgents.agents_cli:main"
+
+[project.urls]
+Homepage = "https://zolo.media"
+Documentation = "https://github.com/ZoloAi/zOS#readme"
+Repository = "https://github.com/ZoloAi/zOS"
+"Bug Tracker" = "https://github.com/ZoloAi/zOS/issues"
+
+[tool.setuptools]
+# packages and package-dir are computed dynamically in setup.py
+# to capture the full zOS subpackage tree (117 packages under core/)
+
+[tool.setuptools.package-data]
+# Include non-Python files in packages
+zTestSuite = [
+    "demos/*.yaml",
+    "demos/*.py",
+    "demos/*.md",
+    "*.md",
+]
+zTestRunner = [
+    "*.yaml",
+    "*.md",
+    "*.sh",
+]
+zOS = [
+    "subsystems/*/zOS_modules/*.yaml",
+    "utils/*.md",
+    "UI/*.yaml",
+]
+"zOS.zAgents" = [
+    "src/*.md",
+    "generated/*.md",
+    "generated/claude/*.md",
+    "generated/claude/zolo/*.md",
+    "generated/cursor/*.mdc",
+    "mdc_backup/*.mdc",
+    "*.md",
+]
+
+[tool.uv]
+# uv configuration for modern Python package management
+# See: https://docs.astral.sh/uv/
+
+# Prefer Python 3.11+ for best performance and features
+python-preference = "managed"  # Let uv manage Python installations
+
+[dependency-groups]
+# Development dependencies (new uv format)
+# Replaces deprecated [tool.uv.dev-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pylint>=2.0",
+    # zguard: private closed-core runtime (zEngine + zBifrost) — NOT on PyPI.
+    # In production, a compiled .so binary wheel is installed separately.
+    # In development: pip install -e ~/Projects/ZoloMedia/zGuard
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tooling config — consolidated from the former root-level mypy.ini + .pylintrc
+# so the repo root keeps ONE config source of truth. Both tools read these
+# tables from pyproject.toml automatically (no --config-file needed).
+# ─────────────────────────────────────────────────────────────────────────────
+
+[tool.mypy]
+python_version = "3.9"           # matches requires-python floor (was a stale 3.8)
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false    # start lenient; tighten gradually
+check_untyped_defs = true
+ignore_missing_imports = true    # global: skip missing 3rd-party stubs
+
+[tool.pylint.main]
+init-hook = "import sys; sys.path.append('.')"
+ignore = ["CVS", "venv", ".venv", "__pycache__", ".git", "dist", "build"]
+ignore-patterns = ["^.*\\.egg-info$"]
+jobs = 1
+
+[tool.pylint."messages control"]
+# Disabled to fit zolo conventions (z-prefix naming, many subsystems, etc.)
+disable = [
+    "invalid-name",
+    "too-few-public-methods",
+    "too-many-instance-attributes",
+    "too-many-arguments",
+    "too-many-positional-arguments",
+    "too-many-locals",
+    "import-outside-toplevel",
+    "unnecessary-lambda",
+    "unnecessary-pass",
+]
+
+[tool.pylint.basic]
+# Allow snake_case OR z-prefix (zCLI, zData, zSession, …)
+module-rgx = "^(([a-z_][a-zA-Z0-9_]*)|z[A-Z][A-Za-z0-9]*)$"
+class-rgx = "^(([A-Z][a-zA-Z0-9]+)|z[A-Z][A-Za-z0-9]*)$"
+const-rgx = "^(([A-Z_][A-Z0-9_]*)|(__.*__)|z[A-Z][A-Za-z0-9]*)$"
+function-rgx = "^(([a-z_][a-z0-9_]*)|z[A-Z][A-Za-z0-9]*)$"
+variable-rgx = "^(([a-z_][a-z0-9_]*)|z[A-Z][A-Za-z0-9]*)$"
+attr-rgx = "^(([a-z_][a-z0-9_]*)|z[A-Z][A-Za-z0-9]*)$"
+argument-rgx = "^(([a-z_][a-z0-9_]*)|z[A-Z][A-Za-z0-9]*)$"
+good-names = ["i", "j", "k", "ex", "e", "_", "id", "pk", "fk", "db", "cur", "conn", "df", "zS", "zPath", "zVaFile", "zBlock", "zKey", "zHat", "zMode", "zSpark", "zRequest", "zForm", "zData", "zCRUD"]
+
+[tool.pylint.format]
+max-line-length = 120
+max-module-lines = 1500
+
+[tool.pylint.design]
+max-args = 10
+max-attributes = 15
+max-public-methods = 25
+
+[tool.pylint.imports]
+allow-wildcard-with-all = true
+
+[tool.pylint.similarities]
+min-similarity-lines = 8
+
+[tool.pylint.typecheck]
+ignored-modules = ["zOS"]   # centralized re-exports in __init__ confuse inference
+
+[tool.pylint.variables]
+init-import = false
+
+[tool.pylint.classes]
+defining-attr-methods = ["__init__", "__new__", "setUp"]
+
+[tool.pylint.exceptions]
+overgeneral-exceptions = ["builtins.BaseException", "builtins.Exception"]
+

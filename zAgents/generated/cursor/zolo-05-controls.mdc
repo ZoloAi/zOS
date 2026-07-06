@@ -1,0 +1,67 @@
+---
+description: zControls — zBtn / zSelect / zCheckbox: press, pick, tick (a control takes the action; a container acts on it)
+globs: **/zUI.*.zolo
+alwaysApply: false
+---
+zControls: three controls, one choice each | where an input TYPES, a control CHOOSES — press · pick · tick | write it once -> a prompt in zCLI, a real control in zBifrost | a control only TAKES the press — a container decides what happens
+
+the_three: pick the control that fits the choice
+    zBtn      — press to DO a thing (save, delete, deploy)
+    zSelect   — pick from a list (dropdown · radio · multi)
+    zCheckbox — a box to tick (a plain yes / no)
+    rule: a thing happens -> zBtn | one of a known few -> zSelect | true/false -> zCheckbox
+
+zbtn: a button does a thing
+    shorthand: zBtn: Save Changes — the words after the colon become the label
+    longhand: zBtn: { label, action, color, type, _zClass }
+        label  — icon-aware: a bi-* name shows a Bootstrap Icon, alone or beside text (bi-gear Settings | Delete bi-trash)
+        action — the &. call fired on CLICK (see zFunc) — we don't teach actions here, just that the key exists
+        color  — semantic fill: primary · secondary · success · danger · warning · info
+    no_action: a zBtn with no action still returns a value — true on click (Bifrost) / y (terminal) — enough to gate a step
+    submit_reset: type: submit / reset are CONTAINER-only — meaningless on a lone button (nothing to submit/reset)
+        they live where a container owns them — Forms / zWizard
+    terminal: a button is just a y / yes confirm
+
+zselect: one choice in three shapes
+    options — the list to pick from | default — the value(s) pre-selected (a LIST when multi)
+    shapes:
+        dropdown (default) — tucked behind a click in Bifrost
+        type: radio        — every option laid out in the open
+        multi: true        — pick more than one; hands back a LIST
+    inline_flags: tag an option right in the list, no extra keys
+        [default] pre-selects it | [disabled] greys it out, out of reach — options: [Free, Pro [default], Enterprise [disabled]]
+    terminal: every shape reads the same — a numbered menu (multi just lets you pick more than one)
+    rule: dropdown vs radio is purely a Bifrost look; the answer is the same either way
+
+zcheckbox: the simplest control — yes or no
+    shorthand: zCheckbox: { prompt } — the question beside the box
+    shape_it:
+        checked  — start it ticked (default off)
+        required — must be checked to pass (enforced on the container's SUBMIT, not at render)
+        disabled — shown but locked; in a wizard it resolves instantly with its checked value, no click
+        prompt / label — the words beside the box (label wins if both set)
+    vs_zbtn: a checkbox is a VALUE (stores true/false that flows on) | a zBtn is an ACTION trigger (makes something happen)
+        rule: something is SET -> zCheckbox | something HAPPENS -> zBtn
+    terminal: a (y/n) prompt
+
+who_submits: a control does NOT decide what's next
+    on its own a control just TAKES the press — no submit appears by itself
+    a zBtn can carry its own action; a pick or a tick is handed to the box around it — zDialog (one screen) / zWizard (step by step) -> Forms
+    rule: validation / required enforce on the container's submit, never at control render
+
+make_it_yours: two levers, same as everywhere
+    _zClass on one control -> a one-off skin (your brush) | override a canonical class in CSS -> every control at once
+    canonical_classes: written by Bifrost (zbase) — never add by hand
+        button -> .zBtn (the button) · .zBtn-primary … .zBtn-info (per color) · .zBtn-outline-* / -pill / -sm / -lg (modifiers)
+        choice -> .zSelect (dropdown/multi box) · .zLabel (prompt) · .zForm-check-group (radio set) · .zForm-check (one row) · .zForm-check-input (the dot) · .zForm-check-label (option text)
+        check  -> .zForm-check (the row) · .zForm-check-input (the box) · .zForm-check-label (the words) · .zForm-check-disabled (a locked row)
+    where_zClass_lands: not the same per control — scope your selector to match
+        zBtn      — adds to the button's class list (your class sits alongside .zBtn)
+        zSelect   — lands on the <select> (dropdown/multi) AND on the .zForm-check-group (radio set)
+        zCheckbox — lands on BOTH the <input> and its .zForm-check row; the box is element-typed by zbase
+            so scope to input.yourclass (target only the box, keep the row's flex) and use !important to beat the element rule
+    terminal: none of these classes apply in zCLI — they're the Bifrost skin only
+
+terminal: write once, it reads the room
+    the same control runs in zCLI (a prompt that waits) and in Bifrost (a real button / select / checkbox) — no second version
+    rule: if it works in the terminal it works in the GUI — the choice is the same, only the skin differs

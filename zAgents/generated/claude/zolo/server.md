@@ -1,0 +1,99 @@
+zServer: one key turns the terminal app into a website | folders→URLs, files mount, misses show YOUR page, every response guarded, 2nd visit instant, live edits drop no one, actions open to machines | still DECLARED, never plumbed | write once → identical in zCLI + zBifrost; the live socket is zBifrost (its own subsystem)
+
+enable: one key flips app → website
+    key      — `zSpark.zServer.enabled: true` then `z zApp` — server starts, reads `zViews/`, serves it
+    !wire    — you never write a route table or web-server config; the runtime finds pages + answers requests
+    rule     — the app is the app; zServer only changes HOW it's reached — flip the key, rebuild nothing
+
+going_live: shipping = a ONE-WORD change
+    runners       — zServer ships two, you NAME which (never call directly): `dev` (built-in, instant restart, loud logs, localhost default) | `waitress` (production, pure-Python, real traffic)
+    pick          — `ZSERVER_TYPE: waitress` (unset → dev) — nothing else changes
+    parity        — both answer through the SAME pipeline (routing, RBAC, private-file block, styled errors); waitress swaps TRANSPORT not rules
+    per_env       — settings stack: `zEnv.base` → `zEnv.development` → `zEnv.production` → `zSpark` (final say + names active env)
+    selector      — `zEnv: development` in zSpark = the whole build↔live switch
+    holds         — dev: `ZOLO_LOGGER: zDEBUG` (loud) | prod: `ZSERVER_TYPE: waitress` + `ZOLO_LOGGER: PROD` (quiet) + storage
+    address       — `HTTP_HOST`/`HTTP_PORT`, most-specific first: zSpark → zEnv → DEFAULT 127.0.0.1:8080; usually set in zEnv.base
+    localhost     — dev-only reach; in prod the public `https://` edge sits IN FRONT + forwards, so keep binding locally
+    the_flip      — 1) `ZSERVER_TYPE: waitress` (+quiet) in prod file · 2) `zEnv: development`→`production` · 3) restart
+    habits        — machine paths + secrets in the env file, never a page; dev is plain http by design; prod https handled in front (no certs in zOS)
+    escape_hatch  — run servers for a living? expose `zServer.get_wsgi_app()` to nginx/gunicorn/container; everyone else flips ZSERVER_TYPE
+
+routing: your folders become the routes — take the wheel only when you want
+    contract  — routes live in `zServer.*.zolo`; zServer finds EVERY one (app root + `routes/`) + merges at boot — no import/registry, the `zServer.` prefix IS the contract
+    smart     — default: declare the anchor ONCE, folders fan into URLs
+        `routes: { /: { type: zSpark } }` — serve this app's home (borrows the spark's page)
+        walks `zViews/` → every page a URL: `zUI.Home.zolo`→`/` · `About/zUI.About.zolo`→`/About`; `_`-folders + `error/` stay private
+        omit `/` and zServer adds the anchor for you
+    manual    — a URL + a `type:` (reads like Flask):
+        `zWalker` — one page: name `zVaFolder`/`zVaFile` (+opt `zBlock`)
+        `static`  — a disk file untouched: `file: public/landing.html`
+        `template`— your Jinja from `templates/`: `template: about.html` (navbar+styles still injected)
+    param     — a URL carrying a value, one `%placeholder`:
+        `{ type: zLoom, zLoom: @.…spool, zUI: @.…PublicProfile }` — reads matching row + renders, else 404
+        capture vs read — `%username` in URL = CAPTURE (routing) → read back as `%route.username` (zLoom)
+    endpoint  — a URL that is NOT a page (webhook/CLI/service), answers JSON: `{ type: zAPI, kind: zFunc, handler: &.zpush.push }`
+    blueprints— split by concern (`zServer.routes.zolo` + `.api.zolo` + `.themes.zolo`); all registered+merged, live on next reload
+    catalog   — `zSpark` (home `/`) · `zWalker` (one page) · `zLoom` (page+row) · `zAPI` (JSON from action/plugin) · `static` (disk file) · `template` (Jinja)
+    !scope    — `zProxy` (hand to ANOTHER hosted app) is hosting-level → Advanced › Hosting
+    retired   — dropped `content`/`json`/`form`/`dynamic`/`redirect` (2026-06); standalone `type: zFunc` route (2026-07, now zAPI + zFunc handler kind)
+
+mounts: routes answer with PAGES, mounts answer with FILES — a prefix → a folder
+    idea      — one promise: THIS prefix lives in THAT folder; `/static/logo.png` → `static/logo.png`, content-type guessed, bytes sent (no render)
+    overlap   — longer prefix wins (specific beats broad)
+    reserved  — always on, un-repointable: `/static/`→`static/` · `/templates/`→`templates/` · `/zViews/`→`zViews/` (client fetches screens)
+    conditional— mounted only if folder exists: `/styles/`→`styles/` · `/plugins/`→`plugins/` (so `_zScripts: some.js` → `/plugins/some.js` just works)
+    custom    — `zServer: { mounts: { downloads: @.downloads, shared: ~/shared-assets, vendor: /opt/... } }` (`@.` root · `~` home · abs); same block in zSpark/zEnv
+    guard     — point a mount at static/templates/zViews → REFUSED + warned (config can't hijack asset roots)
+    never_served — zServer reads env/keys/db/source to RUN, refuses to hand them back:
+        PATHS (`models/`·`routes/`·`certs/`·`Data/`·`zEnv.*`·`zSpark.*`·`.git/`) · DOTFILES (any segment starting `.`) · TYPES (`.py`·`.zolo`·`.yaml`·`.key`·`.pem`·`.db`·`.sqlite`)
+        golden — zEnv is a secret vault → NEVER a URL; `../` traversal refused; exception: `zViews/` `.zolo` ARE served (public UI by design)
+
+errors: a miss shows YOUR page — one zolo file per code
+    convention— make `zViews/error/` + drop a file per code; served the instant it exists (RESERVED folder, not browsable)
+    files     — `error/zUI.404.zolo` · `zUI.403.zolo` · `zUI.500.zolo`
+    renders   — SAME walker as every page (navbar/zBrush/styling), sent with the real HTTP status
+    rules     — block name is FREE (renders file's FIRST top-level block; name it `NotFound`, a bare number isn't a valid key); `zMeta` sets title + navbar
+    codes     — `404` Not Found · `403` Access Denied (RBAC role missing) · `500` Server Error · `502` Bad Gateway (hosted app failed) · `503` Warming Up (hosted app booting)
+    fallback  — skip a code → plain built-in page; custom file UPGRADES it (brand 404/403 first)
+    offline   — server ANSWERS 404/403 = real error, styled page; only a DEAD socket triggers the client's offline notice
+
+safety: baseline rides every response — you wrote none of it (identical dev + prod, one SSOT)
+    headers   — always, no opt-in: `X-Content-Type-Options: nosniff` · `X-Frame-Options: SAMEORIGIN` · `Referrer-Policy: strict-origin-when-cross-origin`; request-built header values stripped of CR/LF (no response-splitting)
+    cors      — OFF (same-origin only); opt in ONE origin `ZSERVER_CORS_ORIGIN: https://app.site.com` (or `zServer.cors_origin`), NEVER `*`; preflight answers the EXACT verbs routes accept
+    framing   — no site-wide CSP by design (CDN client+theme+inline would break); always-on CSP is `frame-src` ONLY, mirrors `zEmbed` allow-list (`ZEMBED_MODE` → Media › Embedding); per-route can go stricter
+    health    — `GET /zhealth` → `200 {status: ready, routes: N}` (booted + can serve, not just port-open); LBs send users only on 200; also gates the zero-downtime swap
+
+caching: 2nd visit instant — browser keeps what's unchanged, zServer says what changed
+    wire      — ETag (per-version fingerprint from content/mtime) + 304 check (unchanged → `304`, zero bytes); static files 304 on revalidate; PAGES always rebuild fresh + ETag but never 304 (never stale)
+    parse     — zOS keeps PARSED pages in memory (zLoader cache); first visitor warms, rest ride free
+    policy    — prod defaults: static 1h/shareable · API 5m/private · pages+templates always re-checked · favicon 1d
+    dev       — NOTHING cached while building (no ghost changes); tightens once live
+    proofs    — parse cache: `&.demos.cache_probe.run()` cold ~8ms → warm ~0.4ms (~20x) · wire cache: Network panel static `304 · 0 bytes`
+
+lifecycle: start / change / stop — without dropping anyone
+    single_process — HTTP + the one Bifrost WS bridge share ONE process (same view); scale by running MORE copies behind a LB
+    boot      — pick runner, bind address, REGISTER (port+name in a pidfile) so `z reload` from another terminal finds this instance
+    soft_reload — everyday: edit a page, reload, site keeps serving (no error/logout)
+        refreshes AUTHORED half, rebuilt aside + atomically swapped: pages(`zViews/`) · patterns+spools(`zLoom/`) · routes+zAPIs(`routes/`) · schemas(`models/`, defn only — stored-shape change needs `z migrate`) · config(`zEnv`, re-injected)
+        NO reload: plugins(`.py`) hot-reload on next call · styles/static/templates served from disk each request
+        trigger — `z reload` from a 2nd terminal · a tooling signal · `Ctrl+R` in the server; one server → reloads it, several → numbered pick (or `--port <n>`)
+        CANNOT move — the bound PORT + zOS's own code (baked at boot) → those need zSwap
+    zSwap     — deeper: the CODE ITSELF changed (new zOS version/patched engine)
+        `z swap` REPLACES the process: fresh copy co-binds SAME port (`SO_REUSEPORT`), waits its `/zhealth`, hands over, retires old (new pid, in-flight finish on old, sessions on disk → all stay signed in)
+        `z swap` (pick if several) · `--port 9090` · `--all` (every local instance) · `SIGUSR2`; Windows → restart
+        vs `z patch` — swap RE-LAUNCHES what's on disk (installs nothing); patch INSTALLS (via `uv`); `z patch --live` = install then swap `--all`
+        rule — new code already on disk → `z swap`; still need to fetch → `z patch --live`
+    resilience— reload hitting a syntax error keeps the previous route table + reports "aborted"; a swap that won't come ready is REAPED, old keeps serving; worst case = "change didn't apply", never "site down"
+
+zapi: your buttons as an API — a TRANSPORT ADAPTER, not a second codebase
+    what      — the action already reads/writes/runs a plugin; zAPI points HTTP at that handler; flip a flag → route registered at boot, action unchanged
+    enable    — add `zAPI` to any event that has a handler: `onSubmit: { zAPI: true, zData: { action: insert } }` (still a form, now also an API); `zAPI: {method: POST}` overrides; `zAPI: {autoConnect: false}` = WIP
+    discovery — boot scanner walks zUI, looks in FOUR event keys — `onSubmit`·`onClick`·`onLoad`·`onChange` — for a `zAPI` flag beside a handler
+    path      — DERIVED not written: `{prefix}/{app}/{file}/{block}` → `/api/zCloud/Contacts/Add_Contact` (prefix `/api` default; app from spark; file from zUI stem; block from action key)
+    method    — inferred: `read`/`search`→GET · `insert`/`create`→POST · `update`→PUT · `delete`→DELETE · `zFunc`→POST; override with `method`
+    envelope  — success `ok: true` + fit: read/search GET 200 `{ok, data:[], count}` · insert POST 201 `{ok, action, result}` · delete DELETE 200 `{ok, action, deleted}`
+    gap       — NOT uniform yet: transport/auth errors return bare `{error}` (+status), flow failures carry `message`; a single `ok: true|false` everywhere is the direction
+    kinds     — the handler behind the adapter: `zData` (declarative read/write, verb inferred) · `zFunc` (plugin call `&.plugin.fn`, Py or JS) · flows (a `zLogin`/`zDialog` fronted directly; zLogin verifies headless → API + page sign in the same)
+    explicit  — no page (CLI/webhook): declare it, still `type: zAPI` + `kind: zFunc` + `handler`; the door is always zAPI (zFunc = handler kind, never a route type)
+    auth      — same-origin call from your page RIDES the session; machine endpoint gates on a key → set `auth` + `auth_model`, pass `X-API-Key`/`Bearer`; fails CLOSED (missing→401, unknown→403, auth w/o auth_model→refused) → Advanced › Identity
+    boundary  — the live two-way socket is NOT zAPI — that's zBifrost (Advanced)

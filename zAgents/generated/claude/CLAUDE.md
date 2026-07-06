@@ -1,0 +1,102 @@
+Zolo: declarative | llm-native | string-first
+verify: run only `z raven --run`; !pipe !redirect !grep; zRaven owns output/logs; console is truth; fix first failure only
+
+laws:
+    architecture: facade/modules; 1 file = 1 responsibility; entrypoints import only; DRY/SSOT
+    .zolo: zLSP strings != YAML; no quoted values; no YAML assumptions
+    data: zData + zSchema only; !csv !pandas !sqlite3 !rawSQL
+    plugins: args -> result only; !state !orchestration !UI; >~50LOC -> zEvents
+    
+phase_planning:
+    core: terminal is truth — if it works in CLI it works in GUI; solve the problem first, surface it second
+    i_intention: define need only; entities | actions | views | triggers | results; !implementation
+    ii_reference: z demos — scan available demos for relevant patterns; clone only if a demo is close enough to accelerate, otherwise scaffold fresh
+    iii_mapping: map intentions -> zOS events; terminal events first — GUI is a skin, not a prerequisite
+
+phase_CLI:
+    0_scaffold:  zolo scaffold <appname> — run in target directory
+    1_zUI:       fill __hints__ in UI/<app>.zolo — one segment from 3_dogfood at a time
+    2_zSpark:    fill __hints__ in zSpark.<app>.zolo — zMode: zCLI, zBlock from 1_zUI
+                 do NOT add zRaven: to zSpark during dev — auto-run on every boot is noisy
+                 zRaven: is for CI/locked apps only; during dev use z raven --run explicitly
+    3_zRaven:    z raven --gen — auto-generates zRaven/<name>_cli.zolo from the zUI
+                 do NOT hand-write the structural raven — --gen owns it
+                 custom assertions go in zRaven/<name>.custom.zolo
+    4_run:       z raven --run — boots spark, runs raven, prints pass/fail per step
+                 fix ERROR lines in zUI — do NOT proceed until green
+    5_repeat:    steps 1–4 for each segment from 3_dogfood
+    exit_check:  verify global_rules — file sizes ≤600, no duplication, facade pattern
+    exit_gate:   all zRaven green → phase_Bifrost (unless user goal is terminal), 3+ consecutive fails → ask user
+
+phase_Bifrost:
+    entry:      auto — phase_CLI exit_gate met, unless user goal is terminal
+    a_dogfood:  MVP only — BUILD ON existing verified zui, do NOT add new logic or events
+        _zClass on existing keys only — what renders? what is clickable? what data shows?
+        advanced styling / complex navigation come AFTER all green — not now
+    b_routes:   fill __hints__ in routes/zServer.routes.zolo — align to zSpark/zUI
+    c_zSpark:   update zMode: zBifrost, zServer: {enabled: true}, zSwap: true
+    d_zClass:   _zClass on existing zUI keys — no new events — scaffolded zVaF.html, do NOT rewrite
+                interactive widgets (calculator, keyboard, board) → _GUI + _zDelegate — NOT JS injection
+    e_zRaven:   extend zRaven/<name>.custom.zolo with browser block for GUI testing
+                or run z raven --gen to regenerate structural raven for Bifrost mode
+    f_run:      z raven --run — fix until browser assertions pass + shots saved
+    g_plugins:  as needed for JS logic on existing events only
+    h_repeat:   steps e–g for each segment from a_dogfood
+    exit_check:  verify global_rules — file sizes ≤600, no duplication, facade pattern
+    exit_gate:  all zRaven green → ask user if satisfied, suggest enhancements/next dogfood + Data_Type upgrade (csv→sqlite), 3+ consecutive fails → ask user
+
+mvp_quality_rule:
+    mindset:    think like a developer who implements, tests, reviews screenshots, fixes, and iterates
+    NOT done:   when tests pass for the first time
+    DONE when:  zRaven screenshots at all 3 viewports (mobile/tablet/desktop) look shippable
+                content is complete, spacing/hierarchy reads cleanly, no obvious layout breaks
+    iteration:  run zRaven → review shots → identify issues → fix → run again — repeat until MVP quality
+    scope:      MVP of the CURRENT dogfood segment only — not the whole product
+                stop when the current page/segment is shippable, ask user before expanding scope
+    NEVER:      declare done without reviewing the screenshots — always look at what zRaven captured
+
+next_step_rule:
+    trigger:    exit_gate met (all zRaven green, screenshots shippable)
+    format:     one short sentence confirming what finished + one concrete suggestion
+        "Finished [segment] dogfood — [contacts list + add form] is shippable across all 3 viewports.
+         Want me to [specific next action]?"
+    suggestions — pick the most relevant ONE:
+        new_segment:  add the next dogfood segment ([entity] list / [entity] form)
+        data_upgrade: migrate data backend from csv → sqlite (zMigration: true)
+        raven_depth:  add a zRaven submit flow — fill the form, assert success message, verify row appears
+        style_pass:   iterate styling — [specific gap observed in screenshots]
+        new_feature:  add [specific feature implied by current segment, e.g. delete, filter, search]
+    rules:
+        ALWAYS end a completed segment with this pattern — never silently stop
+        ONE suggestion only — do not list options, pick the most logical next step
+        be specific: name the entity, the field, the viewport issue — no generic "improve UX" filler
+        if unclear which to suggest, default to raven_depth (deeper test of what was just built)
+
+bifrost_browser_rule:
+    NEVER open zVaF.html directly — it is a server-side template, not a standalone HTML file
+    ALWAYS open http://localhost:8080/<route> — z zSpark.<app>.zolo starts the server, THEN open the URL
+    route comes from routes/zServer.routes.zolo — if / is the root route, open http://localhost:8080/
+topic_refs:
+    syntax references live in ~/.claude/zolo/ — read the relevant file on demand:
+    zSpark — app boot config (entry-point keys; deep config seek-as-need) → read ~/.claude/zolo/zspark.md
+    zTypography — zH0–zH6, zText, zMD, zUL/zOL/zDL, zIcon (the text + list + glyph events) → read ~/.claude/zolo/typography.md
+    zNavigation — moving through an app: menus (* ~), zAlpha/zDelta/zOmega verbs, zURL links, zCrumbs breadcrumbs (^ rewind), the navbar, the submit/dialog event gate → read ~/.claude/zolo/navigation.md
+    zSignals — status feedback: zSuccess/zError/zWarning/zInfo (+zSignal longhand, flush toast). Reach for when reporting an outcome → read ~/.claude/zolo/signals.md
+    zControls — zBtn / zSelect / zCheckbox: press, pick, tick (a control takes the action; a container acts on it) → read ~/.claude/zolo/controls.md
+    zInputs — zInput + type (text/file/date/color): collect a typed value; a container submits it → read ~/.claude/zolo/inputs.md
+    zForms — zDialog: gather inputs + controls into one onSubmit block (the event that COLLECTS a whole screen of fields) → read ~/.claude/zolo/forms.md
+    zData CRUD — zSchema shape + action: insert/read/update/delete; table auto-builds on first write, migrations evolve it, one Data_Type line picks the store; declared not raw SQL (bulk/txn/advanced → data_advanced) → read ~/.claude/zolo/data_crud.md
+    zTable — columns + rows → a styled grid (Bifrost) / ASCII table (zCLI) → read ~/.claude/zolo/tables.md
+    zMedia — zImage / zVideo / zEmbed. Reach for when a page shows images, video, or embeds another site → read ~/.claude/zolo/media.md
+    zWizard — multi-step flow: named steps run in order, zHat reads prior answers, if:/menu/gate steer the walk. Reach for when a later step depends on an earlier answer (a flat set of fields is a zDialog) → read ~/.claude/zolo/wizard.md
+    zFunc — call a Python/JS function via the & sigil (no imports); runs on render, actions on click. Reach for when a value or behaviour needs code → read ~/.claude/zolo/zfunc.md
+    zRaven — zOS tests its own work: z raven --gen writes the test from zSpark+zUI, --run boots + walks it green/red; string-first .zolo, one Tests: block; fix the zUI not the test → read ~/.claude/zolo/testing.md
+    zServer — flip one zSpark key and the terminal app serves the web: zViews/ → URLs, mounts, guarded error pages, caching, live reload, zAPI. Declared, never plumbed → read ~/.claude/zolo/server.md
+    Identity & access — zGate (the one yes/no verb) + zLogin/zLogout: gate any page/link/button/route by authed/role BEFORE it renders, on the backend; roles from zSchema.roles → read ~/.claude/zolo/rbac.md
+    zDash — assemble pages you already wrote into a navigable shell (side rail + swapping panels): type/folder/sidebar/default. Reach for composing many existing pages into one dashboard → read ~/.claude/zolo/dashboards.md
+    Dynamic content (zLoom) — the % sigil weaves live/repeated/computed content pre-render: %token values (zSpool/_data/%session…), %name: patterns (zShuttle loops a list, zKnot computes), zDye pipes → read ~/.claude/zolo/dynamic_content.md
+    zData advanced — beyond CRUD: deep queries (joins, aggregates, window fns, CTEs, full-text), rich writes (RETURNING, upsert, soft delete), bulk, transactions, backends. Still declared, never raw SQL → read ~/.claude/zolo/data_advanced.md
+    zSwiper — a carousel: a slides: list + knobs (auto_advance, delay, loop) → keyboard box (zCLI) / touch carousel (Bifrost). Reach for a slideshow or deck → read ~/.claude/zolo/swiper.md
+    zTerminal — a code sample with Copy and (when ZTERMINAL_MODE allows) inline Run + streamed output. Reach for showing runnable or copyable code → read ~/.claude/zolo/terminal.md
+    zProgress — a labelled bar or spinner: current/total → determinate bar, no total → spinner; can live-climb inside a zWizard. Reach for showing how-far-along → read ~/.claude/zolo/progress.md
+    Hosting — zOS control plane above zServer: a ComputeDriver (wake/sleep/status) runs a fleet, scale-from-zero, blue-green deploy. Reach for multi-app or deployment platform work → read ~/.claude/zolo/hosting.md

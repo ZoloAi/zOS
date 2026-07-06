@@ -1,0 +1,99 @@
+zData: describe what to remember + the rules around it — zOS keeps it | one schema = the shape, one action saves/reads/changes it | table born from schema on first write, migrations grow it later | write once → same on csv/sqlite/postgres, zCLI + zBifrost
+
+schema: one small file — what to keep + its rules
+    shape   — a `zSchema` = a `zMeta` block (where/how stored) + one named block per table holding FIELDS
+    !SQL    — you describe the shape; zData sets up storage, checks each value in, builds forms, rejects misfits
+    move    — same schema on every backend; `Data_Type` is the only line you touch to switch stores
+    rule    — describe the destination, let zData find the road
+
+zmeta: settings up top — where + how kept
+    Data_Type:  csv | sqlite | postgresql — the day-one line; change the word later, rest keeps working
+    Data_Path:  @.Data — store dir (csv/sqlite; ignored for postgres)
+    Data_Label: — store's human label / file stem
+    Schema_Name: zSchema.<name> — self-ref the registry resolves the model by
+    zMigration: true + zMigrationVersion: vX.Y.Z — opt into migrations + stamp each change
+    journey — csv (see every row) → sqlite (solid) → postgresql (outgrown); each hop is one line, never a rewrite
+
+types: each field has a KIND that does quiet work (coerce value, pick the input, reject misfits)
+    str (default) · int · float · bool (true/1/yes/on ↔ false/0/no/off) · date · time · datetime (`default: now`)
+    uuid (auto when blank — v4 default, v1 via `version`) · json (parsed+validated, textarea) · blob (bytes inline on sql, sidecar file on csv)
+
+identity: the primary key — every row's name tag
+    pk: true — the one field that points at exactly THAT row
+    auto_increment: true — on an int pk, hands out 1,2,3… (never blank/repeated)
+    composite — `primary_key: [flight, seat]` at table level pins a row by two fields
+
+rules: type says WHAT KIND, rules say whether it's any good — zData runs EVERY rule + returns EVERY problem at once
+    field-level  — required: true · unique: true (queries backend) · enum: [a,b,c] (renders picker)
+    rules: block — min_length · max_length · min · max · pattern (regex, full match) · pattern_message · format (email/url/phone/date/time/datetime/uuid)
+    rules: more  — validator: &.plugin.fn (returns (ok,msg)) · error_message · max_size + blob_input (raw|base64|path) · version (uuid v1/v4)
+    field extras — default: <value> (pre-fill/empty) · nullable: false (reject empty even if not required) · immutable: true (write-once) · transform: trim|lowercase|uppercase|slug|capitalize · zHash: bcrypt (scramble on insert via zAuth, plaintext never stored)
+    table-level  — zConstraints → unique: [a,b] (combination unique) · check: <zFilters expr> (cross-field)
+
+relationships: two tables hold hands — foreign keys + on_delete
+    fk       — `foreign_key: customers.id` (short `fk`) — a field holding another table's pk; can't hold an id that isn't there
+    on_delete— what happens to children when the parent is deleted (unsaid = safe):
+        restrict (default) — refuse while children point at it · cascade — remove children then parent
+        set_null — clear child's link, keep child · set_default — reset child's link to default, keep child
+    depth    — delete-time effect demoed in Advanced Writes; READ joins in Advanced Queries
+
+enforcement: two guards side by side (only matters if you poke the raw store by hand)
+    in the DB    — pk, single-field unique, required, fk + on_delete
+    by zData in  — everything in `rules:`, plus enum, nullable, immutable, transform, zHash, composite zConstraints
+    takeaway     — write THROUGH zData → everything gets checked
+
+insert: save a row — `action: insert`
+    form    — `action: insert` + `model:` (arms coercion+validators) + `data:` (dict `field: value`, usually from a zDialog `onSubmit`)
+    fill    — `data: {name: zConv.name, age: zConv.age}` (`zConv.<field>` = collected value)
+    guard   — all declared types/defaults/required/unique enforced in; bad value bounces before it lands
+    hooks   — onBeforeInsert: &.func (modify/abort) · onAfterInsert: &.func (side effects)
+    depth   — many rows, upsert, INSERT…SELECT, RETURNING → Advanced Writes
+
+auto_ddl: the table builds itself on first write
+    first write to a missing table reads its zSchema + provisions storage (fields, types, defaults, rules)
+    nothing created until that write — no setup/migration first; sql → real table rules, csv → same checks as rows flow
+    reshaping an EXISTING table (add column, evolve) = migrations, below
+
+read: ask for rows — `action: read` — zTable draws them
+    minimal   — `action: read` + `model:`; queries source, hands result to zTable (sensible defaults, no display config)
+    painter   — the table only SHOWS what came back; sort/filter/page/dress freely, no row at risk
+    zFilters  — narrows WHICH ROWS (a WHERE dialect, no SQL): `score > 88 zAND age >= 35` (zAND/zOR/zNOT/zIN/zBETWEEN/zLIKE/zNULL/zKNOWN)
+    fields    — `fields: [name, score]` narrows WHICH COLUMNS (genuinely narrower rows); omit for all
+    shape     — order_by: field ASC|DESC · limit: N + offset: N ((page−1)×page_size) · distinct: true
+    zTable    — inline `zTable: {limit: 5}` steers the draw; captions/pagination/styling → Tables leaf
+    depth     — full dialect, joins, aggregates, windows, subqueries, CTEs, set ops, search → Advanced Queries
+
+update: fix the row you point at — `action: update`
+    form  — name `fields:` changing + `values:` + `where:` for which rows; only listed fields move
+    ex    — `fields: [status]` + `values: [zConv.status]` + `where: id = 1`; same checks as insert re-run on edit
+    set:  — richer than flat value: per-row zCase, computed `$inc`/zExpr, cross-table `from:` → Advanced Writes
+    rule  — no `where:` updates EVERY row — always name the target
+
+delete: remove what you name — `action: delete`
+    form  — no fields/values; `action: delete` + `where:` for which rows
+    ex    — `where: id = zConv.id` (any field works: `where: department = zConv.department`)
+    confirm — `fields: []` renders a single Confirm button against a pre-baked `where:` (e.g. `active = false`)
+    rule  — no `where:` deletes EVERY row + permanent — read first
+    depth — on_delete cascades, soft delete, subquery/cross-table/time-based/RETURNING → Advanced Writes
+
+migrations: evolve the shape without losing data — edit the zSchema to what it SHOULD be, zData finds the smallest safe path
+    opt_in — frozen until `zMigration: true` + a `zMigrationVersion` stamp; bump on each change; unflagged skipped
+    flow (per enabled schema):
+        1 discover     — keep zMigration:true schemas, skip the rest
+        2 short-circuit— schema hash == last applied → up to date, nothing runs
+        3 introspect   — read store's ACTUAL shape (csv headers · sqlite PRAGMA table_info · pg information_schema), reconcile lossy sql types
+        4 diff         — new table→CREATE · new col→ADD · removed→DROP · changed type→MODIFY · `renamed_from:`→RENAME · `indexes:`→CREATE/DROP INDEX · `constraints:` by kind; rows preserved
+        5 apply        — run change set (unless `--dry-run`); a new col's `backfill:` fills in the SAME txn; logged to `__zmigration_<table>`
+    rename   — `renamed_from: qty` → true RENAME COLUMN (sql in place, csv header); harmless to leave in
+    backfill — populate a new column at birth, computed in zOS layer (same on every backend), idempotent (only cols ADDED this run, only EMPTY cells)
+        `backfill: free` (literal) · `%name` (copy a column) · `{concat: [%first, " ", %last]}`; needs single-col pk; companion to `default:` (constant) vs backfill (derived)
+    indexes  — add/remove an `indexes:` entry → next migrate CREATE/DROP by name (reads live indexes; declared+existing = no-op; pk/unique auto left alone; csv no-op)
+    constraints — `constraints:` by kind: unique folds into index pipeline (idempotent, csv no-op); fk/check need ALTER TABLE ADD/DROP (postgres native, sqlite guards w/ message, csv no-op)
+    backend_change — change `Data_Type` → zData MOVES data: export all tables to in-memory rows, open new adapter, recreate from schema, coerce, bulk-insert, validate counts (indexes don't ride — re-declare + migrate)
+    cli      — `z migrate <app> --dry-run` (preview) · `--plan`/`--sql` (print DDL) · `--schema <name>` · `--auto-approve` · `--history` · `--rollback` · `--version <vX>`
+        rollback — csv-first (restores each table from last backup); sql `--rollback` is a non-destructive guard (recover from DB backup or re-declare + migrate forward)
+    rule     — golden habit: `--dry-run`/`--plan` before you ever apply
+
+terminal: write once, it reads the room
+    same `zData` block in zCLI (prompts + auto-drawn table) and zBifrost (form + page table) — no second version
+    depth — sharper queries → Advanced Queries · heavy writes → Advanced Writes · many-at-once/all-or-nothing → Bulk & Transactions · store layer+DDL+views → Backends

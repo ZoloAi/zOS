@@ -1,0 +1,80 @@
+<!-- cursor: description="zFunc — call a Python/JS function via the & sigil (no imports); runs on render, actions on click. Reach for when a value or behaviour needs code" alwaysApply=false -->
+zFunc: one key holds a CALL | point at a function, zOS runs it — no imports, no wiring | Python or JavaScript, same call | runs as the block renders (an action waits for a click)
+
+the_call: a zFunc key holds a call, not a value
+    `zFunc: &.calc.add(2, 3)` — zOS reaches the block, runs the function, moves on
+    `&` = "a function" (like `@.`/`~.` = "a file")
+    rule — happen as the block appears → zFunc | wait for a click → a zBtn action
+
+two_sigils: where zOS looks for the function
+    `&.file.func()`        — a plugin in your plugins folder (zOS searches)
+    `&.folder.file.func()` — folder-aware: each dot a folder, last segment the function
+    `@.path.file.func()`   — exact location by zPath (`~.` = home) — no searching
+    rule — a dropped-in plugin → `&.` | a known path → `@.`/`~.`
+
+where_&_looks: the search order for a bare `&.name`
+    root → utils → plugins — FIRST match wins (so `&.calc.add` finds `plugins/calc.py` unnamed)
+    rule — keep names unique across those folders, or use `@.` to be exact
+
+arguments: pass values in the ()
+    text `&.demo.greet('zOS')` · number `&.demo.report(6, 7)` · live data `%data.x` · a prior return `zHat[Step]`
+    rule — simple literals for a one-off; `%data`/`zHat` when the value comes from the page
+
+return_value: what comes back is reusable
+    a return is captured as zHat — weave it into a later step or into text (a print stays behind, only return travels)
+
+the_engine: the wizard reads what each KEY returns
+    zOS walks the block tree; each key returns something the engine reads to decide what's next; zFunc is no different from zH1 except YOU own the return
+    reserved_returns — FLOW CONTROL, not data:
+        zBack (step back) · zLink (follow a link) · error (surface + carry on) · stop/exit (shut the app DOWN)
+        rule — never return one as data; return a dict/number/text instead
+    rules_of_thumb — value back → return it · pure side effect → leave the return empty · avoid stop/exit as a casual return
+
+languages: same call, two runtimes
+    `.py` — runs INSIDE zOS (injection + side effects, the in-process default)
+    `.js` — a Node subprocess (pure logic, gated; browser-only JS errors there)
+    bifrost — a client-side `.js` ACTION can run in the browser with `this` bound to the button (GUI effects)
+    rule — data/logic with zOS access → Python | pure compute or browser GUI → JavaScript
+
+signals: a return surfaces as feedback
+    a plain return → a zSignal (success by default, the detail as message); an error (raise/"error") → the error signal (terminal prints + skips on, Bifrost graceful)
+    rule — don't hand-roll feedback; return the outcome, let the signal render it → zSignals ref
+
+builtins: dot-less `&` tokens — filled in, not run
+    `&zNow` — date+time per zConfig (`&zNow('date')` · `&zNow('time')` · `&zNow(custom_format='yyyy-mm-dd')`)
+    `&zUUID()` — a fresh UUID v4
+    tell — dot-less is a token (`&zNow`), dotted is a plugin call (`&.calc.add`); drops into any content/label/zMD, resolves at load
+
+zos_plugin: want the contract handled for you? the SDK on top of `&.`
+    one `@zfunc` decorator does TWO jobs — inject what you name + turn your return into the outcome
+    injection — name a parameter, get the live connection point (no imports, no session walking):
+        user — signed-in identity (user.id, user.require() gates a step → 401)
+        files — uploads (files.image('field', max_mb=5) → validated image or 4xx)
+        transfer — blob storage (transfer.store(bytes, key=...) → where it landed)
+        data — zData CRUD (select/first read, insert/update/upsert write; Rows: row.id)
+        session | log | params | zos — live session, logger, raw args, the framework
+        rule — a caller-supplied arg WINS over an injected provider
+    contract — what you RETURN tells zOS what happened:
+        truthy → success · falsy → retriable failure · "error" → hard abort
+        `raise ZAbort("...", status=4xx)` → structured ZResult with that code (API answers right)
+        an unhandled exception → logged + contained as "error" (a crashing plugin never takes the page down)
+    async — decorate an `async def` and nothing changes (injection + contract carry through the await)
+    seek — full door → Advanced › Extending › zos-plugin
+
+sdk_widgets: the SECOND embed lane — a provider that refuses to be iframed
+    the choice is theirs — "embed this URL" → zEmbed (lane one) | "add our script, call our SDK" → SDK widget (lane two)
+    some (PayPal, Stripe) forbid framing → they ship a JS SDK that draws itself into a slot
+    three_parts — script (name the plugin in `zMeta.zScripts`) · slot (a plain block with a class the plugin recognizes, empty to start) · plugin (a `.js` in `@.plugins` that loads the provider's SDK + mounts it)
+    boundary — the provider's code lives in `@.plugins`, NEVER inside zOS (zOS serves `/plugins/` + runs what zScripts named)
+    frame_gate — most SDKs frame their own origin, blocked by zServer's CSP until opted in: `zEnv ZEMBED_SDK: [paypal]` unlocks vetted origins (known: paypal, stripe; unset → none, fail-closed)
+    seek — full door → Advanced › Extending › SDK Widgets
+
+zfunc_vs_action: same grammar, different MOMENT
+    zFunc runs on RENDER (as the block appears) · a zBtn action runs on CLICK (waits for the user) · same `&.` call — pick the moment, not a syntax
+
+async: it just works
+    write the function `async` and `await` inside as normal — zOS handles the loop, no special wiring
+
+terminal: write once, it reads the room
+    same zFunc in zCLI (in-flight call, console feedback) + Bifrost (toast/GUI) — no second version
+    rule — works in the terminal → works in the GUI: the call is the same, only the skin differs

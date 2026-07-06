@@ -1,0 +1,52 @@
+---
+description: zProgress — a labelled bar or spinner: current/total → determinate bar, no total → spinner; can live-climb inside a zWizard. Reach for showing how-far-along
+alwaysApply: false
+---
+zProgress: a labelled bar showing how far along something is | give it a total → FILLS to a percent (a bar); omit total → just says *working* (a spinner) | one snapshot alone, or drop it inside a zWizard and it CLIMBS as you clear steps | two faces: an ANSI bar in the terminal, a .zProgress bar in the browser
+
+core: the block — a label + how far along
+    label:   Processing files   — words above the bar (WHAT is working)
+    current: 60                 — how far now (DEFAULTS to 0)
+    total:   100                — finish line; leave OFF → spinner instead of bar
+    color:   primary            — fill colour (primary/success/…), optional
+    note     — percent is DERIVED (current/total); you never write "60%"
+
+shape: string-first .zolo, one small block
+    Demo:
+        zProgress:
+            label:   Processing files
+            current: 60
+            total:   100
+            color:   primary
+    note — one block = ONE frame (a snapshot); it doesn't move on its own (see `live`)
+
+spinner: no finish line — drop `total`, stop pretending to know the percent
+    when    — a task with no countable end (waiting on a server, open-ended job)
+    bifrost — a striped sliding marquee (`zProgress--indeterminate`)
+    zCLI    — a small braille spinner
+    rule    — an indeterminate bar NEVER shows 0% and never "completes" on its own — says *working* until replaced
+
+live: the climb — a `zProgress` chrome INSIDE a zWizard, filling as you clear steps
+    write   — `zProgress: {label, color}` as a SIBLING of the wizard's steps (chrome, not a step)
+    counts  — the wizard counts steps: 4 steps, parked at gate on step 2 → 50%
+    click   — clear the gate (a `zBtn` submit) → post-gate steps reveal, bar fills to 100% IN PLACE
+    proven  — live on Bifrost (Continue → 50%→100%); runtime mints a stable `wizprog-` id + replays the fill
+    why     — no hand-set percentages; the flow's own step math is the denominator
+
+journey: the fourth form — a `zProgress` beside a `zFunc`/action, filling while work runs
+    zCLI    — a live step-journey; zProbe = denominator oracle (zDispatch → zFunc → done), parks on EXECUTE then snaps to done
+    type    — `bar` (DEFAULT) fills done/total across probe stops · `spinner` = same count as an animated glyph
+    bifrost — honest gap: client re-dispatches the bare zFunc (execute_zfunc), drops the sibling — wiring it is the deeper pass
+    note    — for a live browser climb TODAY, prefer the `live` wizard form (proven cross-face)
+
+faces: one block, two renders — never branch on zMode
+    zCLI    — an ANSI bar redrawn in place with carriage-return (`[████░░░] 60%`), or braille spinner when indeterminate
+    bifrost — a `.zProgress` DOM bar with width transition — striped+animated when indeterminate, theme-agnostic fill
+    rule    — TERMINAL IS THE TRUTH; the browser bar is the nicer coat
+
+seek_as_need: only if extending the widget, not authoring
+    zCLI engine  — core/.../e_zDisplay/zDisplay_modules/advanced/timebased_progress.py (ANSI bar, braille spinner, total None never completes) + delegates/delegate_widgets_media.py::progress_bar (current default 0)
+    bifrost render— zbifrost-client/.../display/feedback/progressbar_renderer.js (renderInline, width transition, indeterminate marquee, % suppressed) + zbase.css § Progress bar (`.zProgress-*`)
+    journey      — core/.../g_zDispatch/dispatch_modules/handlers/handler_routing.py::_route_zfunc_with_progress + progress_journey.py (_run_cli / _run_bifrost) + zprobe.py (stop-count denominator)
+    wizard climb — zGuard message_walker._unwrap_zwizard_for_render (mints `wizprog-<gate_id>`, gate-pos/total, parks post-gate, replays fill to 100% on resolve)
+    wire         — `zProgress:` → shorthand_expander → `{zDisplay: {event: progress_bar}}`; imperative API `display.progress_bar(current, total, label, color, …)`

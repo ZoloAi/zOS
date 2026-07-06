@@ -1,0 +1,44 @@
+<!-- cursor: description="zDash — assemble pages you already wrote into a navigable shell (side rail + swapping panels): type/folder/sidebar/default. Reach for composing many existing pages into one dashboard" alwaysApply=false -->
+zDash: a dashboard you don't build, you ASSEMBLE | point it at a FOLDER of pages you already wrote + list them, it wires the rail, links, and panel switching | two faces: numbered menu in the terminal, tabbed sidebar in the browser | a compiler one level up — builds on all the other events
+
+core: the block — four keys
+    type:    sidebar             — layout shape; `sidebar` = left-rail-plus-content
+    folder:  @.path.to.panels    — where the panel pages live (`@.` path)
+    sidebar: [Overview, Stats]   — the panels, IN ORDER; each name = a page in `folder`
+    default: Overview            — which opens first; omit → the FIRST in the list
+
+shape: a zVaFile block, string-first .zolo
+    zVaF:
+        zDash:
+            type:    sidebar
+            folder:  @.zViews.myApp.panels
+            sidebar: [Overview, Stats, Settings]
+            default: Overview
+
+panels: each name in `sidebar` is its OWN complete zUI page
+    resolve — `Stats` + `folder: @.zViews.myApp.panels` → `folder.zUI.Stats` (block also named `Stats`)
+    body    — ordinary Grammar; a panel renders fine standalone (zDash just borrows it)
+    zMeta   — OPTIONAL per-panel, dresses the rail item:
+        title:       Stats         — friendly name (rail + numbered menu); DEFAULTS to panel name
+        icon:        bi-graph-up   — a Bootstrap `bi-*`, same vocab as zIcon/zMenu (glyph in browser, `[name]` in terminal)
+        description: Platform stats— hover tooltip + accessible label (browser)
+
+faces: one block, two renders — never branch on zMode
+    zCLI    — a NUMBERED menu; one panel at a time; loops until you type `done`
+    bifrost — a tabbed SIDEBAR; panels lazy-load on first click; narrow screen → menu drawer
+    rule    — TERMINAL IS THE TRUTH; the browser is the skin
+
+rbac: panels gate themselves
+    how  — a `zRBAC` block at the panel's root: `authenticated: true` | `require_role: zAdmin`
+    rail — panels a visitor can't reach are DROPPED before the rail draws
+    real — data access underneath is enforced regardless; rail filtering is the polite front
+
+custom: two style levers that NEVER overlap
+    content — style the panel in its own file with its own `zBrush`
+    shell   — `_zClass` on the `zDash` → `.zDash-container`; target `.zDash-*` to restyle rail+frame
+    theme   — `.zDash-*` defaults built from `currentColor` (self-balance light/dark) — keep overrides the same
+
+seek_as_need: only if extending the widget, not authoring
+    zCLI engine  — core/.../e_zDisplay/zDisplay_modules/system/system_event_dashboard.py (panel discovery, zMeta load, numbered-menu loop, `done` exit, per-panel RBAC filter)
+    bifrost render— zbifrost-client/.../composite/dashboard_renderer.js (sidebar/tabs, lazy load via `execute_walker`, mobile drawer) + zbase.css §10 (`.zDash-*`)
+    icons        — panel `icon:` is a `bi-*` via IconMapper/IconRenderer SSOT (`[name]` terminal, `<i class="bi bi-*">` browser)

@@ -1,0 +1,40 @@
+zTerminal: a code sample that can come to life — a snippet with Copy, and (when allowed) a Run that executes inline + streams output | you write title + fenced content + zRun; whether it CAN run is one zEnv dial (ZTERMINAL_MODE), readonly by default | two faces: asks-then-prints in terminal, a Copy/Run card in browser | the DIAL is the safety, not the fence
+
+core: the block — three keys you author
+    title:   zUI.myApp.zolo   — label above the block (often the source file); DEFAULTS to `Terminal`
+    content: ```lang … ```    — the code in a fenced block; the FENCE names the language (```python, ```zui, ```bash)
+    zRun:    true | false      — offer a Run button? DEFAULT true; false = show-and-copy only
+    !mode    — you never author the run mode here; it's stamped server-side from zEnv (see `dial`)
+
+shape: a zVaFile block, string-first .zolo
+    zVaF:
+        zTerminal:
+            title:   A live snippet
+            content: ```python
+                import math
+                print(math.factorial(5))
+                ```
+
+dial: ZTERMINAL_MODE — ONE zEnv switch, set once, decides if ANY block on the machine may run
+    readonly — DEFAULT (also unset/empty/unknown): show + copy, NEVER run — safe stance for code you didn't write
+    sandbox  — run but fenced: Python-only, restricted builtins; best-effort, NOT a real security sandbox
+    trust    — local desktop: Python runs freely (bash unimplemented in open-core)
+    web      — over Bifrost `trust` CLAMPED to sandbox server-side; Run shows ONLY in sandbox for python/zui; readonly never runs; bash never web-runnable
+    real     — the SAFETY is the readonly default, not the fence — never point sandbox/trust at content you don't trust (Security leaf)
+
+langs: the name after the ``` decides what runs
+    python — runs: maths/dates/json + the LIVE app as `z`; never os/files/network
+    zui    — renders a little Grammar page from the snippet (live preview in place)
+    bash   — shown, NEVER run (shell exec is a sealed path, not open-core)
+    other  — displays (highlight + Copy), no Run button
+
+faces: one block, two renders — never branch on zMode
+    zCLI    — a highlighted box; when runnable it asks yes/no first, then prints inline below
+    bifrost — a card: Copy always, a constant MODE BADGE (the dial), a Run when dial+lang allow, output streaming live
+    rule    — TERMINAL IS THE TRUTH: reads+runs in the console → the browser card is the nicer coat
+
+seek_as_need: only if extending the widget, not authoring
+    zCLI engine  — core/.../e_zDisplay/zDisplay_modules/sandbox/terminal_executor.py (ZTERMINAL_MODE gate, python/zui exec, readonly default) + sandbox_policy.py (restricted builtins + import allow-list)
+    trust seam   — display_trust.verify_terminal_exec (zGuard attestation before any run; web clamps trust→sandbox, sealed-core)
+    bifrost render— zbifrost-client/.../composite/terminal_renderer.js (card, Copy/Run, mode badge, fence parse, `_isRunnable`) + zbase.css §13 (`.zTerminal-*`)
+    wire         — `zTerminal:` → shorthand_expander → `{zDisplay: {event: zTerminal}}`; Bifrost `zTerminal` case → TerminalRenderer.render; a Run rides WS (`execute_code` → streamed output / `sandbox_input_request`)
