@@ -5,8 +5,14 @@ z agents — inject zolo agent instructions into the current workspace.
 Detects which IDE/tool is present and copies the right generated files.
 Idempotent: safe to re-run, skips files already up to date.
 
+Claude Code rules install to the machine/user level (~/.claude/) via
+Path.home() — cross-platform for macOS/Linux/Windows; one install covers
+every workspace. Cursor rules are cloned into the PROJECT root where
+`z agents` is fired (<workspace>/.cursor/rules/) — user-level ~/.cursor/rules/
+proved unreliable in Cursor and is cleaned up on every run.
+
 Usage:
-    z agents          # inject into current working directory
+    z agents          # install to user-level dirs + inject repo-scoped files (Copilot/AGENTS.md)
     z agents --force  # overwrite even if files already exist
     z agents --assoc  # (macOS) install .zolo file association
 """
@@ -36,21 +42,41 @@ def _copy(src: Path, dst: Path, force: bool, label: str):
 
 
 def _inject_cursor(workspace: Path, force: bool):
+    """Install Cursor rules into the project where `z agents` is fired:
+      <workspace>/.cursor/rules/zolo-<NN>-<topic>.mdc   — one file per src topic
+
+    Project-level by design: Cursor user-level rules (~/.cursor/rules/) proved
+    unreliable, so rules are cloned into each project root instead. Re-running
+    `z agents` in a project refreshes them; the zolo- namespace is owned by
+    this generator, so renamed/removed topics are pruned on every run.
+    """
     cursor_gen = GEN_DIR / "cursor"
     if not cursor_gen.exists():
         print("  [zAgents] WARNING: generated/cursor/ not found — run builder first")
-        return
+        return None
+
     rules_dir = workspace / ".cursor" / "rules"
     rules_dir.mkdir(parents=True, exist_ok=True)
     generated_names = {mdc.name for mdc in cursor_gen.glob("*.mdc")}
     for mdc in sorted(cursor_gen.glob("*.mdc")):
         _copy(mdc, rules_dir / mdc.name, force, f"Cursor rule {mdc.name}")
-    # Prune stale zolo-*.mdc that the builder no longer produces (renamed/removed
-    # topics). Scoped to the zolo- namespace so user-authored rules are untouched.
+    # <workspace>/.cursor/rules/ zolo- namespace is owned entirely by this
+    # generator — prune any topic the builder no longer produces (renamed/
+    # removed src topics). Scoped to zolo- so user-authored rules are untouched.
     for stale in sorted(rules_dir.glob("zolo-*.mdc")):
         if stale.name not in generated_names:
             stale.unlink()
             print(f"  [zAgents] Cursor rule {stale.name} — stale, removed")
+
+    # Legacy cleanup: earlier builds installed to user-level ~/.cursor/rules/,
+    # which Cursor does not reliably load — remove any zolo- rules left there.
+    legacy_dir = Path.home() / ".cursor" / "rules"
+    if legacy_dir.exists():
+        for legacy in sorted(legacy_dir.glob("zolo-*.mdc")):
+            legacy.unlink()
+            print(f"  [zAgents] Legacy user-level rule {legacy.name} — removed")
+
+    return "Cursor (project)"
 
 
 def _inject_copilot(workspace: Path, force: bool):
@@ -117,19 +143,17 @@ def _inject_claude_global(force: bool):
 
 
 def _has_cursor_ancestor(workspace: Path, max_levels: int = 4) -> bool:
-    """Return True if any ancestor directory (up to max_levels) contains a .cursor/ folder.
+    """Return True if this workspace or any ancestor (up to max_levels) contains a .cursor/ folder.
 
-    Catches sub-repos opened as part of a Cursor multi-root workspace — they don't have
-    their own .cursor/ but their parent ZoloMedia workspace does.  Writing AGENTS.md
-    into those repos is counterproductive: Cursor loads it alongside the .mdc rules,
-    doubling token cost and confusing the agent.
+    Used only to decide whether to skip writing AGENTS.md (Cursor users get rules from
+    the global ~/.cursor/rules/ install instead — AGENTS.md there is redundant tokens).
     """
-    current = workspace.parent
+    current = workspace
     for _ in range(max_levels):
-        if current == current.parent:   # filesystem root
-            break
         if (current / ".cursor").exists():
             return True
+        if current == current.parent:   # filesystem root
+            break
         current = current.parent
     return False
 
@@ -137,22 +161,16 @@ def _has_cursor_ancestor(workspace: Path, max_levels: int = 4) -> bool:
 def _detect_and_inject(workspace: Path, force: bool):
     injected = []
 
-    # Global: Claude Code (~/.claude/CLAUDE.md) — always, regardless of workspace
+    # Claude is global (machine/user-level); Cursor rules are cloned into the
+    # project root where `z agents` is fired (user-level rules don't load).
     result = _inject_claude_global(force)
     if result:
         injected.append(result)
+    result = _inject_cursor(workspace, force)
+    if result:
+        injected.append(result)
 
-    is_cursor = (workspace / ".cursor").exists()
     under_cursor = _has_cursor_ancestor(workspace)
-
-    if is_cursor:
-        _inject_cursor(workspace, force)
-        injected.append("Cursor")
-    elif under_cursor:
-        # Sub-repo inside a Cursor multi-root workspace — install .mdc rules here too
-        # so the repo is self-contained if ever opened as its own Cursor window.
-        _inject_cursor(workspace, force)
-        injected.append("Cursor (sub-repo)")
 
     if (workspace / ".github").exists():
         _inject_copilot(workspace, force)
@@ -162,10 +180,9 @@ def _detect_and_inject(workspace: Path, force: bool):
         _inject_windsurf(workspace, force)
         injected.append("Windsurf")
 
-    # Write workspace AGENTS.md only for workspaces that have NO Cursor context at all
-    # (neither own .cursor/ nor an ancestor .cursor/).
-    # Cursor users get topic-split .mdc files — AGENTS.md is noise + redundant tokens there.
-    if not is_cursor and not under_cursor:
+    # Write workspace AGENTS.md only for workspaces with NO Cursor context at all
+    # (Cursor users get the global rules install instead — AGENTS.md there is noise).
+    if not under_cursor:
         _inject_agents_md(workspace, force)
         injected.append("Codex/Aider (AGENTS.md)")
 

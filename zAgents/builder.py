@@ -4,7 +4,8 @@ zAgents builder — reads src/*.md, outputs generated/ for all IDE targets.
 
 Targets:
   generated/cursor/        → topic-split .mdc files with frontmatter (Cursor)
-                             loaded lazily by glob — zero token cost until file opened
+                             installed by `z agents` to <project>/.cursor/rules/
+                             (project-level — user-level rules don't load, see agents_cli.py)
   generated/claude/        → Claude Code mirror:
     CLAUDE.md              → lean index (workflow + topic_refs) → ~/.claude/CLAUDE.md
     zolo/<topic>.md        → topic files → ~/.claude/zolo/<topic>.md
