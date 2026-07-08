@@ -239,6 +239,9 @@ def validate_datetime(value: str, zos=None) -> Tuple[bool, Optional[str]]:
     Notes:
         - Uses zConfig datetime_format setting if zos provided
         - Defaults to "yyyy-mm-dd HH:MM:SS" format
+        - Always accepts ISO 8601 (YYYY-MM-DD HH:MM:SS) as a valid fallback —
+          write_prep.apply_defaults() shapes a `default: now` datetime to this
+          format regardless of locale, same reasoning as validate_date's fallback.
     """
     datetime_format = "yyyy-mm-dd HH:MM:SS"  # Default
     if zos:
@@ -256,7 +259,18 @@ def validate_datetime(value: str, zos=None) -> Tuple[bool, Optional[str]]:
         datetime.strptime(value, strptime_format)
         return True, None
     except ValueError:
-        return False, f"{ERR_DATETIME_FORMAT} (expected: {datetime_format})"
+        pass
+
+    # `default: now` (write_prep.apply_defaults) always shapes to ISO — accept
+    # it universally, same as validate_date's browser-ISO fallback.
+    if strptime_format != "%Y-%m-%d %H:%M:%S":
+        try:
+            datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+            return True, None
+        except ValueError:
+            pass
+
+    return False, f"{ERR_DATETIME_FORMAT} (expected: {datetime_format})"
 
 
 def validate_uuid(value: str) -> Tuple[bool, Optional[str]]:

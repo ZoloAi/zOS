@@ -271,6 +271,55 @@ class SchemaManager:
 
         return schema
 
+    def enrich_with_tables(
+        self,
+        schema: Dict[str, Any],
+        tables: Optional[list[str]]
+    ) -> Dict[str, Any]:
+        """
+        Backfill a loaded schema with any additional tables a multi-table request
+        names that live OUTSIDE the primary ``model:`` file.
+
+        A ``tables: [...]`` + ``auto_join`` read can span tables declared across
+        SEPARATE ``zSchema.<Name>.zolo`` files (the "1 file = 1 responsibility"
+        convention every golden app follows) — ``model:`` only loads ITS OWN
+        file's table(s) into ``schema``, so a second/third table named in
+        ``tables:`` is simply absent. Every downstream consumer that reads
+        ``orchestrator.schema`` (``ensure_tables``, the CSV/SQL auto-join FK
+        scan, ``adapter.create_table``) needs that table's real field defs to
+        do its job — not just a schema-existence check.
+
+        Resolves the gap from ``_server_registry`` — the SAME server-wide
+        {table_name: schema_dict} map ``load_schema`` already populates for
+        every schema loaded anywhere (migration at boot, an earlier request),
+        and that ``load_wizard_schema`` already leans on to bootstrap a cold
+        ``$alias``. A table that was genuinely never loaded ANYWHERE (typo,
+        missing schema file) stays missing here too — ``ensure_tables``'s
+        existing "table not in schema" warning still catches that real error;
+        this only closes the cross-file gap for a table that DOES exist.
+
+        Args:
+            schema: The schema dict already loaded from the request's `model:`
+            tables: The request's `tables:` list (or None/empty — a no-op)
+
+        Returns:
+            The same schema dict, mutated in place with any backfilled tables
+            (also returned for call-site chaining convenience)
+        """
+        if not tables:
+            return schema
+        for table_name in tables:
+            if not table_name or table_name in schema:
+                continue
+            registered = SchemaManager._server_registry.get(table_name)
+            if registered and table_name in registered:
+                schema[table_name] = registered[table_name]
+                self.logger.debug(
+                    "[Registry] Backfilled table '%s' from server registry (cross-file join)",
+                    table_name
+                )
+        return schema
+
     def load_wizard_schema(
         self,
         schema_cache: Any,

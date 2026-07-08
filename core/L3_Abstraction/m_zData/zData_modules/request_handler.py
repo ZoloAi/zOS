@@ -249,6 +249,12 @@ class RequestHandler:
             return False
 
         schema = schema_manager.load_schema_from_path(model_path)
+
+        # Cross-file multi-table request (tables: [...] + auto_join, etc.) — the
+        # `model:` file only carries ITS OWN table(s); backfill any others named
+        # in `tables:` from the server-wide registry (see enrich_with_tables).
+        schema = schema_manager.enrich_with_tables(schema, request.get(_REQUEST_KEY_TABLES))
+
         orchestrator.load_schema(schema)
         return bool(orchestrator.adapter)
 
