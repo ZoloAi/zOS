@@ -1,44 +1,62 @@
 Zolo: declarative | llm-native | string-first
 verify: run only `z raven --run`; !pipe !redirect !grep; zRaven owns output/logs; console is truth; fix first failure only
+    !hand_drive: never test a CRUD/action flow by hand (manual `z zSpark` click-through, hand-rolled
+        Playwright/browser scripts) — a manual boot has none of --run's Data/ isolate+restore, so hand
+        clicks write straight to real seed data and leave it polluted; encode the flow as a zRaven step
+        instead (see 13_testing)
 
 laws:
     architecture: facade/modules; 1 file = 1 responsibility; entrypoints import only; DRY/SSOT
     .zolo: zLSP strings != YAML; no quoted values; no YAML assumptions
+           every .zolo file OPENS with a `# .zolo — NOT YAML` comment header — one line, states the
+               string-first rule, guards against YAML habits (quoting, `---`, `null`) creeping back in
+    zMeta: ALWAYS root-level (indent 0) — ONE per file, a sibling of the entry block(s), NEVER nested
+               inside a named block (`Main: { zMeta: ... }` is WRONG — zLSP flags it as an Error);
+               zBrush/zScripts/zSpool/zNavBar all live on that ONE root zMeta, file-wide — a block name
+               changing (zVaF vs a named entry like Main) never moves zMeta's indent
     data: zData + zSchema only; !csv !pandas !sqlite3 !rawSQL
     plugins: args -> result only; !state !orchestration !UI; >~50LOC -> zEvents
+    interactivity: existing zOS events/plugins only; !raw JS injection into the page
     
 phase_planning:
     core: terminal is truth — if it works in CLI it works in GUI; solve the problem first, surface it second
     i_intention: define need only; entities | actions | views | triggers | results; !implementation
     ii_reference: z demos — scan available demos for relevant patterns; clone only if a demo is close enough to accelerate, otherwise scaffold fresh
+        deeper: zAgent files not enough? `curl http://127.0.0.1:9090/zStack/zOS` — the local zOS hub, lightest-token way to go deeper (never assume it's running — a connection error just means skip it)
+            limit: it's a zBifrost page — curl only proves it's reachable (returns the un-rendered shell); it can't pull real page content (that needs the client's WS round-trip, curl never triggers it)
     iii_mapping: map intentions -> zOS events; terminal events first — GUI is a skin, not a prerequisite
 
 phase_CLI:
-    0_scaffold:  zolo scaffold <appname> — run in target directory
-    1_zUI:       fill __hints__ in UI/<app>.zolo — one segment from 3_dogfood at a time
-    2_zSpark:    fill __hints__ in zSpark.<app>.zolo — zMode: zCLI, zBlock from 1_zUI
+    0_init:      create <appname>/ by hand: zSpark.<app>.zolo + zViews/zUI.<app>.zolo (scaffold CLI retired — being redefined)
+    1_zUI:       fill zViews/zUI.<app>.zolo — one segment from 3_dogfood at a time
+    2_zSpark:    fill zSpark.<app>.zolo — zMode: zCLI, zBlock from 1_zUI
                  do NOT add zRaven: to zSpark during dev — auto-run on every boot is noisy
                  zRaven: is for CI/locked apps only; during dev use z raven --run explicitly
-    3_zRaven:    z raven --gen — auto-generates zRaven/<name>_cli.zolo from the zUI
+    3_zRaven:    z raven --gen — auto-generates zRaven/zRaven.<name>.zolo from the zUI
                  do NOT hand-write the structural raven — --gen owns it
-                 custom assertions go in zRaven/<name>.custom.zolo
+                 hand-edit that SAME active file for assertions — no separate custom file (see 13_testing)
     4_run:       z raven --run — boots spark, runs raven, prints pass/fail per step
                  fix ERROR lines in zUI — do NOT proceed until green
+                 iterating on one deep flow only? `_zSpark.<flow>.zolo` boots straight to it, skipping the
+                     nav journey every re-run — never the app's canonical spark (see 13_testing dev_spark)
     5_repeat:    steps 1–4 for each segment from 3_dogfood
     exit_check:  verify global_rules — file sizes ≤600, no duplication, facade pattern
     exit_gate:   all zRaven green → phase_Bifrost (unless user goal is terminal), 3+ consecutive fails → ask user
+                 suggest `z raven --commit 'label'` here too — a green CLI proof is its own milestone worth
+                     archiving before Bifrost work (styling/routes) starts touching the same shared files
 
 phase_Bifrost:
     entry:      auto — phase_CLI exit_gate met, unless user goal is terminal
     a_dogfood:  MVP only — BUILD ON existing verified zui, do NOT add new logic or events
         _zClass on existing keys only — what renders? what is clickable? what data shows?
         advanced styling / complex navigation come AFTER all green — not now
-    b_routes:   fill __hints__ in routes/zServer.routes.zolo — align to zSpark/zUI
-    c_zSpark:   update zMode: zBifrost, zServer: {enabled: true}, zSwap: true
-    d_zClass:   _zClass on existing zUI keys — no new events — scaffolded zVaF.html, do NOT rewrite
-                interactive widgets (calculator, keyboard, board) → _GUI + _zDelegate — NOT JS injection
-    e_zRaven:   extend zRaven/<name>.custom.zolo with browser block for GUI testing
-                or run z raven --gen to regenerate structural raven for Bifrost mode
+    b_routes:   routes/zServer.routes.zolo only if adding routes beyond the zSpark homepage (see zServer ref)
+    c_zSpark:   update zMode: zBifrost, zServer: {enabled: true}
+    d_zClass:   _zClass on existing zUI keys — no new events
+                templates/zVaF.html only to customize head/meta/fonts (see zServer ref for the default/override rule)
+    e_zRaven:   z raven --gen regenerates zRaven/zRaven.<name>.zolo for Bifrost (adds zOpen/zWait skeleton)
+                zFill/zPick steps already generated for zCLI carry over UNCHANGED — they're dual-mode (see
+                    13_testing); hand-extend only with zAssert(dom)/zViewport+zShot for browser-only checks
     f_run:      z raven --run — fix until browser assertions pass + shots saved
     g_plugins:  as needed for JS logic on existing events only
     h_repeat:   steps e–g for each segment from a_dogfood
@@ -66,6 +84,12 @@ next_step_rule:
         raven_depth:  add a zRaven submit flow — fill the form, assert success message, verify row appears
         style_pass:   iterate styling — [specific gap observed in screenshots]
         new_feature:  add [specific feature implied by current segment, e.g. delete, filter, search]
+        commit_milestone: `z raven --commit 'label'` this flow — all-green + shots reviewed IS a milestone
+            worth archiving (see 13_testing zcommit); pick this when the segment feels genuinely "done",
+            not mid-iteration
+        clear_dev_flow: this `_zSpark.<flow>.zolo` has served its purpose (already committed) — suggest
+            `z raven --clear` to drop the scratch spark/raven/shots from the working tree (see 13_testing
+            zclear); pick this once a dev flow is done being iterated on, not while still in active use
     rules:
         ALWAYS end a completed segment with this pattern — never silently stop
         ONE suggestion only — do not list options, pick the most logical next step
@@ -75,7 +99,6 @@ next_step_rule:
 bifrost_browser_rule:
     NEVER open zVaF.html directly — it is a server-side template, not a standalone HTML file
     ALWAYS open http://localhost:8080/<route> — z zSpark.<app>.zolo starts the server, THEN open the URL
-    route comes from routes/zServer.routes.zolo — if / is the root route, open http://localhost:8080/
 
 ---
 
@@ -103,6 +126,9 @@ seek_as_need: !boot-critical — pull the reference when you reach the key
     zPersist  — create Apps/{title}/ user-data dir -> Config ref
     zRaven*   — bind a test suite (zRaven, zRavenTimeout, zRavenPort…); !add during dev (noisy auto-run) -> 04_raven
     plugins   — list of .py loaded at boot -> plugins ref
+
+retired: dropped keys — printed as a deprecation warning if still set
+    zSwap     — was user-data persistence -> renamed zPersist (unrelated to the `z swap` CLI zero-downtime command)
 
 ---
 
@@ -194,14 +220,35 @@ menus: add a mark, get a list — no prompt loop to write
         rule — want an option to run ONLY its content? make it NAVIGATE AWAY (verb/block hop), not fall through
     nest      — an option can hold its own menu (nested, no `~` → auto Back) — drill-in/step-out from menus alone
 
-verbs: three moves — where does this take you?
+verbs: four moves — where does this take you?
     zAlpha — cross-FILE: a zPath, zOS loads that file + runs from that block (behind menu picks + page buttons)
         zPath — last segment = BLOCK, segment before (after `zUI.`) = zVaFile → Cross Platform owns the grammar
         + a permissions dict → the move becomes role-gated → Identity
     zDelta — same-FILE hop: mark target with `$` (`$Block`); runs it, nothing loads, route NEVER moves; reversible with zBack
     zOmega — land on a zKey, not the top: NOT its own verb — an ADJECTIVE on a zAlpha/zDelta saying WHERE to arrive
         matches a block's DIRECT keys | browser scrolls to it · terminal opens the block at that key, skips above
-    rule   — different file → zAlpha | a block here → zDelta | an exact key → zOmega riding on one of the two
+    zModal — the CALL (alpha/delta are GOTOs): run a block as a DETOUR, auto-return to the firing point on completion
+    rule   — different file → zAlpha | a block here → zDelta | an exact key → zOmega riding on one of the two | glance-and-return → zModal
+
+zmodal: a modal is a glance, not a move — forward with auto-back built in
+    value forms (first character routes, same as href):
+        inline dict — `zModal: {zH2: Hello, zText: ...}` — the dict IS the modal, any block content
+        `$Block`    — same-file block (zDelta-style resolve, incl. zUI.<name> auto-discovery)
+        `@.zViews…` — cross-file (zAlpha-style zPath)
+        longhand    — `zModal: {zUI: <target>, params: {...}}` — dict WITH `zUI:` = target form
+    firing seams — a menu OPTION's value (opens on pick, returns to the menu) · a zBtn ACTION (opens on click):
+        string action — `action: zModal($Block)` / `zModal(@.zPath)` — rides zBtn exactly like zAlpha(...)/zDelta(...)
+        dict action   — `action: {zModal: {zH2: ...}}` — inline content right on the button
+    contract — trail-INVISIBLE: no crumb, route never moves, zBack after return acts like the detour never happened
+        completion — target finishes (zDialog onSubmit returns / content walks off its last key) → auto-return, caller resumes
+        dismiss    — a zBack inside the modal closes it (same return path); pure-content modals gate on `Press Enter to close`
+        fired from a `~Menu*` anchor → returns to that menu (drill-in/step-out)
+    zLoom — read-only both ways: a $/@ target's file-root zSpool is pre-woven (modal renders data like a page would)
+        zModal lives ONLY in zUI pages — never in zLoom/ files (data+shape only, no events)
+    terminal — zCLI: a detour walk with the auto-back | zBifrost: a FLOATING overlay (backdrop + card + ×), same grammar
+        Bifrost plumbing — dispatch stages the woven block (session `_zPendingModal`, the `_zPendingNavigate` pattern); the bridge
+        flushes it as a `render_modal` frame; the client paints it into the overlay and owns dismissal LOCALLY (backdrop/ESC/×)
+        — the route never moved server-side, so closing needs no round-trip; a menu-resume walk STOPS at the modal (anchor bounce)
 
 zurl: the rendered, clickable link — what a person presses
     required — label + href; arrives ready, nothing to switch on
@@ -459,6 +506,7 @@ vocabulary: a field carries the SAME keys it has on its own leaf — a zDialog j
     inputs  — text · email · url · tel · number · password · textarea · color · date · file -> Input Events
     controls— select (dropdown/radio/multi) · checkbox -> Control Events
     extras ride along unchanged: placeholder · default · required · readonly · disabled · prefix/suffix · datalist · options · multi · accept
+    _zClass — lands on that field's own input/select/textarea (text/number/select/etc); radio/checkbox groups don't forward it yet
     rule: don't re-teach a field here — its own leaf owns it; the zDialog only collects it
     every answer lands in zConv as a string (a LIST for a multi-select)
 
@@ -483,10 +531,11 @@ result: onSubmit returns a RESULT — success or failure
     log_severity: a business failure (success:false) is an EXPECTED outcome — surface it inline, never a console error (that's reserved for a real exception)
 
 onward: onSubmit is a DOORWAY — the same hook, bigger jobs
-    a zFunc is the simplest action; the very same onSubmit hands off to subsystems that REUSE this collect-then-submit mechanism
+    onSubmit is always a dict — ONE key naming the subsystem, never a bare `&.` call
+    `onSubmit: { zFunc: &.calc.add(zConv.a, zConv.b) }` — the simplest action, a plugin call
     zWizard  — carry the answers into a multi-step flow
     Identity — sign someone in / change the session (also what lets a submit navigate to a new page or refresh the navbar)
-    zData    — save the answers as a row (see schema)
+    zData    — save the answers as a row (see schema): `{ zData: {action: insert, model: @...} }`
     rule: zDialog's grammar never changes — only the action on the other end gets bigger
 
 schema: let a zSchema write the fields
@@ -580,6 +629,9 @@ delete: remove what you name — `action: delete`
     ex    — `where: id = zConv.id` (any field works: `where: department = zConv.department`)
     confirm — `fields: []` renders a single Confirm button against a pre-baked `where:` (e.g. `active = false`)
     rule  — no `where:` deletes EVERY row + permanent — read first
+    per_row — a bare `zBtn.action:` is a CALL, not a full zData block — a dynamic-row one-click delete (`where: id = %item.id`)
+        needs a `@zfunc` (inject `data`, call `data.delete(table, where=...)`) → zFunc leaf; a `zDialog.onSubmit` CAN
+        hold a real `zData: {action: delete}` block directly (no plugin needed) since a dialog submit is a full dispatch
     depth — on_delete cascades, soft delete, subquery/cross-table/time-based/RETURNING → Advanced Writes
 
 migrations: evolve the shape without losing data — edit the zSchema to what it SHOULD be, zData finds the smallest safe path
@@ -827,7 +879,7 @@ zos_plugin: want the contract handled for you? the SDK on top of `&.`
         user — signed-in identity (user.id, user.require() gates a step → 401)
         files — uploads (files.image('field', max_mb=5) → validated image or 4xx)
         transfer — blob storage (transfer.store(bytes, key=...) → where it landed)
-        data — zData CRUD (select/first read, insert/update/upsert write; Rows: row.id)
+        data — zData CRUD (select/first read, insert/update/upsert/delete write; Rows: row.id)
         session | log | params | zos — live session, logger, raw args, the framework
         rule — a caller-supplied arg WINS over an injected provider
     contract — what you RETURN tells zOS what happened:
@@ -869,6 +921,30 @@ core: the loop — spark first, always
     dev            — !put `zRaven:` in zSpark during dev (auto-runs every boot, noisy) — run `--run` explicitly
     alpha          — --gen coverage still catching up to full grammar (inputs, gates, rich widgets)
 
+dev_spark: `_zSpark.<flow>.zolo` — an isolated entry point, NOT the app's canonical spark
+    why       — deep-testing one flow (e.g. a dialog three clicks past Main) shouldn't pay the nav tax every
+        --run; a dev spark boots straight to the flow's own block, skipping the journey to reach it
+    name      — single segment, flow-named (NOT block-named, NOT app-named — the app is already the folder):
+        `_zSpark.add_contact.zolo`, `_zSpark.empty_state.zolo` — same fields as a real zSpark, `zBlock:`
+        points at wherever the flow starts
+    isolation — the `_` prefix makes it invisible to every `zSpark.*.zolo` glob (auto-discovery, `z demos`,
+        --gen's default target resolution) by construction — no engine change, no special-casing, it just
+        never matches; boots ONLY by its full filename (`z _zSpark.add_contact.zolo` or
+        `z raven --run --spark _zSpark.add_contact.zolo`), never the `z <name>` shorthand
+    pairing   — `z raven --gen --spark _zSpark.add_contact.zolo` writes `zRaven/zRaven.add_contact.zolo` —
+        the raven name is everything after the FIRST dot in the spark filename, so the flow name carries
+        through automatically; that raven file has no underscore itself (nothing scans zRaven/ for
+        candidates, so it needs none)
+    never     — a dev spark's `zRaven:` never gets merged into or replaces the app's canonical raven; it's
+        its own file, own history row, own archive lineage — a scratch tool, not a shortcut around
+        writing the real app-level raven
+    !manual_mutate — a manually-booted `z zSpark.<name>.zolo` (fine for LOOKING during style/UX dev, see
+        bifrost_browser_rule) has NONE of --run's isolate/restore safety net — any add/toggle/delete/submit
+        clicked by hand writes straight to REAL Data/ and stays there. Never drive CRUD by hand to "test" a
+        flow, in a browser or via a hand-rolled script (Playwright et al.) — that's what --run is for. Add
+        the flow as a step in zRaven/zRaven.<name>.zolo and `--run` it; that's the only isolated, restorable,
+        reproducible way to exercise or inspect app behavior.
+
 shape: string-first .zolo, one block of named steps — top→bottom, `zMarker: done` closes
     Tests:
         Open_Home:                       #> compound: primitives run in fixed order <#
@@ -888,30 +964,44 @@ modes: two runners, one grammar — zMode in zSpark picks
     zCLI      — drives terminal stdin/stdout; fast, no browser; START here
     zBifrost  — drives headless Chromium (Playwright) + WS leg; screenshots live here
     blocks    — `CLI_*` CLI-only | `Browser_*`/`Bifrost_*`/`zBifrost_*` browser-only | other name = BOTH
-    steps     — mode is INFERRED from the primitive (zPick/zFill/zWizard → zCLI; zOpen/zWait/zShot/zClick → zBifrost)
-    wrappers  — `zCLI:`/`zBifrost:` still honored; only needed when vocabulary is ambiguous (zLogger-only step, dict zSubmit)
+    steps     — mode is INFERRED from the primitive: zWizard → zCLI-only; zOpen/zWait/zShot/zClick/zType/zDrag/
+        zUpload/zHistory → zBifrost-only (no terminal equivalent); everything else below is DUAL-MODE
+    dual_mode — `zFill`/`zPick` are ONE primitive, not two: cli_runner drives stdin (prompt-by-field / menu
+        index), ws_runner translates the SAME step to the rendered DOM — `zFill` → `[name='<field>']` per
+        key then clicks the enclosing form's `button[type='submit']` (mirrors the zCLI dialog's own
+        implicit last-field-submits flow); `zPick: Option` → `button[data-zkey='Option']` (data-zkey = the
+        zUI option/action key). Write the step ONCE against zUI field/option names — no selectors, no
+        hand-swap, no CLI/Bifrost fork. --gen emits it once and it is correct for whichever zMode runs it.
+    wrappers  — `zCLI:`/`zBifrost:` still honored; only needed when vocabulary is truly ambiguous (zLogger-only
+        step, dict zSubmit) or to force a one-off hand-picked CSS selector instead of the field/option name
     zSubmit   — scalar value → zCLI stdin; dict {path, gate, value} → zBifrost WS gate
     shared    — `zAssert:`/`zMarker:`/`zLogger:` run in both modes (scope with a wrapper if not intended)
     first     — TERMINAL IS TRUTH: CLI green, then flip to zBifrost (the coat, not a second test)
 
-drive_cli: zCLI step primitives
-    zPick: Option            — send that menu option's number (`^opt`, `zBack`, `_`→space work)
-    zSubmit: value           — type at the prompt; `$Var` refs resolve from captures
-    zFill: {field: value}    — declarative form fill: per field assert prompt → submit value; tuned values survive --gen
+drive_dual: dual-mode primitives — ONE step, both runners (write once, no fork)
+    zPick: Option            — zCLI: send that menu option's number (`^opt`, `zBack`, `_`→space work)
+                               zBifrost: click `button[data-zkey='Option']` (the zUI option/action key)
+    zFill: {field: value}    — zCLI: per field assert prompt → submit value; tuned values survive --gen
+                               zBifrost: per field set `[name='field']`, then click the form's Submit button
+    zSubmit: value           — scalar only here (a dict zSubmit is the zBifrost-only WS-gate form, see drive_web)
+                               zCLI: type at the prompt; `$Var` refs resolve from captures — zBifrost: same $Var resolution, no browser action
+
+drive_cli: zCLI-only step primitives (zWizard has no Bifrost translation yet)
     zVar: Name               — on a zSubmit, remember value as `$Name`
     zAllowError: true        — permit an ERROR: line after this submit (default: ERROR fails)
     zExpect: deny            — prove a gate HOLDS: pair with zPick; PASS when denied, FAIL if let in
     zCapture: {var, pattern} — regex output → `$var` (group 1 or whole; ANSI stripped)
     zMenu / zWizard          — containers: nest zPick/zAssert (zMenu) or sub-steps (zWizard)
     zSetup:                  — soft first block (fixtures); failures are ⚠ warnings, uncounted
-    zMarker: done            — close stdin, end run; put LAST
+    zMarker: done            — close stdin, end run; put LAST (shared — also closes out a zBifrost run)
 
-drive_web: zBifrost step primitives (Playwright + WS + HTTP)
+drive_web: zBifrost-only step primitives (Playwright + WS + HTTP; no terminal equivalent)
     zOpen: zSpark            — homepage `/`; or `@.UI.Page` route; or `{type, zLoom|zUI, params}`
     zViewport: desktop       — desktop|tablet|mobile | `[w,h]` | device name; fresh context each change
     zWait: {selector, state} — state: visible|hidden|attached|detached|enabled; timeout ms
-    zClick: {selector}       — `button[data-key='X']`, `button:has-text('Label')`
-    zType: {selector, value} — `~email`/`~name`/`~uuid`/… generate unique; `$Ref` reuses
+    zClick: {selector}       — hand-picked selector escape hatch when a bare `zPick` name won't do
+    zType: {selector, value} — hand-picked selector escape hatch when a bare `zFill` field name won't do
+                               `~email`/`~name`/`~uuid`/… generate unique; `$Ref` reuses
     zUpload: {selector, path}— set a file (relative paths resolve to app dir)
     zDrag: {selector, from, to} — drag by pixel offsets
     zHistory: back|forward   — browser Back/Forward (popstate); follow with zWait
@@ -933,10 +1023,16 @@ assert: zAssert — check the outcome (empty = pass)
 
 shots: the shippable bar = 3 viewports that read cleanly
     where   — zRaven/zShots/<name>/<viewport>/<step>.png (viewport = desktop|tablet|mobile)
-    how     — a zViewport step then a zShot step; repeat per viewport in ONE browser block
+    how     — zViewport tears down to a FRESH blank context (no URL loaded) — always follow it with
+              zOpen: zSpark + zWait before zShot, or the shot captures a blank page; repeat per viewport
     sizes   — desktop 1280×720 · tablet 768×1024 · mobile 390×844 (`[w,h]`/device name also)
     review  — DONE ≠ tests pass; it's shots that look shippable at all three — LOOK at them
     opts    — full_page, format(png/jpeg/webp)+quality, selector, delay, resolution, burst {every, count}
+    on_fail — ALWAYS get a screenshot, even red: a compound step (e.g. zOpen+zWait+zShot) halts at its
+              FIRST failing primitive and never reaches its own zShot line — Bifrost auto-captures
+              `<step>_FAILED.png` the instant any primitive/exception fails (best-effort, never masks
+              the real error) — a blank/broken screenshot on a red step is itself the diagnostic;
+              never author a workaround (split shot into its own step) to get one, it's automatic
 
 history: every --gen is reversible — archive + replay
     archive — before overwrite, --gen copies active → {app}/zVersions/tests/zRaven.<name>[uiVer]_rN.zolo (skipped when byte-identical to last rN)
@@ -946,19 +1042,84 @@ history: every --gen is reversible — archive + replay
     resolve — none → active | --v only → highest rN for UI | --r only → that rN on newest UI
     drift   — --run pre-flights raven `# zRavenVersion:` vs UI zUIVersion; WARNS (not blocks)
     output  — zRaven/output/ (.last_raven_result, zRaven.last_run.log, runs.csv) — what --hint reads
-    data    — Data/ snapshot-isolated per run, restored after — no manual reset
+    data    — Data/ snapshot-isolated per `--run` invocation only, restored after — no manual reset; a
+        hand-run `z zSpark...` outside `--run` gets none of this and writes straight to real Data/
+
+zcommit: `z raven --commit 'label'` — archive a milestone snapshot of ONE flow (spark + raven)
+    what     — additive only, nothing in the working tree moves or deletes; NOT git — no branches, no
+        merges, no truncation, just numbered folders that are written once and never mutated
+    scope    — always one flow: the current `zSpark.<app>.zolo` OR a `_zSpark.<flow>.zolo` dev spark
+        (`--spark` selects which); `z raven --commit` with no `--spark` targets the app's canonical spark
+    gate     — blocks unless the flow's LAST run passed (0 failed steps); `--force` overrides — a commit
+        is a milestone claim, an unproven/broken state needs an explicit override to record one
+    where    — `zVersions/commits/<flow>/c1/, c2/, …` — cN increments per flow, never reused
+    contents — `snapshot/` full raw copy of the flow's OWN files (spark + active raven) PLUS the project's
+        shared text-source state at that moment (models/, zLoom/, zViews/, routes/ — whatever exists);
+        `diff.txt` plain unified diff vs the PREVIOUS commit of this SAME flow (agent-only changelog,
+        absent on the genesis c1); `shots/` raw copy of that flow's zShots (Bifrost only); `<title>.log`
+        raw copy of the run log; `manifest.json` records which snapshot paths are `flow_owned` (spark +
+        raven — the ONLY paths zRevive ever restores) vs `shared` (historical record, never restored)
+    ledger   — `zVersions/commits.csv` — one project-wide row per commit (id, flow, commit, label,
+        timestamp, spark_file, raven_file, steps_total/passed/failed, path) — full commit history in one read
+    when     — suggest after an exit_gate (all zRaven green, shots reviewed+shippable) — see 00_workflow
+
+zclear: `z raven --clear` — remove committed dev-flow scratch files + orphaned zRaven output
+    what     — the subtractive counterpart to zcommit; ONLY removes what's either backed up by a real
+        commit, or unreferenced junk nothing points to anymore — never a guess, never a "probably fine"
+    dev flows — `_zSpark.<flow>.zolo` + its `zRaven/zRaven.<flow>.zolo` are removed ONLY when: (1) a
+        commit exists for that flow, AND (2) the commit's flow-owned snapshot is byte-identical to the
+        current working copy — no silent loss of not-yet-committed edits
+    --force  — skips check (2) (drift is OK, you're choosing to lose it) but NEVER check (1) — clearing
+        something with zero backup anywhere is refused even with --force, no exceptions
+    canonical — a real `zSpark.<name>.zolo` (no underscore) is NEVER touched, committed or not; multiple
+        canonical sparks in one app are a deliberate developer choice, not zClear's business
+    shots    — `zRaven/zShots/<X>/` is NEVER source, only disposable proof output the next `--run`
+        regenerates from scratch — WIPED unconditionally for every flow on every `--clear`, canonical or
+        dev, committed or not (already-archived inside a zCommit if one was ever made); the
+        spark/raven ownership protection above never extends to shots
+    orphans  — a `zRaven/zShots/<X>/` matching no zSpark OR _zSpark file at all is wiped the same way —
+        nothing references it, always safe
+    scope    — `--clear` scans every `_zSpark.*.zolo` in cwd; `--clear <flow>` scopes to one
+    preview  — `--dry-run` prints what would be cleared/skipped (+ why) without deleting anything
+    ledger   — `zVersions/clears.csv` — one project-wide row per clear/skip (id, timestamp, flow, action, reason)
+    when     — suggest after a successful zcommit of a dev flow that's served its purpose — see 00_workflow
+
+zrevive: `z raven --revive <flow>` — restore a flow's OWN files from a zCommit back into the working tree
+    what      — the read-back counterpart to zcommit; stricter on purpose — restores ONLY the flow-owned
+        snapshot paths (spark + active raven) recorded in the commit's manifest.json; the shared
+        project text-source captured alongside them (schemas/zLoom/zUI/routes) is NEVER written back,
+        not even with --force — it's a historical record for the agent to read, not a restore target
+    which commit — no argument = latest commit for that flow; `--r N` targets cN specifically — zRevive
+        doesn't care about "ahead" commits, there's no history to rewind through, just a folder to copy
+    conflict  — if a flow-owned file ALREADY exists in the working tree and differs from the target
+        commit, zRevive REFUSES by default and names the diverging path(s) + how to proceed (commit
+        current state first, or `--force` to overwrite); identical files are a silent no-op
+    drift note — a shared file that moved on since the commit is reported as an FYI (never restored,
+        never blocks) — e.g. "zViews/zUI.x.zolo changed since c1" is informational only
+    list      — `z raven --revive` with no flow name lists every commit across the whole project
+        (flow/commit/label/timestamp) — a starting point when you don't remember the exact flow name
+    ledger    — `zVersions/revives.csv` — one project-wide row per attempt, success or conflict
 
 options: `zRavenOptions:` / `zMeta:` block at top (all optional)
     stop_on_error: true      — halt on first fail (DEFAULT); false = run all, print full map
     strict: true             — unknown/empty steps fail (DEFAULT); false = allow no-op
     allow_external: false    — zFetch/zOpen same-origin only (DEFAULT); true = cross-origin
-    timestamp_shots: false   — dated shot history instead of overwrite
+    timestamp_shots: true    — mm-dd-HH-MM prefix per shot filename (DEFAULT); false = overwrite in place.
+        ON by default so a re-run's shot never silently overwrites the last one in an image viewer/IDE
+        preview with zero visual diff to notice
+    zshots_retain: 5         — how many recent timestamped runs to keep PER step name (DEFAULT); older
+        groups auto-delete after each shot write; set on `zRavenOptions:` or per-step `shot.retain`
     timeout: (zMeta)         — per-step timeout, seconds
+    content_ready_timeout: 12000 — ms zOpen waits for first WS-rendered content before the empty-page
+        gate fails it (DEFAULT 12000); raise on a slow/CPU-constrained box or a heavy first render
     zConnect: {ws, http}     — URL overrides for standalone `zraven` entry (ignored by `z raven --run`)
 
 seek_as_need: !authoring a test — only if extending zRaven
-    generator  — core/zSys/cli/raven_generator.py (zUI→steps; preserves zFill/zSubmit values; archives) + raven_command.py (--gen/--run/--hint, revision resolve)
-    runners    — core/L4_Orchestration/s_zRaven: cli/cli_runner.py (stdin/stdout, strict leaf) · ws/ws_runner.py (Playwright+WS, `_BIFROST_PRIMITIVE_ORDER`, zScreenshot→zShot) · base_runner.py (mode, counters)
+    generator  — core/zSys/cli/raven_generator.py (zUI→steps; preserves zFill/zSubmit values; archives) + raven_command.py (--gen/--run/--hint/--commit, revision resolve)
+    commit     — core/L4_Orchestration/s_zRaven/zRaven_modules/utils/commit_manager.py (create_commit: gate, snapshot, diff, shots/log copy, ledger)
+    clear      — core/L4_Orchestration/s_zRaven/zRaven_modules/utils/clear_manager.py (clear_workspace: commit-match gate, dev-flow removal, orphan zShots sweep, ledger)
+    revive     — core/L4_Orchestration/s_zRaven/zRaven_modules/utils/revive_manager.py (revive_flow: commit lookup, conflict gate, flow-owned restore, shared drift note, ledger)
+    runners    — core/L4_Orchestration/s_zRaven: cli/cli_runner.py (stdin/stdout, strict leaf) · ws/ws_runner.py (Playwright+WS, `_BIFROST_PRIMITIVE_ORDER`, zScreenshot→zShot, `_capture_failure_shot` on any step fail) · base_runner.py (mode, counters)
     asserts    — assertions/evaluator.py (evaluate_assert dom/style/api/result, evaluate_logger_assert)
     parse+guard— utils/parser.py (parse_raven_file) · utils/validator.py (zUI↔zRaven check, vocab from zlsp token_registry) · utils/viewport.py (sizes, block split)
     orchestrate— runner.py (ZRavenRunner: CLI/WS dispatch, zOpen route table, Data/ isolation) · utils/hint_rules.py (--hint over runs.csv)
@@ -971,6 +1132,12 @@ enable: one key flips app → website
     key      — `zSpark.zServer.enabled: true` then `z zApp` — server starts, reads `zViews/`, serves it
     !wire    — you never write a route table or web-server config; the runtime finds pages + answers requests
     rule     — the app is the app; zServer only changes HOW it's reached — flip the key, rebuild nothing
+    template — `templates/zVaF.html` (app-authored Jinja): the ONE zWalker/template chrome, OPTIONAL override
+        — missing file → zServer renders a BUILT-IN default (same `<zVaF></zVaF>` + bifrost-client `<script>`), logs INFO, `z raven --run` warns `⚠ No templates/zVaF.html`
+        — physical file ALWAYS wins — author once per app to customize `<head>`/meta/fonts, then treat as chrome (do NOT rewrite per segment)
+        — must mount `<zVaF></zVaF>` (the only required tag) + load the bifrost-client `<script>`
+        — dev: point the script/CSS at a local checkout via `ZBIFROST_CLIENT_BASE` + `zServer.mounts` (zEnv) instead of the CDN — zero npm/CDN propagation lag; unset in prod to fall back to the CDN `@1` channel
+        — routing (zVaFolder/zVaFile/zBlock) still comes from zSpark; the template is chrome, never page content
 
 going_live: shipping = a ONE-WORD change
     runners       — zServer ships two, you NAME which (never call directly): `dev` (built-in, instant restart, loud logs, localhost default) | `waitress` (production, pure-Python, real traffic)
@@ -990,7 +1157,8 @@ routing: your folders become the routes — take the wheel only when you want
     smart     — default: declare the anchor ONCE, folders fan into URLs
         `routes: { /: { type: zSpark } }` — serve this app's home (borrows the spark's page)
         walks `zViews/` → every page a URL: `zUI.Home.zolo`→`/` · `About/zUI.About.zolo`→`/About`; `_`-folders + `error/` stay private
-        omit `/` and zServer adds the anchor for you
+        omit `/` and zServer adds the anchor for you — true zero-config: NO `zServer.*.zolo` file at all needed
+        just to serve the zSpark homepage; add one only when you need routes BEYOND that (extra pages/webhooks/API)
     manual    — a URL + a `type:` (reads like Flask):
         `zWalker` — one page: name `zVaFolder`/`zVaFile` (+opt `zBlock`)
         `static`  — a disk file untouched: `file: public/landing.html`
@@ -1200,12 +1368,15 @@ the_sigil: the whole subsystem is one character — `%`, read by POSITION
 
 spool: where a live value comes from — the reel a `%` thread pulls off
     `%data.<name>.<field>` — read a field off a named reel (the dotted path digs into the record)
-    declare — a file under `zLoom/spools/` (each top-level key IS a reel); a block opts in with `zMeta.zSpool: [name]`
-    inline  — a `_data:` sibling on the block (a one-off read, no file)
+    declare — ALWAYS a file under `zLoom/spools/` (each top-level key IS a reel); a block opts in with `zMeta.zSpool: [name]`
+    no inline form — `_data:` (a sibling on the block) is RETIRED; every read, even a one-off used by a single
+        block, gets its own `zLoom/spools/` reel — one declared-source mechanism, no shortcut duplicate
     ambient (always carried) — `%session.*` · `%auth.*` · `%route.<param>` (request-scoped) · `%item.<field>` (loop row) · `%var.<name>` (durable)
     full ref— `@.zLoom.spools.zUI.<file>.<reel>` to point at the exact def
     boundary— zLoom owns the binding grammar; `zData` ONLY runs the query; the raw row executes server-side, never ships to the browser
     rule    — a value ALWAYS has a declared source (one sigil covers a DB read, session, route param, loop row alike)
+    migrate — a reel's `fields:` is a hand-written list, NOT auto-synced to its model — a schema migration that adds a
+        column (see zData migrations) is invisible to the page until the matching reel also lists the new field
 
 dye: finish a value on its way to the page — the `|` pipe
     `%value | dye` — send through a step; chain freely (`%x | trim | title`), left-to-right
@@ -1370,10 +1541,11 @@ shape: a zVaFile block, string-first .zolo
             label:        A three-slide tour
             auto_advance: false
             loop:         true
-            slides:
-                - Slide one — one slide at a time.
-                - Slide two — arrows move, numbers jump.
-                - Slide three — that is the whole deck.
+            slides: [
+                Slide one — one slide at a time.,
+                Slide two — arrows move, numbers jump.,
+                Slide three — that is the whole deck.,
+            ]
 
 faces: one block, two renders — never branch on zMode
     zCLI    — a bordered box repainted IN PLACE (feed above never scrolls off); keyboard-driven; a plain sequential print of every slide when there's no TTY (CI/piped)

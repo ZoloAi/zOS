@@ -4,45 +4,63 @@ alwaysApply: true
 ---
 Zolo: declarative | llm-native | string-first
 verify: run only `z raven --run`; !pipe !redirect !grep; zRaven owns output/logs; console is truth; fix first failure only
+    !hand_drive: never test a CRUD/action flow by hand (manual `z zSpark` click-through, hand-rolled
+        Playwright/browser scripts) — a manual boot has none of --run's Data/ isolate+restore, so hand
+        clicks write straight to real seed data and leave it polluted; encode the flow as a zRaven step
+        instead (see 13_testing)
 
 laws:
     architecture: facade/modules; 1 file = 1 responsibility; entrypoints import only; DRY/SSOT
     .zolo: zLSP strings != YAML; no quoted values; no YAML assumptions
+           every .zolo file OPENS with a `# .zolo — NOT YAML` comment header — one line, states the
+               string-first rule, guards against YAML habits (quoting, `---`, `null`) creeping back in
+    zMeta: ALWAYS root-level (indent 0) — ONE per file, a sibling of the entry block(s), NEVER nested
+               inside a named block (`Main: { zMeta: ... }` is WRONG — zLSP flags it as an Error);
+               zBrush/zScripts/zSpool/zNavBar all live on that ONE root zMeta, file-wide — a block name
+               changing (zVaF vs a named entry like Main) never moves zMeta's indent
     data: zData + zSchema only; !csv !pandas !sqlite3 !rawSQL
     plugins: args -> result only; !state !orchestration !UI; >~50LOC -> zEvents
+    interactivity: existing zOS events/plugins only; !raw JS injection into the page
     
 phase_planning:
     core: terminal is truth — if it works in CLI it works in GUI; solve the problem first, surface it second
     i_intention: define need only; entities | actions | views | triggers | results; !implementation
     ii_reference: z demos — scan available demos for relevant patterns; clone only if a demo is close enough to accelerate, otherwise scaffold fresh
+        deeper: zAgent files not enough? `curl http://127.0.0.1:9090/zStack/zOS` — the local zOS hub, lightest-token way to go deeper (never assume it's running — a connection error just means skip it)
+            limit: it's a zBifrost page — curl only proves it's reachable (returns the un-rendered shell); it can't pull real page content (that needs the client's WS round-trip, curl never triggers it)
     iii_mapping: map intentions -> zOS events; terminal events first — GUI is a skin, not a prerequisite
 
 phase_CLI:
-    0_scaffold:  zolo scaffold <appname> — run in target directory
-    1_zUI:       fill __hints__ in UI/<app>.zolo — one segment from 3_dogfood at a time
-    2_zSpark:    fill __hints__ in zSpark.<app>.zolo — zMode: zCLI, zBlock from 1_zUI
+    0_init:      create <appname>/ by hand: zSpark.<app>.zolo + zViews/zUI.<app>.zolo (scaffold CLI retired — being redefined)
+    1_zUI:       fill zViews/zUI.<app>.zolo — one segment from 3_dogfood at a time
+    2_zSpark:    fill zSpark.<app>.zolo — zMode: zCLI, zBlock from 1_zUI
                  do NOT add zRaven: to zSpark during dev — auto-run on every boot is noisy
                  zRaven: is for CI/locked apps only; during dev use z raven --run explicitly
-    3_zRaven:    z raven --gen — auto-generates zRaven/<name>_cli.zolo from the zUI
+    3_zRaven:    z raven --gen — auto-generates zRaven/zRaven.<name>.zolo from the zUI
                  do NOT hand-write the structural raven — --gen owns it
-                 custom assertions go in zRaven/<name>.custom.zolo
+                 hand-edit that SAME active file for assertions — no separate custom file (see 13_testing)
     4_run:       z raven --run — boots spark, runs raven, prints pass/fail per step
                  fix ERROR lines in zUI — do NOT proceed until green
+                 iterating on one deep flow only? `_zSpark.<flow>.zolo` boots straight to it, skipping the
+                     nav journey every re-run — never the app's canonical spark (see 13_testing dev_spark)
     5_repeat:    steps 1–4 for each segment from 3_dogfood
     exit_check:  verify global_rules — file sizes ≤600, no duplication, facade pattern
     exit_gate:   all zRaven green → phase_Bifrost (unless user goal is terminal), 3+ consecutive fails → ask user
+                 suggest `z raven --commit 'label'` here too — a green CLI proof is its own milestone worth
+                     archiving before Bifrost work (styling/routes) starts touching the same shared files
 
 phase_Bifrost:
     entry:      auto — phase_CLI exit_gate met, unless user goal is terminal
     a_dogfood:  MVP only — BUILD ON existing verified zui, do NOT add new logic or events
         _zClass on existing keys only — what renders? what is clickable? what data shows?
         advanced styling / complex navigation come AFTER all green — not now
-    b_routes:   fill __hints__ in routes/zServer.routes.zolo — align to zSpark/zUI
-    c_zSpark:   update zMode: zBifrost, zServer: {enabled: true}, zSwap: true
-    d_zClass:   _zClass on existing zUI keys — no new events — scaffolded zVaF.html, do NOT rewrite
-                interactive widgets (calculator, keyboard, board) → _GUI + _zDelegate — NOT JS injection
-    e_zRaven:   extend zRaven/<name>.custom.zolo with browser block for GUI testing
-                or run z raven --gen to regenerate structural raven for Bifrost mode
+    b_routes:   routes/zServer.routes.zolo only if adding routes beyond the zSpark homepage (see zServer ref)
+    c_zSpark:   update zMode: zBifrost, zServer: {enabled: true}
+    d_zClass:   _zClass on existing zUI keys — no new events
+                templates/zVaF.html only to customize head/meta/fonts (see zServer ref for the default/override rule)
+    e_zRaven:   z raven --gen regenerates zRaven/zRaven.<name>.zolo for Bifrost (adds zOpen/zWait skeleton)
+                zFill/zPick steps already generated for zCLI carry over UNCHANGED — they're dual-mode (see
+                    13_testing); hand-extend only with zAssert(dom)/zViewport+zShot for browser-only checks
     f_run:      z raven --run — fix until browser assertions pass + shots saved
     g_plugins:  as needed for JS logic on existing events only
     h_repeat:   steps e–g for each segment from a_dogfood
@@ -70,6 +88,12 @@ next_step_rule:
         raven_depth:  add a zRaven submit flow — fill the form, assert success message, verify row appears
         style_pass:   iterate styling — [specific gap observed in screenshots]
         new_feature:  add [specific feature implied by current segment, e.g. delete, filter, search]
+        commit_milestone: `z raven --commit 'label'` this flow — all-green + shots reviewed IS a milestone
+            worth archiving (see 13_testing zcommit); pick this when the segment feels genuinely "done",
+            not mid-iteration
+        clear_dev_flow: this `_zSpark.<flow>.zolo` has served its purpose (already committed) — suggest
+            `z raven --clear` to drop the scratch spark/raven/shots from the working tree (see 13_testing
+            zclear); pick this once a dev flow is done being iterated on, not while still in active use
     rules:
         ALWAYS end a completed segment with this pattern — never silently stop
         ONE suggestion only — do not list options, pick the most logical next step
@@ -79,4 +103,3 @@ next_step_rule:
 bifrost_browser_rule:
     NEVER open zVaF.html directly — it is a server-side template, not a standalone HTML file
     ALWAYS open http://localhost:8080/<route> — z zSpark.<app>.zolo starts the server, THEN open the URL
-    route comes from routes/zServer.routes.zolo — if / is the root route, open http://localhost:8080/

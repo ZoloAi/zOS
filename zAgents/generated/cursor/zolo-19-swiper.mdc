@@ -18,10 +18,11 @@ shape: a zVaFile block, string-first .zolo
             label:        A three-slide tour
             auto_advance: false
             loop:         true
-            slides:
-                - Slide one — one slide at a time.
-                - Slide two — arrows move, numbers jump.
-                - Slide three — that is the whole deck.
+            slides: [
+                Slide one — one slide at a time.,
+                Slide two — arrows move, numbers jump.,
+                Slide three — that is the whole deck.,
+            ]
 
 faces: one block, two renders — never branch on zMode
     zCLI    — a bordered box repainted IN PLACE (feed above never scrolls off); keyboard-driven; a plain sequential print of every slide when there's no TTY (CI/piped)

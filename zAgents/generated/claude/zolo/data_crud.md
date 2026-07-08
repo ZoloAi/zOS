@@ -74,6 +74,9 @@ delete: remove what you name — `action: delete`
     ex    — `where: id = zConv.id` (any field works: `where: department = zConv.department`)
     confirm — `fields: []` renders a single Confirm button against a pre-baked `where:` (e.g. `active = false`)
     rule  — no `where:` deletes EVERY row + permanent — read first
+    per_row — a bare `zBtn.action:` is a CALL, not a full zData block — a dynamic-row one-click delete (`where: id = %item.id`)
+        needs a `@zfunc` (inject `data`, call `data.delete(table, where=...)`) → zFunc leaf; a `zDialog.onSubmit` CAN
+        hold a real `zData: {action: delete}` block directly (no plugin needed) since a dialog submit is a full dispatch
     depth — on_delete cascades, soft delete, subquery/cross-table/time-based/RETURNING → Advanced Writes
 
 migrations: evolve the shape without losing data — edit the zSchema to what it SHOULD be, zData finds the smallest safe path

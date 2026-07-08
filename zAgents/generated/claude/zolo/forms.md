@@ -18,6 +18,7 @@ vocabulary: a field carries the SAME keys it has on its own leaf — a zDialog j
     inputs  — text · email · url · tel · number · password · textarea · color · date · file -> Input Events
     controls— select (dropdown/radio/multi) · checkbox -> Control Events
     extras ride along unchanged: placeholder · default · required · readonly · disabled · prefix/suffix · datalist · options · multi · accept
+    _zClass — lands on that field's own input/select/textarea (text/number/select/etc); radio/checkbox groups don't forward it yet
     rule: don't re-teach a field here — its own leaf owns it; the zDialog only collects it
     every answer lands in zConv as a string (a LIST for a multi-select)
 
@@ -42,10 +43,11 @@ result: onSubmit returns a RESULT — success or failure
     log_severity: a business failure (success:false) is an EXPECTED outcome — surface it inline, never a console error (that's reserved for a real exception)
 
 onward: onSubmit is a DOORWAY — the same hook, bigger jobs
-    a zFunc is the simplest action; the very same onSubmit hands off to subsystems that REUSE this collect-then-submit mechanism
+    onSubmit is always a dict — ONE key naming the subsystem, never a bare `&.` call
+    `onSubmit: { zFunc: &.calc.add(zConv.a, zConv.b) }` — the simplest action, a plugin call
     zWizard  — carry the answers into a multi-step flow
     Identity — sign someone in / change the session (also what lets a submit navigate to a new page or refresh the navbar)
-    zData    — save the answers as a row (see schema)
+    zData    — save the answers as a row (see schema): `{ zData: {action: insert, model: @...} }`
     rule: zDialog's grammar never changes — only the action on the other end gets bigger
 
 schema: let a zSchema write the fields

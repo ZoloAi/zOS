@@ -18,12 +18,15 @@ the_sigil: the whole subsystem is one character — `%`, read by POSITION
 
 spool: where a live value comes from — the reel a `%` thread pulls off
     `%data.<name>.<field>` — read a field off a named reel (the dotted path digs into the record)
-    declare — a file under `zLoom/spools/` (each top-level key IS a reel); a block opts in with `zMeta.zSpool: [name]`
-    inline  — a `_data:` sibling on the block (a one-off read, no file)
+    declare — ALWAYS a file under `zLoom/spools/` (each top-level key IS a reel); a block opts in with `zMeta.zSpool: [name]`
+    no inline form — `_data:` (a sibling on the block) is RETIRED; every read, even a one-off used by a single
+        block, gets its own `zLoom/spools/` reel — one declared-source mechanism, no shortcut duplicate
     ambient (always carried) — `%session.*` · `%auth.*` · `%route.<param>` (request-scoped) · `%item.<field>` (loop row) · `%var.<name>` (durable)
     full ref— `@.zLoom.spools.zUI.<file>.<reel>` to point at the exact def
     boundary— zLoom owns the binding grammar; `zData` ONLY runs the query; the raw row executes server-side, never ships to the browser
     rule    — a value ALWAYS has a declared source (one sigil covers a DB read, session, route param, loop row alike)
+    migrate — a reel's `fields:` is a hand-written list, NOT auto-synced to its model — a schema migration that adds a
+        column (see zData migrations) is invisible to the page until the matching reel also lists the new field
 
 dye: finish a value on its way to the page — the `|` pipe
     `%value | dye` — send through a step; chain freely (`%x | trim | title`), left-to-right

@@ -22,3 +22,6 @@ seek_as_need: !boot-critical — pull the reference when you reach the key
     zPersist  — create Apps/{title}/ user-data dir -> Config ref
     zRaven*   — bind a test suite (zRaven, zRavenTimeout, zRavenPort…); !add during dev (noisy auto-run) -> 04_raven
     plugins   — list of .py loaded at boot -> plugins ref
+
+retired: dropped keys — printed as a deprecation warning if still set
+    zSwap     — was user-data persistence -> renamed zPersist (unrelated to the `z swap` CLI zero-downtime command)

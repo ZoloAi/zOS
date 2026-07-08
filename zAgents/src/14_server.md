@@ -5,6 +5,12 @@ enable: one key flips app → website
     key      — `zSpark.zServer.enabled: true` then `z zApp` — server starts, reads `zViews/`, serves it
     !wire    — you never write a route table or web-server config; the runtime finds pages + answers requests
     rule     — the app is the app; zServer only changes HOW it's reached — flip the key, rebuild nothing
+    template — `templates/zVaF.html` (app-authored Jinja): the ONE zWalker/template chrome, OPTIONAL override
+        — missing file → zServer renders a BUILT-IN default (same `<zVaF></zVaF>` + bifrost-client `<script>`), logs INFO, `z raven --run` warns `⚠ No templates/zVaF.html`
+        — physical file ALWAYS wins — author once per app to customize `<head>`/meta/fonts, then treat as chrome (do NOT rewrite per segment)
+        — must mount `<zVaF></zVaF>` (the only required tag) + load the bifrost-client `<script>`
+        — dev: point the script/CSS at a local checkout via `ZBIFROST_CLIENT_BASE` + `zServer.mounts` (zEnv) instead of the CDN — zero npm/CDN propagation lag; unset in prod to fall back to the CDN `@1` channel
+        — routing (zVaFolder/zVaFile/zBlock) still comes from zSpark; the template is chrome, never page content
 
 going_live: shipping = a ONE-WORD change
     runners       — zServer ships two, you NAME which (never call directly): `dev` (built-in, instant restart, loud logs, localhost default) | `waitress` (production, pure-Python, real traffic)
@@ -24,7 +30,8 @@ routing: your folders become the routes — take the wheel only when you want
     smart     — default: declare the anchor ONCE, folders fan into URLs
         `routes: { /: { type: zSpark } }` — serve this app's home (borrows the spark's page)
         walks `zViews/` → every page a URL: `zUI.Home.zolo`→`/` · `About/zUI.About.zolo`→`/About`; `_`-folders + `error/` stay private
-        omit `/` and zServer adds the anchor for you
+        omit `/` and zServer adds the anchor for you — true zero-config: NO `zServer.*.zolo` file at all needed
+        just to serve the zSpark homepage; add one only when you need routes BEYOND that (extra pages/webhooks/API)
     manual    — a URL + a `type:` (reads like Flask):
         `zWalker` — one page: name `zVaFolder`/`zVaFile` (+opt `zBlock`)
         `static`  — a disk file untouched: `file: public/landing.html`

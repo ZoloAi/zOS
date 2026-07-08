@@ -15,14 +15,35 @@ menus: add a mark, get a list — no prompt loop to write
         rule — want an option to run ONLY its content? make it NAVIGATE AWAY (verb/block hop), not fall through
     nest      — an option can hold its own menu (nested, no `~` → auto Back) — drill-in/step-out from menus alone
 
-verbs: three moves — where does this take you?
+verbs: four moves — where does this take you?
     zAlpha — cross-FILE: a zPath, zOS loads that file + runs from that block (behind menu picks + page buttons)
         zPath — last segment = BLOCK, segment before (after `zUI.`) = zVaFile → Cross Platform owns the grammar
         + a permissions dict → the move becomes role-gated → Identity
     zDelta — same-FILE hop: mark target with `$` (`$Block`); runs it, nothing loads, route NEVER moves; reversible with zBack
     zOmega — land on a zKey, not the top: NOT its own verb — an ADJECTIVE on a zAlpha/zDelta saying WHERE to arrive
         matches a block's DIRECT keys | browser scrolls to it · terminal opens the block at that key, skips above
-    rule   — different file → zAlpha | a block here → zDelta | an exact key → zOmega riding on one of the two
+    zModal — the CALL (alpha/delta are GOTOs): run a block as a DETOUR, auto-return to the firing point on completion
+    rule   — different file → zAlpha | a block here → zDelta | an exact key → zOmega riding on one of the two | glance-and-return → zModal
+
+zmodal: a modal is a glance, not a move — forward with auto-back built in
+    value forms (first character routes, same as href):
+        inline dict — `zModal: {zH2: Hello, zText: ...}` — the dict IS the modal, any block content
+        `$Block`    — same-file block (zDelta-style resolve, incl. zUI.<name> auto-discovery)
+        `@.zViews…` — cross-file (zAlpha-style zPath)
+        longhand    — `zModal: {zUI: <target>, params: {...}}` — dict WITH `zUI:` = target form
+    firing seams — a menu OPTION's value (opens on pick, returns to the menu) · a zBtn ACTION (opens on click):
+        string action — `action: zModal($Block)` / `zModal(@.zPath)` — rides zBtn exactly like zAlpha(...)/zDelta(...)
+        dict action   — `action: {zModal: {zH2: ...}}` — inline content right on the button
+    contract — trail-INVISIBLE: no crumb, route never moves, zBack after return acts like the detour never happened
+        completion — target finishes (zDialog onSubmit returns / content walks off its last key) → auto-return, caller resumes
+        dismiss    — a zBack inside the modal closes it (same return path); pure-content modals gate on `Press Enter to close`
+        fired from a `~Menu*` anchor → returns to that menu (drill-in/step-out)
+    zLoom — read-only both ways: a $/@ target's file-root zSpool is pre-woven (modal renders data like a page would)
+        zModal lives ONLY in zUI pages — never in zLoom/ files (data+shape only, no events)
+    terminal — zCLI: a detour walk with the auto-back | zBifrost: a FLOATING overlay (backdrop + card + ×), same grammar
+        Bifrost plumbing — dispatch stages the woven block (session `_zPendingModal`, the `_zPendingNavigate` pattern); the bridge
+        flushes it as a `render_modal` frame; the client paints it into the overlay and owns dismissal LOCALLY (backdrop/ESC/×)
+        — the route never moved server-side, so closing needs no round-trip; a menu-resume walk STOPS at the modal (anchor bounce)
 
 zurl: the rendered, clickable link — what a person presses
     required — label + href; arrives ready, nothing to switch on
