@@ -15,7 +15,6 @@ from .push_command import handle_push_command
 from .uninstall_command import handle_uninstall_command
 from .zspark_command import handle_zspark_command
 from .ztests_command import handle_ztests_command
-from .scaffold_command import handle_scaffold_command
 
 __all__ = [
     'display_info',
@@ -28,5 +27,4 @@ __all__ = [
     'handle_uninstall_command',
     'handle_script_command',
     'handle_zspark_command',
-    'handle_scaffold_command',
 ]

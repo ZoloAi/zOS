@@ -33,12 +33,11 @@ _LAUNCH_EPILOG = (
     f"  {Colors.zInfo}zolo <app>{Colors.RESET}         zSpark.<app>.zolo in the current dir\n"
     f"  {Colors.zInfo}zolo <path>.zolo{Colors.RESET}   a zSpark file by path (relative or absolute)\n"
     f"  {Colors.zInfo}zolo <path>.py{Colors.RESET}     a Python file, run in the zOS context\n"
-    f"\n{Colors.DIM}Learn more at https://zolo.media{Colors.RESET}\n"
+    f"\n{Colors.DIM}Learn more at http://127.0.0.1:9090/zStack/zOS{Colors.RESET}\n"
 )
 
 # Import command modules (order here is cosmetic; --help order is set in create_parser)
 from . import config_args
-from . import scaffold_args
 from . import shell_args
 from . import demos_args
 from . import reload_args
@@ -98,7 +97,6 @@ def create_parser(version: str) -> argparse.ArgumentParser:
     # Add each command's subparser — this order = `z --help` display order (UX-ordered).
     # Onboarding / common first; maintenance + questionable/deprecated last.
     config_args.add_subparser(subparsers)
-    scaffold_args.add_subparser(subparsers)
     shell_args.add_subparser(subparsers)
     demos_args.add_subparser(subparsers)
     reload_args.add_subparser(subparsers)

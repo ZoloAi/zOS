@@ -95,7 +95,7 @@ def _raven_badge(result: Optional[dict]) -> str:
 # ── Commands ──────────────────────────────────────────────────────────────────
 
 def _cmd_list(demos_dir: Path) -> int:
-    demos = sorted(p for p in demos_dir.iterdir() if p.is_dir())
+    demos = sorted(p for p in demos_dir.iterdir() if p.is_dir() and not p.name.startswith("_"))
     if not demos:
         print("\n  No demos found.\n")
         return 0

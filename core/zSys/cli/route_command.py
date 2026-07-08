@@ -160,11 +160,6 @@ def route_command(
             logger, Path, zos_package, verbose=verbose
         ),
         "agents":   lambda: _handle_agents_command(args),
-        "scaffold": lambda: cli.handle_scaffold_command(
-            appname=args.appname,
-            title=getattr(args, "title", None),
-            dest=getattr(args, "dest", None),
-        ),
         "raven": lambda: _handle_raven_command(logger, args, verbose),
         "demos": lambda: _handle_demos_command(args),
         "reload": lambda: _handle_reload_command(logger, args, verbose),
