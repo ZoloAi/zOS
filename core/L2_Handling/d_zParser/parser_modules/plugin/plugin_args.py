@@ -108,11 +108,15 @@ def parse_plugin_arguments(args_str: str) -> Tuple[List[Any], Dict[str, Any]]:
         if not part:
             continue
 
-        # Check for keyword argument (key=value)
-        if CHAR_EQUALS in part and not is_quoted_string(part):
-            key, value = part.split(CHAR_EQUALS, 1)
-            key = key.strip()
-            value = value.strip()
+        # Check for keyword argument (key=value) — the key MUST be a bare
+        # identifier. Without this guard, a JSON literal argument (e.g. a
+        # Bifrost file-upload envelope) that happens to contain a base64 '='
+        # padding character got misread as `<huge JSON blob>=<tail>`.
+        eq_index = part.find(CHAR_EQUALS) if not is_quoted_string(part) else -1
+        candidate_key = part[:eq_index].strip() if eq_index >= 0 else ""
+        if eq_index >= 0 and candidate_key.isidentifier():
+            key = candidate_key
+            value = part[eq_index + 1:].strip()
             kwargs[key] = parse_argument_value(value)
         else:
             # Positional argument
@@ -121,22 +125,34 @@ def parse_plugin_arguments(args_str: str) -> Tuple[List[Any], Dict[str, Any]]:
     return args, kwargs
 
 
+_BRACKETS_OPEN = "([{"
+_BRACKETS_CLOSE = ")]}"
+
+
 def smart_split_arguments(text: str) -> List[str]:
     """
-    Split text by comma, respecting quotes (both single and double).
+    Split text by comma, respecting quotes AND nested brackets/braces.
     
-    Splits a string on commas while preserving quoted strings as single tokens.
-    Handles both single (') and double (") quotes, tracking quote state to
-    avoid splitting on commas inside quoted strings.
+    Splits a string on commas while preserving quoted strings and bracketed/
+    braced literals as single tokens. Handles both single (') and double (")
+    quotes, plus (), [], {} nesting depth, tracking state to avoid splitting
+    on commas that live inside either.
     
     Quote Handling:
         - Tracks in_quotes state (True/False)
         - Tracks quote_char (which quote opened: ' or ")
         - Commas inside quotes are preserved
         - Quote characters are kept in output
+
+    Bracket Handling:
+        - Tracks a single nesting-depth counter across (, [, { / ), ], }
+        - A comma is only a split point at depth 0 AND outside quotes
+        - Lets a JSON object/array argument (e.g. a Bifrost file-upload
+          envelope — {"__zFile": true, ...}) survive as ONE token instead
+          of shredding at its own internal commas
     
     Args:
-        text: Text to split (may contain commas and quotes)
+        text: Text to split (may contain commas, quotes, and brackets)
     
     Returns:
         List[str]: Split parts (empty parts are included)
@@ -153,6 +169,9 @@ def smart_split_arguments(text: str) -> List[str]:
         
         >>> smart_split_arguments("name='Alice', age=30")
         ["name='Alice'", " age=30"]
+
+        >>> smart_split_arguments('\\'x\\', {"a": 1, "b": 2}')
+        ["'x'", ' {"a": 1, "b": 2}']
         
         >>> smart_split_arguments("")
         []
@@ -172,13 +191,22 @@ def smart_split_arguments(text: str) -> List[str]:
     current: List[str] = []
     in_quotes = False
     quote_char: Optional[str] = None
+    depth = 0
 
     for char in text:
         if char in (CHAR_QUOTE_DOUBLE, CHAR_QUOTE_SINGLE) and (not in_quotes or char == quote_char):
             in_quotes = not in_quotes
             quote_char = char if in_quotes else None
             current.append(char)
-        elif char == CHAR_COMMA and not in_quotes:
+        elif in_quotes:
+            current.append(char)
+        elif char in _BRACKETS_OPEN:
+            depth += 1
+            current.append(char)
+        elif char in _BRACKETS_CLOSE:
+            depth = max(0, depth - 1)
+            current.append(char)
+        elif char == CHAR_COMMA and depth == 0:
             parts.append(''.join(current))
             current = []
         else:
@@ -312,6 +340,16 @@ def parse_argument_value(value: str) -> Any:
     # Handle None
     if value == STR_NONE:
         return None
+
+    # Handle a JSON object/array literal — a non-scalar zConv value (e.g. a
+    # Bifrost file-upload envelope, see dialog_context.inject_placeholders)
+    # arrives here as embedded JSON text, not a quoted string.
+    if value[:1] in ("{", "["):
+        try:
+            import json
+            return json.loads(value)
+        except (ValueError, TypeError):
+            pass
 
     # Try integer
     try:

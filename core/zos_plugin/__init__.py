@@ -41,6 +41,7 @@ Example::
 """
 
 import asyncio
+import base64
 import builtins
 import contextvars
 import functools
@@ -158,6 +159,46 @@ async def _acontract(coro, fn):
         return "error"
 
 
+_ZFILE_ENVELOPE_KEY = "__zFile"
+
+
+def _decode_zfile_kwargs(kwargs: dict) -> "tuple[dict, dict]":
+    """Decode any ``{"__zFile": true, "data_b64": ...}`` envelope values.
+
+    A ``zInput type: file`` field submitted from Bifrost has no local disk path
+    (unlike zCLI's already-existing-file zPath) — the browser only has bytes.
+    The client (zbifrost-client's FormRenderer) reads a selected File as base64
+    and sends it as a plain JSON-safe dict instead of the raw (unserializable)
+    File object it used to silently drop. This turns each such value into the
+    SAME raw shape multipart parsing and ``Invocation.from_paths`` both produce
+    (``{data: bytes, filename, content_type, size}``) — one decode, reused by
+    both the caller-supplied-arg path (a plugin naming the field directly, e.g.
+    ``photo``) and the injected ``files`` facade (``files.image('photo')``).
+
+    Returns ``(kwargs_with_decoded_values, files_map_for_injection)``.
+    """
+    files_map: dict = {}
+    if not kwargs:
+        return kwargs, files_map
+    decoded = dict(kwargs)
+    for key, value in kwargs.items():
+        if not (isinstance(value, dict) and value.get(_ZFILE_ENVELOPE_KEY)):
+            continue
+        try:
+            raw_bytes = base64.b64decode(value.get("data_b64") or "")
+        except Exception:  # pylint: disable=broad-except
+            raw_bytes = b""
+        raw = {
+            "data": raw_bytes,
+            "filename": value.get("filename") or "",
+            "content_type": value.get("content_type") or "application/octet-stream",
+            "size": len(raw_bytes),
+        }
+        decoded[key] = raw
+        files_map[key] = raw
+    return decoded, files_map
+
+
 def zfunc(fn):
     """Wrap a plugin function with signature-based DI + the zOS contract.
 
@@ -177,12 +218,17 @@ def zfunc(fn):
         if zos is None and args and _looks_like_zos(args[0]):
             zos, args = args[0], args[1:]  # tolerate a legacy positional zos
 
+        kwargs, zfile_map = _decode_zfile_kwargs(kwargs)
+
         own_token = None
         if inv is None:
-            inv = Invocation(zos=zos, params=dict(kwargs))
+            inv = Invocation(zos=zos, params=dict(kwargs), files=zfile_map or None)
             own_token = set_env(inv)
-        elif inv.zos is None and zos is not None:
-            inv.zos = zos
+        else:
+            if inv.zos is None and zos is not None:
+                inv.zos = zos
+            if zfile_map:
+                inv.files = {**(inv.files or {}), **zfile_map}
 
         sandbox_input = getattr(zos, "_sandbox_input", None)
         input_token = None

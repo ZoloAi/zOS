@@ -1,0 +1,36 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:   csv
+    Data_Path:   @.Data
+    Data_Label:  Photos
+    Schema_Name: zSchema.Photos
+
+Photos:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    title:
+        type:     str
+        required: true
+        rules:
+            max_length: 120
+
+    caption:
+        type:    str
+        default:
+
+    #> a dotted zPath (@.static.photos.<file>), NOT a raw "/static/..." URL —
+    #  zImage's src resolves this via resolve_zfile: a real OS path in zCLI
+    #  (opens in the system viewer), a web path in zBifrost (paints inline).
+    #  A hardcoded "/static/..." string only resolves once a zServer is
+    #  actually listening, so it silently breaks the zCLI phase <#
+    image:
+        type:     str
+        required: true
+
+    created_at:
+        type:    datetime
+        default: now

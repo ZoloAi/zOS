@@ -1,0 +1,106 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    zBrush: [zgallery]
+    zSpool: [photos]
+
+Main:
+    zH1:
+        label: Gallery
+        color: PRIMARY
+
+    #> MVP dogfood segment 1: browse only — no add/delete yet. zList/%item over
+    #  the photos spool, one zImage per row; zCLI prints title + caption as
+    #  metadata and offers to open each in the system viewer (zImage's own
+    #  terminal-open gate), Bifrost paints the thumbnail inline <#
+    Grid:
+        _zClass: zGallery-grid
+        zList:
+            source: %data.photos
+            each:
+                Card:
+                    _zClass: zGallery-card
+
+                    Photo:
+                        zImage:
+                            src:      %item.image
+                            alt_text: %item.title
+                            _zClass:  zGallery-photo
+
+                    Title:
+                        zText:
+                            content: %item.title
+                            _zClass: zGallery-title
+
+                    Caption:
+                        zText:
+                            content: %item.caption
+                            _zClass: zGallery-caption
+
+                    #> row actions — Edit (zModal glance-and-return) + Delete
+                    #  (per_row @zfunc), wrapped so the card CSS can pin both
+                    #  buttons to one bottom-right row <#
+                    Actions:
+                        _zClass: zGallery-card-actions
+
+                        #> zModal + zDialog (03_navigation.md) — a dict action
+                        #  {zModal: {zDialog: ...}} is an inline glance-and-
+                        #  return detour: %item.* bakes in at zList expansion
+                        #  (same as every other field in this row), so the
+                        #  dialog opens pre-filled with THIS card's own
+                        #  title/caption <#
+                        Edit:
+                            zBtn:
+                                label:  bi-pencil Edit
+                                color:  secondary
+                                _zClass: zGallery-edit
+                                action:
+                                    zModal:
+                                        zDialog:
+                                            title: Edit Photo
+                                            fields: [
+                                                {zConv: title,   type: text, label: Title,   default: %item.title,   required: true},
+                                                {zConv: caption, type: text, label: Caption, default: %item.caption},
+                                            ]
+                                            onSubmit:
+                                                zFunc: &.gallery.update_photo(%item.id, zConv.title, zConv.caption)
+
+                        #> per_row delete (08_data_crud.md `per_row`) — a bare
+                        #  zBtn.action is a CALL straight to a @zfunc, not a
+                        #  full zData block, so the plugin can clean up the
+                        #  static file before dropping the row <#
+                        Delete:
+                            zBtn:
+                                label:  bi-trash Delete
+                                color:  danger
+                                _zClass: zGallery-delete
+                                action: &.gallery.delete_photo(%item.id)
+
+    Add:
+        zBtn:
+            label:  bi-plus-lg Add Photo
+            color:  primary
+            _zClass: zGallery-add
+            action: zDelta($Add_Photo)
+
+#> MVP dogfood segment 2: add a photo — a file input + zDialog collector, the
+#  documented pairing (06_inputs.md files + 07_forms.md zDialog). No `model:`
+#  here: the `image` schema field is type: str (a zPath), but the picker must
+#  render type: file, so fields are spelled out by hand instead of inherited
+#  from zSchema.Photos. onSubmit hands off to a zFunc (plugins/gallery.py)
+#  because persisting needs MORE than a zData insert — the picked file's
+#  bytes have to land in static/photos before its zPath means anything <#
+Add_Photo:
+    zDialog:
+        title: Add Photo
+        fields: [
+            {zConv: title,   type: text, label: Title, required: true},
+            {zConv: caption, type: text, label: Caption},
+            {zConv: photo,   type: file, label: Photo, placeholder: @.upload_bank.filename},
+        ]
+        onSubmit:
+            zFunc: &.gallery.add_photo(zConv.title, zConv.caption, zConv.photo)
+    Back:
+        zBtn:
+            label:  ← Back
+            action: zDelta($Main)

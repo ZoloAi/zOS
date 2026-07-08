@@ -1,0 +1,8 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+photos:
+    zData:
+        action:   read
+        model:    @.models.zSchema.Photos
+        fields:   [id, title, caption, image]
+        order_by: id ASC

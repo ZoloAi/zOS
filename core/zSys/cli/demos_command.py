@@ -11,8 +11,40 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional
+
+
+# ── Git-tracked source resolution ───────────────────────────────────────────
+# A demo dir on disk also carries whatever it last regenerated locally
+# (zVersions/ snapshots, zRaven/zShots, .cursor/) — none of that is the demo,
+# it's THIS machine's dev exhaust. `--clone` must hand over the same tracked
+# source `z demos <name>` itself reads as canonical (see zDemos/.gitignore),
+# so the tracked file list always wins when this is a git checkout.
+
+def _git_root(start: Path) -> Optional[Path]:
+    candidate = start
+    for _ in range(6):
+        if (candidate / ".git").exists():
+            return candidate
+        candidate = candidate.parent
+    return None
+
+
+def _git_tracked_files(repo_root: Path, rel_dir: Path) -> Optional[list[str]]:
+    """List of repo-relative paths git tracks under ``rel_dir``, or None (not a git checkout / git unavailable)."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "ls-files", "--", str(rel_dir)],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    files = [line for line in result.stdout.splitlines() if line.strip()]
+    return files or None
 
 
 # ── Locate zDemos/ ────────────────────────────────────────────────────────────
@@ -161,13 +193,32 @@ def _cmd_clone(demos_dir: Path, name: str, new_name: Optional[str], dest: Option
         return 1
 
     print(f"\n  Cloning {name} → {target} ...")
-    shutil.copytree(
-        demo, target,
-        ignore=shutil.ignore_patterns(
-            "*.pyc", "__pycache__", ".last_raven_result",
-            "zRaven.last_run.log", "logs", "*.log",
-        ),
+
+    repo_root = _git_root(demos_dir)
+    tracked = (
+        _git_tracked_files(repo_root, demo.relative_to(repo_root))
+        if repo_root else None
     )
+    if tracked:
+        # Tracked-file copy: the demo dir's zRaven/zShots, zVersions, .cursor
+        # (this machine's regenerated dev exhaust — see zDemos/.gitignore)
+        # are never in this list, so they never reach the clone.
+        rel_demo = demo.relative_to(repo_root)
+        for rel_file in tracked:
+            dst = target / Path(rel_file).relative_to(rel_demo)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(repo_root / rel_file, dst)
+    else:
+        # Non-git install (no local checkout to query) — best-effort disk
+        # copy, filtering the same artifact patterns zDemos/.gitignore covers.
+        shutil.copytree(
+            demo, target,
+            ignore=shutil.ignore_patterns(
+                "*.pyc", "__pycache__", ".last_raven_result",
+                "zRaven.last_run.log", "logs", "*.log",
+                "zShots", "output", "zVersions", "zmigrations", ".cursor",
+            ),
+        )
     # Rename spark file
     for spark in target.glob("zSpark.*.zolo"):
         new_spark = target / f"zSpark.{new_name}.zolo"

@@ -85,6 +85,7 @@ Version History
 """
 
 from zOS import re, Any, Dict, List, Optional, Union
+import json
 import uuid
 from .dialog_constants import (
     KEY_FIELDS,
@@ -362,6 +363,14 @@ def inject_placeholders(
                         replacement = value  # Numeric string, no quotes
                     elif isinstance(value, (int, float)):
                         replacement = str(value)  # True numbers, no quotes
+                    elif isinstance(value, (dict, list)):
+                        # A file-upload zConv value (type: file over Bifrost — see
+                        # zAgents/src/06_inputs.md) is a dict, not a scalar. Naive
+                        # f"'{value}'" text-quoting produces an unparseable soup of
+                        # nested/unescaped quotes once embedded in the call-arg
+                        # string. json.dumps is self-delimiting, double-quoted, and
+                        # round-trips cleanly through zParser.parse_json_expr.
+                        replacement = json.dumps(value)
                     else:
                         replacement = f"'{value}'"  # Text strings, add quotes
                     result = result.replace(f"{_PLACEHOLDER_PREFIX}{_DOT_SEPARATOR}{field}", replacement)

@@ -10,6 +10,8 @@ zbtn: a button does a thing
     shorthand: zBtn: Save Changes — the words after the colon become the label
     longhand: zBtn: { label, action, color, type, _zClass }
         label  — icon-aware: a bi-* name shows a Bootstrap Icon, alone or beside text (bi-gear Settings | Delete bi-trash)
+            whitespace-joined tokens ONLY — zolo is declarative, not arithmetic string concat: never `bi-gear + Settings`
+            (the `+` isn't a `bi-*` token, so it renders as a literal stray "+" character next to the icon)
         action — the &. call fired on CLICK (see zFunc) — we don't teach actions here, just that the key exists
         color  — semantic fill: primary · secondary · success · danger · warning · info
     no_action: a zBtn with no action still returns a value — true on click (Bifrost) / y (terminal) — enough to gate a step

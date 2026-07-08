@@ -668,7 +668,7 @@ class ZRaven(BaseStepRunner):
         if resolution:
             await self._page.set_viewport_size({"width": int(resolution[0]), "height": int(resolution[1])})
 
-        retain = cfg.get("retain", self._raven_opts.get("zshots_retain", 5))
+        retain = cfg.get("retain", self._raven_opts.get("zshots_retain", 2))
 
         def _shot_path(base_dir: str, name: str, idx: int | None = None) -> str:
             ts_prefix = ""
@@ -743,7 +743,7 @@ class ZRaven(BaseStepRunner):
             ts_prefix = _time.strftime("%m-%d-%H-%M") + "_"
             p = _os.path.join(shots_root, f"{ts_prefix}{step_name}_FAILED.png")
             await self._page.screenshot(path=p, full_page=True)
-            _prune_old_shots(shots_root, f"{step_name}_FAILED", "png", self._raven_opts.get("zshots_retain", 5))
+            _prune_old_shots(shots_root, f"{step_name}_FAILED", "png", self._raven_opts.get("zshots_retain", 2))
             info(f"zShot (failure) → {p}")
         except Exception:  # pylint: disable=broad-except
             pass

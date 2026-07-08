@@ -133,6 +133,11 @@ history: every --gen is reversible — archive + replay
     output  — zRaven/output/ (.last_raven_result, zRaven.last_run.log, runs.csv) — what --hint reads
     data    — Data/ snapshot-isolated per `--run` invocation only, restored after — no manual reset; a
         hand-run `z zSpark...` outside `--run` gets none of this and writes straight to real Data/
+    fs_gap  — isolation covers ONLY Data/ — a step whose own action writes elsewhere on disk (e.g. a
+        zFunc plugin copying an uploaded file into static/) is NOT restored; that write is real and
+        permanent even inside `--run`, and re-running the SAME flow again multiple times can pile up
+        collision-safe duplicates (`name_2.ext`, `name_3.ext`, …) if the plugin never overwrites — clean
+        stray copies by hand between iterations, same as any other non-Data/ side effect a flow performs
 
 zcommit: `z raven --commit 'label'` — archive a milestone snapshot of ONE flow (spark + raven)
     what     — additive only, nothing in the working tree moves or deletes; NOT git — no branches, no
@@ -196,8 +201,11 @@ options: `zRavenOptions:` / `zMeta:` block at top (all optional)
     timestamp_shots: true    — mm-dd-HH-MM prefix per shot filename (DEFAULT); false = overwrite in place.
         ON by default so a re-run's shot never silently overwrites the last one in an image viewer/IDE
         preview with zero visual diff to notice
-    zshots_retain: 5         — how many recent timestamped runs to keep PER step name (DEFAULT); older
+    zshots_retain: 2         — how many recent timestamped runs to keep PER step name (DEFAULT); older
         groups auto-delete after each shot write; set on `zRavenOptions:` or per-step `shot.retain`
+    z raven --clear <flow>   — scoped to that flow's OWN zShots/<flow>/ only; other live flows'
+        shot folders (e.g. canonical app a dev flow fed into) are untouched by design — the CLI
+        prints their file counts as a hint; use `z raven --clear` (no flow) to sweep every live flow
     timeout: (zMeta)         — per-step timeout, seconds
     content_ready_timeout: 12000 — ms zOpen waits for first WS-rendered content before the empty-page
         gate fails it (DEFAULT 12000); raise on a slow/CPU-constrained box or a heavy first render

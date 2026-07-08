@@ -1,0 +1,22 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     Gallery
+    zMode:     zBifrost
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zgallery
+    zBlock:    Main
+    #> media needs a real HTTP contract from day one, not just a Bifrost
+    #  skin later — without this, zOpen's server-path detection has nothing
+    #  to route to and falls back to treating the resolved zPath as a raw
+    #  local file (works, but isn't the real deployed behavior; a Bifrost
+    #  visitor is ALWAYS served, never subprocess-Preview'd) <#
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — photo/portfolio gallery, media-heavy grid + lightbox
+    tags: [zData, zSchema, zImage, zList, zModal, zOpen]
+    author: zAgents

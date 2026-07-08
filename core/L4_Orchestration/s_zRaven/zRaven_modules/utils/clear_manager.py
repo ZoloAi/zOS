@@ -162,4 +162,24 @@ def clear_workspace(workspace: Path, flow_filter: Optional[str] = None,
                     _append_ledger(workspace, name, "cleared", "orphaned zShots — no matching spark")
                 cleared.append(f"{name} (orphaned shots)")
 
-    return {"cleared": cleared, "skipped": skipped, "shots_wiped": shots_wiped}
+    # ── scoped-clear hint — a `--clear <flow>` only ever wipes THAT flow's own
+    # zShots/<flow>/ (dev flow shots, or the exact canonical name if passed).
+    # Other live flows' shot folders (e.g. the canonical app a dev flow fed
+    # into) are untouched by design — surface their file counts so "why didn't
+    # my other screenshots clear" has an immediate, correct answer instead of
+    # looking like a wiring bug ──────────────────────────────────────────────
+    untouched_shots: list[tuple[str, int]] = []
+    if flow_filter and shots_root.exists():
+        for shot_dir in sorted(shots_root.iterdir()):
+            if not shot_dir.is_dir() or shot_dir.name == flow_filter:
+                continue
+            count = sum(1 for _ in shot_dir.rglob("*") if _.is_file())
+            if count:
+                untouched_shots.append((shot_dir.name, count))
+
+    return {
+        "cleared": cleared,
+        "skipped": skipped,
+        "shots_wiped": shots_wiped,
+        "untouched_shots": untouched_shots,
+    }

@@ -361,6 +361,8 @@ zbtn: a button does a thing
     shorthand: zBtn: Save Changes — the words after the colon become the label
     longhand: zBtn: { label, action, color, type, _zClass }
         label  — icon-aware: a bi-* name shows a Bootstrap Icon, alone or beside text (bi-gear Settings | Delete bi-trash)
+            whitespace-joined tokens ONLY — zolo is declarative, not arithmetic string concat: never `bi-gear + Settings`
+            (the `+` isn't a `bi-*` token, so it renders as a literal stray "+" character next to the icon)
         action — the &. call fired on CLICK (see zFunc) — we don't teach actions here, just that the key exists
         color  — semantic fill: primary · secondary · success · danger · warning · info
     no_action: a zBtn with no action still returns a value — true on click (Bifrost) / y (terminal) — enough to gate a step
@@ -729,6 +731,18 @@ shared: the shape every media event takes
     _zClass  — your class on the wrapper -> reskin (rounded, frame, glow, tilt); the declaration stays untouched
     short:   zImage: @.path  |  zEmbed: https://…   — one-line form when alt_text isn't needed
     spaces:  a path may contain spaces (My Reel.mov) — resolved + served fine (URL shows %20); tidy names just read cleaner
+    gotcha:  a raw "/static/…" string is NOT the same as a @.path — it only resolves once a
+        zServer is actually listening (needs a live host:port to become a URL); a @.path resolves
+        via resolve_zfile in EVERY mode (real OS path in zCLI, web path in zBifrost) — always
+        author media fields as a dotted zPath (@.static.photos.sunset.jpg), even when the value
+        flows through zData/CSV rows into %item.<field>, never a hand-typed "/static/…" string
+
+server_contract: media needs zServer LISTENING to be openable at all, not just paintable
+    zCLI + media = `zServer: {enabled: true}` from phase_CLI onward — NOT just phase_Bifrost's
+        c_zSpark step; zOpen's server-path detection (the terminal y/n gate) has nothing to route
+        an absolute path to without it, and a raw web-relative src has nothing to route to either
+    proof   — a live zServer means the served route is genuinely curl-able (200, correct
+        content-type/size) — real verification, not an assumption that "it probably renders"
 
 zImage: a still — real <img> in browser, openable block in zCLI
     keys:  src | alt_text | caption | _zClass
@@ -755,6 +769,19 @@ terminal: shared behaviour — a console can't paint media
     web app: y opens in YOUR new browser tab, never on the server — the media events read the room
     open_prompt: false — just print the details, no question (logs / reports)
     rule: nothing opens on its own — it always asks first
+
+zopen_vs_media_open: two DIFFERENT gates that look similar — don't conflate them
+    media event's own open — zImage/zVideo/zEmbed's terminal y/n gate (open_image/open_video/
+        open_embed under the hood) — Bifrost-SAFE: delegates to the visitor's own browser (new
+        tab), never touches the server; this is what the "terminal" row above describes
+    bare `zOpen(...)` action — a zBtn firing the standalone dispatch primitive directly
+        (`action: zOpen(%item.file)`) is a DIFFERENT code path (zOpen.handle) — local-machine-only,
+        FAILS CLOSED for any Bifrost-origin request (TRUST_MODEL: a remote click must never open
+        files or launch apps on the server host) — it has no client-delegation fallback
+    rule: want a Bifrost-safe "open full-size" / "open original" button? use zURL/zLink
+        (`href: %item.file, target: _blank`) — a real anchor, not a bare zOpen(...) action;
+        reach for zOpen(...) only for genuine zCLI-only tooling (opening a local report, a config
+        file) that will never run under a Bifrost visitor
 
 ---
 
@@ -1048,6 +1075,11 @@ history: every --gen is reversible — archive + replay
     output  — zRaven/output/ (.last_raven_result, zRaven.last_run.log, runs.csv) — what --hint reads
     data    — Data/ snapshot-isolated per `--run` invocation only, restored after — no manual reset; a
         hand-run `z zSpark...` outside `--run` gets none of this and writes straight to real Data/
+    fs_gap  — isolation covers ONLY Data/ — a step whose own action writes elsewhere on disk (e.g. a
+        zFunc plugin copying an uploaded file into static/) is NOT restored; that write is real and
+        permanent even inside `--run`, and re-running the SAME flow again multiple times can pile up
+        collision-safe duplicates (`name_2.ext`, `name_3.ext`, …) if the plugin never overwrites — clean
+        stray copies by hand between iterations, same as any other non-Data/ side effect a flow performs
 
 zcommit: `z raven --commit 'label'` — archive a milestone snapshot of ONE flow (spark + raven)
     what     — additive only, nothing in the working tree moves or deletes; NOT git — no branches, no
@@ -1111,8 +1143,11 @@ options: `zRavenOptions:` / `zMeta:` block at top (all optional)
     timestamp_shots: true    — mm-dd-HH-MM prefix per shot filename (DEFAULT); false = overwrite in place.
         ON by default so a re-run's shot never silently overwrites the last one in an image viewer/IDE
         preview with zero visual diff to notice
-    zshots_retain: 5         — how many recent timestamped runs to keep PER step name (DEFAULT); older
+    zshots_retain: 2         — how many recent timestamped runs to keep PER step name (DEFAULT); older
         groups auto-delete after each shot write; set on `zRavenOptions:` or per-step `shot.retain`
+    z raven --clear <flow>   — scoped to that flow's OWN zShots/<flow>/ only; other live flows'
+        shot folders (e.g. canonical app a dev flow fed into) are untouched by design — the CLI
+        prints their file counts as a hint; use `z raven --clear` (no flow) to sweep every live flow
     timeout: (zMeta)         — per-step timeout, seconds
     content_ready_timeout: 12000 — ms zOpen waits for first WS-rendered content before the empty-page
         gate fails it (DEFAULT 12000); raise on a slow/CPU-constrained box or a heavy first render

@@ -213,7 +213,7 @@ def rule_repeated_step(data: dict) -> list[Hint]:
         if count >= 3:
             hints.append(Hint(
                 f"Step `{step}` failed in {count} of the last {min(8, len(runs))} runs — "
-                f"move this assertion to .custom.zolo to track it independently"
+                f"consistent, not flaky: fix the zUI source (or the step's expectation) directly"
             ))
     return hints
 
@@ -258,8 +258,8 @@ def rule_large_raven_file(data: dict) -> list[Hint]:
     lines = data.get("raven_lines", 0)
     if lines >= 500:
         return [Hint(
-            f"zRaven file is {lines} lines — split non-structural flows "
-            f"into zRaven/<name>.custom.zolo so --gen doesn't overwrite them"
+            f"zRaven file is {lines} lines — isolate the deepest flow into its own "
+            f"_zSpark.<flow>.zolo dev spark (own zRaven/zRaven.<flow>.zolo, own history)"
         )]
     return []
 

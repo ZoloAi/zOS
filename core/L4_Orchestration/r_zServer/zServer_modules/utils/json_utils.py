@@ -140,7 +140,7 @@ def render_json_response(
     return body_bytes, status_code, headers
 
 
-def _make_json_safe(obj: Any, max_depth: int = 10, _depth: int = 0) -> Any:
+def _make_json_safe(obj: Any, max_depth: int = 100, _depth: int = 0) -> Any:
     """
     Recursively convert objects to JSON-safe types.
     
@@ -163,6 +163,12 @@ def _make_json_safe(obj: Any, max_depth: int = 10, _depth: int = 0) -> Any:
         The JSON spec only allows: null, true, false, numbers, strings, arrays, objects.
         We convert NaN/Infinity to None (JSON null) as the semantically correct representation
         of "missing" or "invalid" numeric values.
+
+        max_depth is a circular-reference guard, not a real JSON limit — JSON itself
+        has no depth cap. It's sized to zData's own cyclic-graph safety cap
+        (crud_read.py's auto_join max_depth: 100) so legitimately deep declarative
+        UI trees (e.g. a zModal+zDialog nested inside a zList row's per-row action)
+        never get truncated by this guard.
     """
     # Depth limit to prevent infinite recursion
     if _depth > max_depth:

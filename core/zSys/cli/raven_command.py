@@ -412,6 +412,11 @@ def _handle_clear(workspace: Path, flow_filter, force: bool, dry_run: bool) -> i
             print("\n✅ nothing to clear — workspace already tidy\n")
         else:
             print()
+        if result.get("untouched_shots"):
+            print("ℹ️  other zShots/ folders untouched by this scoped --clear:")
+            for name, count in result["untouched_shots"]:
+                print(f"   - {name}: {count} file(s)  (z raven --clear {name}  or  z raven --clear)")
+            print()
         return 0
 
     except Exception as e:  # pylint: disable=broad-exception-caught
