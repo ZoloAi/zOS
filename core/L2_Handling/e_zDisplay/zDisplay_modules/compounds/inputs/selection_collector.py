@@ -216,6 +216,14 @@ class SelectionCollector:
                         # which is exactly why a zBtn action: zDelta(...) did nothing
                         # in zCLI/zTerminal while the Bifrost click intercept worked.
                         return {'zDelta': action[len('zDelta('):-1].strip()}
+                    elif action.startswith('zModal('):
+                        # Imperative zModal string — the CALL verb. Unlike the GOTOs
+                        # above, nothing to hand the wizard engine: run the detour
+                        # inline (dispatch dict branch → zNavigation run_modal) and
+                        # resume right here — the auto-back IS the semantics.
+                        self._execute_button_action_event(
+                            {'zModal': action[len('zModal('):-1].strip()}
+                        )
                     elif action != '#':
                         # Return action as navigation/jump target for wizard step-jumps
                         return action

@@ -158,6 +158,7 @@ from .menu.navigation_menu_system import MenuSystem
 from .navigation_breadcrumbs import Breadcrumbs
 from .navigation_state import Navigation
 from .navigation_linking import Linking
+from .navigation_detour import Detour
 from .menu.navigation_menu_builder import MenuBuilder
 from .menu.navigation_menu_renderer import MenuRenderer
 from .menu.navigation_menu_interaction import MenuInteraction
@@ -167,6 +168,7 @@ __all__: List[str] = [
     'Breadcrumbs',
     'Navigation',
     'Linking',
+    'Detour',
     'MenuBuilder',
     'MenuRenderer',
     'MenuInteraction',

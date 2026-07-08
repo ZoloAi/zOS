@@ -134,6 +134,7 @@ from .navigation_modules.menu.navigation_menu_system import MenuSystem
 from .navigation_modules.navigation_breadcrumbs import Breadcrumbs
 from .navigation_modules.navigation_state import Navigation
 from .navigation_modules.navigation_linking import Linking
+from .navigation_modules.navigation_detour import Detour
 from .navigation_modules.handlers.handler_navbar import NavbarHandler
 from .navigation_modules.navigation_constants import (
     COLOR_MENU,
@@ -277,6 +278,7 @@ class zNavigation:
         self.breadcrumbs = Breadcrumbs(self)
         self.navigation = Navigation(self)
         self.linking = Linking(self)
+        self.detour = Detour(self)  # zModal call/return engine
         self.navbar_handler = NavbarHandler(self)  # Navbar handler (extracted)
 
         # Display ready message using modern zDisplay
@@ -348,6 +350,22 @@ class zNavigation:
         perms, kind) — see ZLinkResolver.compile_intent.
         """
         return self.linking.resolver.compile_intent(value, verb=verb)
+
+    def run_modal(
+        self,
+        block_dict: Dict[str, Any],
+        walker: Any,
+        source_key: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        """Run a block as a zModal detour — CALL semantics (SSOT passthrough).
+
+        The first return-semantics verb: walk into ``block_dict``, complete it,
+        auto-return to the firing point; trail-invisible. See navigation_detour.
+        """
+        return self.detour.run_modal(
+            block_dict, walker, source_key=source_key, context=context
+        )
 
     def _filter_navbar_byzRBAC(self, navbar_items: List[Any]) -> List[Any]:
         """

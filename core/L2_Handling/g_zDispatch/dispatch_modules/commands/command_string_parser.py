@@ -25,6 +25,8 @@ from ..dispatch_constants import (
     CMD_PREFIX_ZOPEN,
     CMD_PREFIX_ZWIZARD,
     CMD_PREFIX_ZREAD,
+    CMD_PREFIX_ZMODAL,
+    KEY_ZMODAL,
     KEY_MESSAGE,
     KEY_ZVAFILE,
     KEY_ZBLOCK,
@@ -131,6 +133,18 @@ class StringCommandHandler:
             self.logger.framework.debug("[StringCommandHandler] Detected zOpen request")
             self._display_handler(_LABEL_HANDLE_ZOPEN, _DEFAULT_INDENT_LAUNCHER)
             return self.zos.open.handle(zHorizontal)
+
+        if zHorizontal.startswith(CMD_PREFIX_ZMODAL):
+            # Imperative wrapper for the CALL verb: zModal($Block) / zModal(@.zPath).
+            # Rewrap to the dict form and re-launch — the ONE zModal dict branch
+            # (dispatch_launcher → handler_navigation.handle_zmodal) owns semantics.
+            # No walker gate here: a bridge dispatch (zBtn click over WS) arrives
+            # walker-less and handle_zmodal falls back to zos.walker itself.
+            target = zHorizontal[len(CMD_PREFIX_ZMODAL):-1].strip()
+            self.logger.framework.debug("[StringCommandHandler] Detected zModal request")
+            return self.dispatcher_launch_fn(
+                {KEY_ZMODAL: target}, context=context, walker=walker
+            )
 
         if zHorizontal.startswith(CMD_PREFIX_ZWIZARD):
             return self._handle_wizard_string(zHorizontal, walker, context)

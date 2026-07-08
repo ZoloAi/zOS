@@ -60,6 +60,10 @@ CMD_PREFIX_ZALPHA = "zAlpha("
 CMD_PREFIX_ZOPEN = "zOpen("
 CMD_PREFIX_ZWIZARD = "zWizard("
 CMD_PREFIX_ZREAD = "zRead("
+# zModal — imperative wrapper for the CALL verb (zBtn action strings, zTerminal
+# snippets, WS zHorizontal). Rewrapped to the {zModal: <target>} dict at the
+# string router so the ONE dict branch owns the semantics.
+CMD_PREFIX_ZMODAL = "zModal("
 
 # ==============================================================================
 # DICT KEYS - Subsystem Commands
@@ -85,6 +89,13 @@ KEY_ZMENU = "zMenu"
 # real dispatch verb both modes route through (CLI carrier harvest + Bifrost DOM
 # click) — NOT presentation-only metadata (contrast the Bifrost-only _zDelegate).
 KEY_ZDELEGATE = "zDelegate"
+# zModal — the CALL verb (zAlpha/zDelta are GOTOs): run a block as a detour and
+# auto-return to the firing point on completion. Value forms: inline dict (the
+# dict IS the modal), "$Block" (same file), "@.zPath" (cross-file), or the
+# longhand {zUI: <target>, params: {...}}. Trail-invisible — the route never
+# moves, no crumb is written. Semantics live in zNavigation (navigation_detour);
+# this seam only recognizes + resolves. zUI pages only — never zLoom/ files.
+KEY_ZMODAL = "zModal"
 KEY_ZOPEN = "zOpen"
 KEY_ZWIZARD = "zWizard"
 KEY_ZREAD = "zRead"
@@ -261,6 +272,7 @@ _LABEL_HANDLE_ZFUNC_DICT = "[HANDLE] zFunc (dict)"
 _LABEL_HANDLE_ZLINK = "[HANDLE] zLink"
 _LABEL_HANDLE_ZDELTA = "[HANDLE] zDelta"
 _LABEL_HANDLE_ZDELEGATE = "[HANDLE] zDelegate"
+_LABEL_HANDLE_ZMODAL = "[HANDLE] zModal"
 _LABEL_HANDLE_ZOPEN = "[HANDLE] zOpen"
 _LABEL_HANDLE_ZWIZARD = "[HANDLE] zWizard"
 _LABEL_HANDLE_ZREAD_STRING = "[HANDLE] zRead (string)"
@@ -405,6 +417,7 @@ __all__ = [
     'CMD_PREFIX_ZOPEN',
     'CMD_PREFIX_ZWIZARD',
     'CMD_PREFIX_ZREAD',
+    'CMD_PREFIX_ZMODAL',
 
     # Dict Keys - Subsystem Commands (PUBLIC - used to build commands)
     'KEY_ZFUNC',
@@ -413,6 +426,7 @@ __all__ = [
     'KEY_ZOMEGA',
     'KEY_ZDELTA',
     'KEY_ZDELEGATE',
+    'KEY_ZMODAL',
     'KEY_ZOPEN',
     'KEY_ZWIZARD',
     'KEY_ZREAD',

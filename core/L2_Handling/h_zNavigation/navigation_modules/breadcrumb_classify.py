@@ -51,7 +51,7 @@ except Exception:  # noqa: BLE001 - defensive: keep importable in isolation
 # key commits on success, never pre-stamped). SSOT for the engine's
 # passive-container test (was SequentialExecutor._NON_PASSIVE_VALUE_KEYS).
 CONDITIONAL_VALUE_KEYS = frozenset({
-    'zDisplay', 'zLink', 'zURL', 'zDelta', 'zMenu', 'zBack', 'zExit',
+    'zDisplay', 'zLink', 'zURL', 'zDelta', 'zModal', 'zMenu', 'zBack', 'zExit',
     'zStop', 'zNavBar', 'zDash', 'action', 'if',
 })
 

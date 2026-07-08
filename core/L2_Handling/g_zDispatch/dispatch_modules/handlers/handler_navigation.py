@@ -52,8 +52,10 @@ from ..dispatch_constants import (
     KEY_ZDELTA,
     KEY_ZMENU,
     KEY_ZDELEGATE,
+    KEY_ZMODAL,
     _LABEL_HANDLE_ZDELTA,
     _LABEL_HANDLE_ZDELEGATE,
+    _LABEL_HANDLE_ZMODAL,
     _DEFAULT_INDENT_HANDLER,
     _DEFAULT_STYLE_SINGLE,
 )
@@ -372,10 +374,10 @@ class NavigationHandler:
         path). A STRING is a dynamic source, resolved against the SSOT seams:
 
             &plugin(...)   → zFunc result (a plugin that returns a list)
-            %data.<key>    → a resolved _data list (launcher._resolve_zlist_source)
+            %data.<key>    → a resolved spool list (zos.zloom._lookup_list_source — SSOT)
             %<var>         → a session zVar
             <plain>        → a single literal option
-
+        
         Source rows that are dicts are reduced to a label via ``display`` (or the
         row's first value when no display field is named).
         """
@@ -396,7 +398,7 @@ class NavigationHandler:
             if hasattr(data, "success") and hasattr(data, "data"):
                 data = data.data if data.success else None
         elif ref.startswith("%data."):
-            data = self.zos.dispatch.launcher._resolve_zlist_source(ref, context)  # pylint: disable=protected-access
+            data = self.zos.zloom.resolve_list_source(ref, context)
         elif ref.startswith("%"):
             data = self.zos.session.get("zVars", {}).get(ref[1:])
         else:
@@ -698,6 +700,152 @@ class NavigationHandler:
         # Activation-only: run the target in place. No zBlock/breadcrumb mutation
         # (routeless — the user stays on the origin panel/route).
         return walker.execute_loop(items_dict=target_block_dict)
+
+    def handle_zmodal(
+        self,
+        zHorizontal: Dict[str, Any],
+        walker: Optional[Any],
+        source_key: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Any]:
+        """
+        Handle zModal — the CALL verb: run a block as a detour, auto-return.
+
+        Where zAlpha/zDelta are GOTOs (route moves, trail records), zModal is a
+        CALL: walk into the target, complete it, return to the firing point and
+        resume. Trail-invisible (no crumb, route untouched); a zBack inside the
+        modal dismisses it. This seam only RECOGNIZES the key and RESOLVES the
+        authored form to a block dict — the run semantics are owned by
+        zNavigation's Detour (zos.navigation.run_modal).
+
+        Value forms (first-character routing, mirroring href):
+            zModal: {zH1: Hello, ...}              # inline — the dict IS the modal
+            zModal: $Block                          # same-file block (zDelta-style)
+            zModal: @.zViews.zUI.Help               # cross-file (zAlpha-style)
+            zModal: {zUI: <target>, params: {...}}  # longhand target (+ phase-2 params)
+
+        zLoom is read-only here: a $/@ target's file-root zSpool bindings are
+        pre-woven (prepare_block_render) so a data-bound modal renders exactly
+        like the same block would as a page.
+        """
+        if walker is None:
+            walker = getattr(self.zos, "walker", None)
+        if not self._check_walker(walker, KEY_ZMODAL):
+            return None
+
+        self._display_handler(_LABEL_HANDLE_ZMODAL)
+
+        spec = zHorizontal[KEY_ZMODAL]
+        params = None
+
+        # Longhand dict: {zUI: <target>, params: {...}}. Any OTHER dict is
+        # inline content — the dict IS the modal (the _data-style polymorphism).
+        if isinstance(spec, dict) and "zUI" in spec:
+            params = spec.get("params")
+            spec = spec.get("zUI")
+
+        block_dict: Optional[Dict[str, Any]] = None
+        block_context: Optional[Dict[str, Any]] = None
+
+        if isinstance(spec, dict):
+            # Inline content — already a block; the caller's context rides along
+            # so %data.* woven for the firing page stays resolvable inside.
+            block_dict, block_context = spec, context
+        elif isinstance(spec, str) and spec.strip():
+            block_dict, block_context = self._resolve_modal_target(spec.strip(), walker, context)
+        else:
+            self.logger.error(f"[NavigationHandler] zModal: missing/invalid target ({spec!r})")
+            return None
+
+        if not block_dict:
+            self.logger.error("[NavigationHandler] zModal: could not resolve modal content")
+            return None
+
+        # Phase 2 (the %modal reel) reads these; staged now so the frame shape
+        # is stable. Scoped to the detour: set before, cleared after.
+        if isinstance(params, dict) and params:
+            walker.session["_zmodal_params"] = params
+        try:
+            return self.zos.navigation.run_modal(
+                block_dict, walker, source_key=source_key, context=block_context
+            )
+        finally:
+            walker.session.pop("_zmodal_params", None)
+
+    def _resolve_modal_target(
+        self,
+        target: str,
+        walker: Any,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> "tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]":
+        """Resolve a string zModal target to ``(block_dict, zloom_context)``.
+
+        ``$Block`` / bare name → same-file (the zDelta resolution chain, incl.
+        the zUI.<name> auto-discovery fallback). ``@.zPath`` → cross-file (the
+        zAlpha path grammar). Either way the host file's root zSpool bindings
+        are pre-woven so the modal renders data exactly like a page would.
+        """
+        if target.startswith(zpath.SIGIL_WORKSPACE):
+            # Cross-file: last segment = block, rest = file (zPath grammar SSOT).
+            block_name, file_path = self.zos.navigation.linking.resolver.extract_block_from_path(target)
+            raw_zFile = walker.loader.handle(file_path)
+            if not isinstance(raw_zFile, dict):
+                self.logger.error(f"[NavigationHandler] zModal: failed to load {file_path}")
+                return None, None
+            block_dict = self._resolve_delta_target_block(block_name, raw_zFile, file_path, walker)
+        else:
+            # Same-file: strip the $ marker, resolve in the current file.
+            block_name = target.lstrip("$%")
+            current_zVaFile = self._current_modal_vafile(walker, context)
+            if not current_zVaFile:
+                self.logger.error("[NavigationHandler] zModal: no current zVaFile to resolve against")
+                return None, None
+            raw_zFile = walker.loader.handle(current_zVaFile)
+            if not isinstance(raw_zFile, dict):
+                self.logger.error(f"[NavigationHandler] zModal: failed to load {current_zVaFile}")
+                return None, None
+            block_dict = self._resolve_delta_target_block(block_name, raw_zFile, current_zVaFile, walker)
+
+        if not block_dict:
+            return None, None
+
+        # Weave: bind the host file's root zSpool + expand loops before the run
+        # (the SAME seam every navigation landing uses). zLoom stays read-only.
+        try:
+            block_context = self.zos.zloom.prepare_block_render(raw_zFile, block_dict)
+        except Exception as err:  # pylint: disable=broad-except
+            self.logger.framework.debug(f"[NavigationHandler] zModal weave skipped: {err}")
+            block_context = None
+        return block_dict, block_context
+
+    def _current_modal_vafile(
+        self, walker: Any, context: Optional[Dict[str, Any]] = None
+    ) -> Optional[str]:
+        """Current host file for a same-file modal target.
+
+        Resolution order: bridge dispatch payload first (the CLIENT's page
+        identity — on a routed Bifrost page the server session's zVaFile still
+        points at the spark home, so a bare $Block would resolve against the
+        wrong file), then zDash panel stamp, then session/zSpark route
+        (zDelta's classic order).
+        """
+        ws_data = (context or {}).get("websocket_data") or {}
+        ws_zVaFile = ws_data.get("zVaFile")
+        if ws_zVaFile:
+            ws_zVaFolder = ws_data.get("zVaFolder")
+            if ws_zVaFolder and not str(ws_zVaFile).startswith("@"):
+                return f"{ws_zVaFolder}.{ws_zVaFile}"
+            return ws_zVaFile
+        panel_zVaFile = walker.session.get("_panel_zVaFile")
+        if panel_zVaFile:
+            return panel_zVaFile
+        zVaFile = walker.session.get("zVaFile") or walker.zSpark_obj.get("zVaFile")
+        if not zVaFile:
+            return None
+        zVaFolder = walker.session.get("zVaFolder") or walker.zSpark_obj.get("zVaFolder")
+        if zVaFolder and not zVaFile.startswith("@"):
+            return f"{zVaFolder}.{zVaFile}"
+        return zVaFile
 
     # ========================================================================
     # PRIVATE HELPERS - zDelta Resolution

@@ -40,6 +40,7 @@ from .dispatch_constants import (
     KEY_ZDELTA,
     KEY_ZMENU,
     KEY_ZDELEGATE,
+    KEY_ZMODAL,
     KEY_ZWIZARD,
     KEY_ZREAD,
     KEY_ZDATA,
@@ -365,7 +366,7 @@ class CommandLauncher(RoutingHandlers, WizardDataHandlers):
         # ========================================================================
         # PRELIMINARY CHECKS
         # ========================================================================
-        subsystem_keys = {KEY_ZDISPLAY, KEY_ZFUNC, KEY_ZDIALOG, KEY_ZDASH, KEY_ZFLAT, KEY_ZLINK, KEY_ZDELTA, KEY_ZMENU, KEY_ZWIZARD, KEY_ZREAD, KEY_ZDATA, KEY_ZEXPORT, KEY_ZIMPORT, KEY_ZTRANSFER, KEY_ZVAR, KEY_ZLIST, KEY_ZLOGIN, KEY_ZLOGOUT}
+        subsystem_keys = {KEY_ZDISPLAY, KEY_ZFUNC, KEY_ZDIALOG, KEY_ZDASH, KEY_ZFLAT, KEY_ZLINK, KEY_ZDELTA, KEY_ZMODAL, KEY_ZMENU, KEY_ZWIZARD, KEY_ZREAD, KEY_ZDATA, KEY_ZEXPORT, KEY_ZIMPORT, KEY_ZTRANSFER, KEY_ZVAR, KEY_ZLIST, KEY_ZLOGIN, KEY_ZLOGOUT}
         # Get ALL content keys, excluding metadata (_zClass, _zStyle, ...) AND
         # declarative event bindings (onChange/onClick/...). Event bindings attach
         # a handler to a sibling UI element and must NEVER be executed inline —
@@ -389,16 +390,6 @@ class CommandLauncher(RoutingHandlers, WizardDataHandlers):
         result = self._unwrap_content_wrapper(zHorizontal, content_keys, context, walker)
         if result is not None or (len(content_keys) == 1 and content_keys[0] == 'Content'):
             return result
-
-        # ========================================================================
-        # BLOCK-LEVEL DATA RESOLUTION
-        # ========================================================================
-        # Auto-create context for blocks with _data: that arrive without context
-        # (e.g. navigation targets executed via walker.execute_loop with context=None)
-        if "_data" in zHorizontal and not is_subsystem_call and context is None:
-            context = {}
-        if context is not None:  # Only resolve if context exists
-            self._resolve_data_block_if_present(zHorizontal, is_subsystem_call, context)
 
         # ========================================================================
         # SHORTHAND SYNTAX EXPANSION
@@ -502,6 +493,8 @@ class CommandLauncher(RoutingHandlers, WizardDataHandlers):
             return self.navigation_handler.handle_zlink(zHorizontal, walker)
         if KEY_ZDELTA in zHorizontal:
             return self.navigation_handler.handle_zdelta(zHorizontal, walker)
+        if KEY_ZMODAL in zHorizontal:
+            return self.navigation_handler.handle_zmodal(zHorizontal, walker, context=context)
         if KEY_ZMENU in zHorizontal:
             return self.navigation_handler.handle_zmenu(zHorizontal, walker, context=context)
         if KEY_ZDELEGATE in zHorizontal:
@@ -576,25 +569,6 @@ class CommandLauncher(RoutingHandlers, WizardDataHandlers):
             content_value = zHorizontal['Content']
             return self.launch(content_value, context=context, walker=walker)
         return None
-
-    def _resolve_data_block_if_present(
-        self,
-        zHorizontal: Dict[str, Any],
-        is_subsystem_call: bool,
-        context: Optional[Dict[str, Any]]
-    ) -> None:
-        """Resolve _data block queries, store results in context["_resolved_data"]."""
-        if "_data" in zHorizontal and not is_subsystem_call:
-            self.logger.framework.info("[zCLI Data] Detected _data block, resolving queries...")
-            resolved_data = self.zos.zloom.resolve_block_data(zHorizontal["_data"], context)
-            if resolved_data:
-                if "_resolved_data" not in context:
-                    context["_resolved_data"] = {}
-                context["_resolved_data"].update(resolved_data)
-                self.logger.framework.info(f"[zCLI Data] Resolved {len(resolved_data)} data queries for block")
-            else:
-                self.logger.framework.warning("[zCLI Data] _data block present but no data resolved")
-
 
     def _handle_organizational_structure(
         self,
@@ -829,41 +803,3 @@ class CommandLauncher(RoutingHandlers, WizardDataHandlers):
             if isinstance(key, str) and key.startswith("zListItem__"):
                 self.launch(block, context=context, walker=walker)
         return None
-
-    def _resolve_zlist_source(
-        self,
-        source_ref: str,
-        context: Optional[Dict[str, Any]]
-    ) -> list:
-        """Resolve a %data.<key> reference to a Python list of dicts."""
-        if not source_ref or not isinstance(source_ref, str):
-            return []
-        if not source_ref.startswith("%data."):
-            return []
-
-        key = source_ref[6:]
-
-        # SSOT parity with %data.* token interpolation (parser_functions): read
-        # context["_resolved_data"] first, then fall back to
-        # session["_current_block_data"]. The zDash panel / dashboard render path
-        # stashes resolved _data in the session slot (not the dispatch context),
-        # so without this fallback a zList inside a panel always resolved empty
-        # even though sibling %data.* tokens (stats) rendered fine.
-        data = None
-        if context and isinstance(context.get("_resolved_data"), dict):
-            data = context["_resolved_data"].get(key)
-        if data is None:
-            block_data = self.zos.session.get("_current_block_data")
-            if isinstance(block_data, dict):
-                data = block_data.get(key)
-        if data is None:
-            return []
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            return [data]
-        try:
-            return data.to_dict("records")
-        except AttributeError:
-            return []
-
