@@ -104,9 +104,14 @@ class AppAuthenticationManager:
             )
 
     def _configure_app_auth(self, config: Optional[Dict[str, str]]) -> Dict[str, str]:
-        """Configure authentication settings with defaults."""
+        """Configure authentication settings with defaults.
+
+        The user ledger resolves like every other credential path: explicit
+        config → the app's ZAUTH_USER_MODEL (zEnv) → the generic fallback.
+        """
+        import os  # pylint: disable=import-outside-toplevel
         default_config = {
-            "user_model": DEFAULT_USER_MODEL,
+            "user_model": os.getenv("ZAUTH_USER_MODEL") or DEFAULT_USER_MODEL,
             DEFAULT_ID_FIELD: DEFAULT_ID_FIELD,
             DEFAULT_USERNAME_FIELD: DEFAULT_USERNAME_FIELD,
             DEFAULT_ROLE_FIELD: DEFAULT_ROLE_FIELD,

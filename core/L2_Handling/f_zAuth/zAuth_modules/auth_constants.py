@@ -85,7 +85,10 @@ CONTEXT_DUAL = "dual"
 
 # Default Values (Authentication)
 DEFAULT_SERVER_URL = "http://localhost:5000"
-DEFAULT_USER_MODEL = "@.zCloud.schemas.schema.zIndex.zUsers"
+# Generic identity-ledger fallback. Apps declare their own table via
+# ZAUTH_USER_MODEL in zEnv (e.g. zCloud → @.models.zSchema.zOS_Registry);
+# zOS never bakes an app-specific schema path here.
+DEFAULT_USER_MODEL = "@.models.zSchema.users"
 DEFAULT_ID_FIELD = "id"
 DEFAULT_USERNAME_FIELD = "username"
 DEFAULT_ROLE_FIELD = "role"
