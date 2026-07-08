@@ -568,10 +568,16 @@ class zDialog:
                     )
                     display_validation_errors(table_name, errors, self)
 
-                    # For zBifrost mode, also emit WebSocket event
+                    # For zBifrost mode, also emit WebSocket event.
+                    # NOTE: websocket.broadcast() is async — this method is sync,
+                    # so call through websocket_events.send_event(), the SSOT sync
+                    # wrapper (JSON-serializes + asyncio.run_coroutine_threadsafe).
+                    # Calling websocket.broadcast() directly here (a dict, unawaited)
+                    # silently no-ops and prints a RuntimeWarning on every dialog
+                    # navigation with a model but no submitted data yet.
                     if self.session.get(SESSION_KEY_ZMODE) == _SESSION_VALUE_ZBIFROST:
                         try:
-                            self.zcli.comm.websocket.broadcast({
+                            self.zcli.comm.websocket_events.send_event({
                                 'event': _EVENT_VALIDATION_ERROR,
                                 'table': table_name,
                                 'errors': errors,
