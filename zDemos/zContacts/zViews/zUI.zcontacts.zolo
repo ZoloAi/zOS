@@ -1,0 +1,184 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    zBrush:   [zcontacts]
+    zScripts: [&.contacts]
+    zSpool:   [contacts, companies]
+
+Main:
+    zH1:
+        label: Contacts
+        color: PRIMARY
+
+    #> the list IS the home screen (no "List Contacts" button first); each row
+    #  carries its OWN id (%item.id, baked in per-row by zList) for its action
+    #  buttons — same canonical shape as zTaskList's Main <#
+    #  data source: zLoom/spools/zUI.zcontacts.zolo (contacts reel), opted in
+    #  via the file-root zMeta.zSpool above — never a sibling key on this block <#
+    Card:
+        _zClass: zContacts-card
+
+        List:
+            zList:
+                source: %data.contacts
+                each:
+                    Row:
+                        _zClass: zContacts-row
+
+                        Name:
+                            zText:
+                                content: %item.name
+                                _zClass: zContacts-name
+
+                        #> company_id is the FK — a raw id here on purpose (a
+                        #  per-row cross-table label needs a join, and a join
+                        #  feeds zTable, not a %item loop — see Directory
+                        #  below for the company NAME, joined) <#
+                        Detail:
+                            zText:
+                                content: Company #%item.company_id | default(unassigned) · %item.email
+                                _zClass: zContacts-detail
+
+                        Delete:
+                            zBtn:
+                                label:  bi-trash
+                                _zClass: zContacts-delete
+                                action: &.contacts.delete_contact(%item.id)
+
+    Add:
+        zBtn:
+            label:  bi-plus-lg + Add Contact
+            color:  primary
+            _zClass: zContacts-add
+            action: zDelta($Add_Contact)
+
+    ManageCompanies:
+        zBtn:
+            label:  bi-building + Manage Companies
+            color:  secondary
+            _zClass: zContacts-manage
+            action: zDelta($Companies)
+
+    ViewDirectory:
+        zBtn:
+            label:  bi-diagram-3 + Company Directory
+            color:  secondary
+            _zClass: zContacts-manage
+            action: zDelta($Directory)
+
+Add_Contact:
+    zDialog:
+        title:  Add Contact
+        model:  @.models.zSchema.Contacts
+        fields: [name, email, phone, company_id]
+        onSubmit:
+            zData:
+                action: insert
+                model:  @.models.zSchema.Contacts
+                data:
+                    name:       zConv.name
+                    email:      zConv.email
+                    phone:      zConv.phone
+                    company_id: zConv.company_id
+    Back:
+        zBtn:
+            label:  ← Back
+            action: zDelta($Main)
+
+Companies:
+    zH1:
+        label: Companies
+        color: PRIMARY
+
+    #> data source: zLoom/spools/zUI.zcontacts.zolo (companies reel) <#
+    Card:
+        _zClass: zContacts-card
+
+        List:
+            zList:
+                source: %data.companies
+                each:
+                    Row:
+                        _zClass: zContacts-row
+
+                        Name:
+                            zText:
+                                content: %item.name
+                                _zClass: zContacts-name
+
+                        Detail:
+                            zText:
+                                content: %item.industry · %item.notes | default(no notes)
+                                _zClass: zContacts-detail
+
+                        Delete:
+                            zBtn:
+                                label:  bi-trash
+                                _zClass: zContacts-delete
+                                action: &.contacts.delete_company(%item.id)
+
+    Add:
+        zBtn:
+            label:  bi-plus-lg + Add Company
+            color:  primary
+            _zClass: zContacts-add
+            action: zDelta($Add_Company)
+
+    Back:
+        zBtn:
+            label:  ← Back to Contacts
+            action: zDelta($Main)
+
+Add_Company:
+    #> notes is v1.1.0 — added post-launch via `z migrate` (models/zSchema.Companies
+    #  zMigrationVersion). The dialog/insert wiring below is unchanged shape for
+    #  the pre-existing fields; notes just joins the list, same as any other
+    #  field — a migration doesn't require a rewrite anywhere else <#
+    zDialog:
+        title:  Add Company
+        model:  @.models.zSchema.Companies
+        fields: [name, industry, notes]
+        onSubmit:
+            zData:
+                action: insert
+                model:  @.models.zSchema.Companies
+                data:
+                    name:     zConv.name
+                    industry: zConv.industry
+                    notes:    zConv.notes
+    Back:
+        zBtn:
+            label:  ← Back
+            action: zDelta($Companies)
+
+#> the relational payoff, done the documented way: a per-row cross-table
+#  label needs a JOIN (a %item loop can't reach a second table by itself),
+#  and a join's result hands straight to zTable — no custom wiring, just
+#  auto_join: true reading the FK straight off the schema <#
+Directory:
+    zH1:
+        label: Company Directory
+        color: PRIMARY
+
+    zMD:
+        content: Every contact, joined to its company in one read — `auto_join: true` follows the `company_id` FK declared on Contacts.
+
+    #> zData alone auto-draws as a table — no zTable wrapper, no zLoom/%data
+    #  token needed. zSpool/%data is for feeding a VALUE elsewhere on the
+    #  page (a zText, a zGate, a zList source); a block that only needs to
+    #  SHOW its query result just asks zData directly (docs: "zTable draws,
+    #  zData feeds" — describing zData's own auto-draw, not two wired blocks) <#
+    Table:
+        zData:
+            action:    read
+            model:     @.models.zSchema.Contacts
+            table:     Contacts
+            tables:    [Contacts, Companies]
+            auto_join: true
+            fields:    [Contacts.name, Contacts.email, Companies.name, Companies.industry]
+            order_by:  Contacts.id ASC
+
+    Back:
+        zBtn:
+            label:  ← Back to Contacts
+            action: zDelta($Main)

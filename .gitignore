@@ -42,8 +42,13 @@ vault/
 .cursorignore
 .cursorindexingignore
 
-# ── zDemos — WIP reference apps + zScaffold templates. Heavy churn, far from
-# shippable; zScaffold is mid-rebuild. Kept on disk for `z scaffold`/`z demos` in
-# editable installs (regular installs use the remote manifest). Untracked until
-# further notice to keep history clean — do NOT re-track without a deliberate decision.
-zDemos/
+# ── zDemos — golden reference apps. TRACKED: declarative source (zSpark, zViews,
+# models, plugins, zLoom, styles, routes, templates, zRaven test specs, seed Data/
+# csv) — this IS what `z demos <name> --clone` clones, so it must be the real,
+# versioned checkout, not local-only churn. IGNORED: everything each app
+# regenerates on its own (`z raven --run` / `z raven --commit`).
+zDemos/*/zRaven/zShots/
+zDemos/*/zRaven/output/
+zDemos/*/zVersions/
+zDemos/*/logs/
+zDemos/*/Data/zmigrations/

@@ -1,0 +1,171 @@
+/* scicalc.css — loaded via zMeta.zBrush: [scicalc] -> /styles/scicalc.css
+   Teaching goal: style zOS's OWN generated classes (zDialog-*, zForm-control,
+   zBtn-*) instead of fighting them, then layer app-specific classes
+   (zSciCalc-*, set via _zClass in the .zolo) for anything bespoke. */
+
+:root {
+    --sci-bg: #f4f5f8;
+    --sci-ink: #1c2033;
+    --sci-accent: #8bc34a;
+    --sci-accent-dark: #6ea233;
+    --sci-op-bg: #eef2ff;
+    --sci-op-ink: #3949ab;
+    --sci-fn-bg: #fff4e5;
+    --sci-fn-ink: #b26a00;
+    --sci-sci-bg: #f3ebff;
+    --sci-sci-ink: #6d28d9;
+    --sci-radius: 14px;
+}
+
+/* Page canvas: give the card room to breathe instead of hugging the edge. */
+body {
+    background: var(--sci-bg);
+}
+
+#zVaF-content {
+    max-width: 380px;
+    margin: 48px auto;
+    padding: 0 16px;
+}
+
+#zVaF-content > h1 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+/* Card: zOS already gives zDialog-container the .zCard hook — extend it
+   rather than replacing it, so future zCard tweaks (theme, dark mode) still
+   apply everywhere else in the app. */
+.zDialog-container {
+    border-radius: var(--sci-radius);
+    box-shadow: 0 8px 24px rgba(28, 32, 51, 0.12);
+    border: 1px solid rgba(28, 32, 51, 0.06);
+}
+
+.zDialog-title {
+    font-size: 1.1rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #6b7280;
+}
+
+/* The expression field IS the calculator display: dark, monospace, right
+   aligned digits, generous type so it reads like an LCD. `_zClass` on a
+   zDialog field now forwards straight to the rendered <input> (fixed in
+   FormRenderer._createInput), so we hook the author-chosen class directly. */
+.zDialog-container .zSciCalc-expr {
+    font-family: "SF Mono", "Fira Code", ui-monospace, Menlo, monospace;
+    font-size: 1.3rem;
+    letter-spacing: 0.02em;
+    text-align: right;
+    padding: 18px 16px !important;
+    border-radius: 10px !important;
+}
+
+.zDialog-actions .zBtn {
+    width: 100%;
+    border-radius: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* Toggle: a plain full-width row button — reads as chrome, not a "key",
+   so it never gets mistaken for something the plugin submits. */
+.zSciCalc-toggle {
+    display: block;
+    width: 100%;
+    margin-top: 16px;
+    padding: 10px 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--sci-sci-ink);
+    background: var(--sci-sci-bg);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.zSciCalc-toggle:hover {
+    background: #ead9ff;
+}
+
+/* Keypad: CSS grid is the right tool for a fixed-column button matrix —
+   sizing rides the container, not each button. */
+.zSciCalc-keypad-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 10px;
+}
+
+/* An author rule setting `display` always beats the UA's `[hidden] { display:
+   none }` default (origin precedence, not specificity) — so toggling the
+   `hidden` attribute needs its OWN rule here, or it silently does nothing. */
+.zSciCalc-keypad-grid[hidden] {
+    display: none;
+}
+
+.zSciCalc-key {
+    padding: 16px 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    font-family: "SF Mono", "Fira Code", ui-monospace, Menlo, monospace;
+    color: var(--sci-ink);
+    border: none;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(28, 32, 51, 0.1);
+    cursor: pointer;
+    transition: transform 0.06s ease, box-shadow 0.06s ease, background 0.15s ease;
+}
+
+.zSciCalc-key:hover {
+    box-shadow: 0 3px 8px rgba(28, 32, 51, 0.16);
+}
+
+.zSciCalc-key:active {
+    transform: scale(0.95);
+    box-shadow: 0 1px 2px rgba(28, 32, 51, 0.12);
+}
+
+/* Semantic color coding — operators vs functions vs digits — teaches how
+   :is()/attribute-free grouping can style a dynamically-built button set
+   without adding a class per key from JS. Scoped to .zSciCalc-keypad-basic
+   so the scientific panel's OWN tint (below) always wins there, regardless
+   of which keys happen to share a data-key value (e.g. sqrt( in both). */
+.zSciCalc-keypad-basic .zSciCalc-key:is([data-key="/"], [data-key="*"], [data-key="-"], [data-key="+"], [data-key="="]) {
+    background: var(--sci-op-bg);
+    color: var(--sci-op-ink);
+}
+
+.zSciCalc-keypad-basic .zSciCalc-key:is([data-key="("], [data-key=")"], [data-key="C"], [data-key="sqrt("]) {
+    background: var(--sci-fn-bg);
+    color: var(--sci-fn-ink);
+}
+
+/* The scientific panel is a distinct modifier class (not data-key) since its
+   buttons share labels with nothing else — one rule tints the whole panel. */
+.zSciCalc-key--sci {
+    background: var(--sci-sci-bg);
+    color: var(--sci-sci-ink);
+    font-size: 0.9rem;
+}
+
+/* Success/failure feedback already exists (.zDialog-feedback); just give it
+   room + a monospace echo so the result reads like the display above it. */
+.zDialog-feedback {
+    margin-top: 10px;
+    font-family: "SF Mono", "Fira Code", ui-monospace, Menlo, monospace;
+}
+
+@media (max-width: 420px) {
+    #zVaF-content {
+        margin: 24px auto;
+    }
+    .zSciCalc-key {
+        padding: 14px 0;
+        font-size: 0.95rem;
+    }
+}

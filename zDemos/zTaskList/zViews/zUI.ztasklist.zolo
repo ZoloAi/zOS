@@ -1,0 +1,76 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    zBrush:  [ztasklist]
+    zScripts: [&.tasklist]
+    zSpool:  [tasks]
+
+Main:
+    zH1:
+        label: Task List
+        color: PRIMARY
+
+    #> canonical CRUD, consumer UX: the list itself IS the home screen (no
+    #  "List Tasks" button to press first), row actions carry their OWN id
+    #  (%item.id, baked in per-row by zList) instead of asking a person to
+    #  type one — see zLoom (zList/%item) + plugins/tasklist.py <#
+    #  data source: zLoom/spools/zUI.ztasklist.zolo (tasks reel), opted in
+    #  via zMeta.zSpool above — never a sibling key inside this block <#
+    Card:
+        _zClass: zTaskList-card
+
+        List:
+            zList:
+                source: %data.tasks
+                each:
+                    Row:
+                        _zClass: zTaskList-row
+
+                        #> a lone zBtn action fires the plugin (id baked in per-row
+                        #  by zList, %item.id — no typed id, no dialog); plugins/
+                        #  tasklist.js then asks the LIVE socket to re-run Main so
+                        #  the row's new state paints without a page reload <#
+                        #> conditional per-row styling (zGate/zIf on %item.*) does
+                        #  not resolve in Bifrost's chunked render path — sidestep
+                        #  it by embedding %item.done straight into the class name
+                        #  (plain %-interpolation, proven to work) and letting CSS
+                        #  read the literal "-True"/"-False" suffix instead <#
+                        Toggle:
+                            zBtn:
+                                label:   bi-circle
+                                _zClass: zTaskList-toggle-%item.done
+                                action:  &.tasklist.toggle_task(%item.id)
+
+                        Title:
+                            zText:
+                                content: %item.title
+                                _zClass: zTaskList-title-%item.done
+
+                        Delete:
+                            zBtn:
+                                label:  bi-trash
+                                _zClass: zTaskList-delete
+                                action: &.tasklist.delete_task(%item.id)
+
+    Add:
+        zBtn:
+            label:  bi-plus-lg + Add Task
+            color:  primary
+            _zClass: zTaskList-add
+            action: zDelta($Add_View)
+
+Add_View:
+    zDialog:
+        title:  Add Task
+        model:  @.models.zSchema.Tasks
+        fields: [title]
+        onSubmit:
+            zData:
+                action: insert
+                model:  @.models.zSchema.Tasks
+                data:
+                    title: zConv.title
+    Back:
+        zBtn:
+            label:  ← Back
+            action: zDelta($Main)

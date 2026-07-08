@@ -1,0 +1,151 @@
+/* ztasklist.css — loaded via zMeta.zBrush: [ztasklist] -> /styles/ztasklist.css
+   Teaching goal: a real consumer task list (Apple Reminders-style row: tap
+   circle to check off, tap trash to remove) drawn with zLoom's zList/%item
+   per-row loop instead of a flat zTable + typed-id dialogs. */
+
+:root {
+    --tl-bg: #f4f5f7;
+    --tl-ink: #1c2033;
+    --tl-muted: #8a8f9c;
+    --tl-line: rgba(28, 32, 51, 0.08);
+    --tl-accent: #2f7ef2;
+}
+
+body {
+    background: var(--tl-bg);
+}
+
+#zVaF-content {
+    max-width: 480px;
+    margin: 48px auto;
+    padding: 0 16px;
+}
+
+#zVaF-content > h1 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+/* Card wrapper around the list itself. */
+.zTaskList-card {
+    background: #fff;
+    border: 1px solid var(--tl-line);
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(28, 32, 51, 0.08);
+    padding: 4px 0;
+    margin-bottom: 16px;
+}
+
+.zTaskList-empty {
+    padding: 28px 20px;
+    text-align: center;
+    color: var(--tl-muted);
+    font-size: 0.95rem;
+}
+
+/* One row = circle toggle + title + trash, laid out like a native list cell. */
+.zTaskList-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--tl-line);
+}
+
+.zTaskList-row:last-child {
+    border-bottom: none;
+}
+
+/* The toggle IS a zBtn under the hood — strip it down to a bare tap target
+   so it reads as a checkbox, not a button. Per-row zGate/zIf conditionals
+   don't resolve in Bifrost's chunked path, so the "-True"/"-False" state
+   rides in as a literal class suffix (%item.done interpolated straight into
+   _zClass) and CSS reads that suffix directly — no icon-font swap needed. */
+.zTaskList-toggle-True,
+.zTaskList-toggle-False {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.zTaskList-toggle-False {
+    background: transparent !important;
+    border: 2px solid var(--tl-line) !important;
+    color: transparent;
+}
+
+.zTaskList-toggle-True {
+    background: #34c759 !important;
+    border: 2px solid #34c759 !important;
+    color: #fff;
+    font-size: 0.95rem;
+}
+
+/* Swap the ring glyph for a checkmark once done (no icon-font dependency). */
+.zTaskList-toggle-True i.bi-circle {
+    display: none;
+}
+
+.zTaskList-toggle-True::after {
+    content: "\2713";
+    font-weight: 700;
+}
+
+.zTaskList-title-True,
+.zTaskList-title-False {
+    flex: 1 1 auto;
+    font-size: 1rem;
+    color: var(--tl-ink);
+    word-break: break-word;
+}
+
+.zTaskList-title-True {
+    color: var(--tl-muted);
+    text-decoration: line-through;
+}
+
+.zTaskList-delete {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent !important;
+    border: none !important;
+    color: var(--tl-muted);
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.zTaskList-delete:hover {
+    background: #fdecea;
+    color: #d64545;
+}
+
+.zTaskList-add {
+    display: block;
+    width: 100%;
+    padding: 12px 0;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+@media (max-width: 420px) {
+    #zVaF-content {
+        margin: 24px auto;
+    }
+}

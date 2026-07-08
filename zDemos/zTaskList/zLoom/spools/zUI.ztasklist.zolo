@@ -1,0 +1,8 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+tasks:
+    zData:
+        action:   read
+        model:    @.models.zSchema.Tasks
+        fields:   [id, title, done]
+        order_by: id ASC

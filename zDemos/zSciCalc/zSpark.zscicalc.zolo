@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     SciCalc
+    zMode:     zBifrost
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zscicalc
+    zBlock:    Main
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — scientific calculator, dual .py/.js plugins, session-driven REPL
+    tags: [zWizard, zFunc, zHat]
+    author: zAgents

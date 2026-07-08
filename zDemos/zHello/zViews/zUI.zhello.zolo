@@ -1,0 +1,22 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    zNavBar: false
+
+zVaF:
+    zH1:
+        label: Hello World
+        color: PRIMARY
+
+    zText:
+        content: A minimal zOS app.
+
+    ~Greeting_Actions*: [Say_Hello, Say_Goodbye]
+
+    Say_Hello:
+        zModal:
+            zSuccess: Hello, Zolo!
+
+    Say_Goodbye:
+        zModal:
+            zWarning: Goodbye, Zolo!

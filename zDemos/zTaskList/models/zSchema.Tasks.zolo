@@ -1,0 +1,27 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:   csv
+    Data_Path:   @.Data
+    Data_Label:  Tasks
+    Schema_Name: zSchema.Tasks
+
+Tasks:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    title:
+        type:     str
+        required: true
+        rules:
+            max_length: 120
+
+    done:
+        type:    bool
+        default: false
+
+    created_at:
+        type:    datetime
+        default: now

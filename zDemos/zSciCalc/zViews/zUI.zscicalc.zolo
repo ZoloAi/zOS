@@ -1,0 +1,24 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    zNavBar: false
+    zScripts: [&.scicalc]
+    zBrush: [scicalc]
+
+Main:
+    zH1:
+        label: Scientific Calculator
+        color: PRIMARY
+
+    zDialog:
+        title: Evaluate
+        fields: [
+            {zConv: Expr, type: text, label: Expression, placeholder: e.g. sqrt(16) or sin(pi/2), _zClass: zSciCalc-expr},
+        ]
+        onSubmit:
+            zFunc: &.scicalc.evaluate(zConv.Expr)
+
+    Keypad:
+        _zClass: zSciCalc-keypad
+        zText:
+            content: (keypad is Bifrost-only — type the expression above in zCLI)

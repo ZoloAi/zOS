@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     Task List
+    zMode:     zBifrost
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.ztasklist
+    zBlock:    Main
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — canonical zData CRUD (insert/read/update/delete)
+    tags: [zData, zSchema, zDialog, zTable]
+    author: zAgents

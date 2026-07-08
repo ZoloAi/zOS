@@ -1,0 +1,36 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        Companies
+    Schema_Name:       zSchema.Companies
+    zMigration:        true
+    zMigrationVersion: v1.1.0
+
+Companies:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    name:
+        type:     str
+        required: true
+        unique:   true
+        rules:
+            max_length: 120
+
+    industry:
+        type:    str
+        default: ""
+
+    #> v1.1.0 — schema evolves after launch: a CRM-lite needs a free-text notes
+    #  field on the company record. nullable + a "" default means the migration
+    #  backfills existing rows (Acme Corp, Globex) instead of failing on them <#
+    #> zolo is string-first — quotes are literal chars, NOT empty-string syntax.
+    #  an empty-string default is just a bare/blank value after the colon <#
+    notes:
+        type:     str
+        nullable: true
+        default:

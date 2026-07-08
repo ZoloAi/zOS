@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     Contact Book
+    zMode:     zBifrost
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zcontacts
+    zBlock:    Main
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — relational data (FK + on_delete) and migrations
+    tags: [zData, zSchema, foreign_key, zMigration, zDialog]
+    author: zAgents

@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#> dev/flow spark — NOT a first-class app entry point. Jumps zRaven straight
+#  into the Add-Task flow (zBlock: Add_View), skipping the Main→Add nav hop.
+#  Naming: _zSpark.<flow>.zolo, single segment, flow-named (not block-named,
+#  not app-named — the app is already implied by this file's own folder).
+#  Invisible to every zSpark.*.zolo glob (demos listing, --gen auto-discovery)
+#  by construction; boots only via its full explicit filename, never the
+#  z <name> shorthand. See zAgents zRaven dev-spark convention. <#
+
+zSpark:
+    title:     Task List — Add Task (dev flow)
+    zMode:     zCLI
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.ztasklist
+    zBlock:    Add_View

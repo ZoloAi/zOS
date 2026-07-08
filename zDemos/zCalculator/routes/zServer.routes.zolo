@@ -1,0 +1,10 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Step 1 of gap-hunt: explicit anchor route, matching zCloud's routes/zServer.routes.zolo.
+
+zMeta:
+    default_route: /
+    zNavBar: false
+
+routes:
+    /:
+        type: zSpark

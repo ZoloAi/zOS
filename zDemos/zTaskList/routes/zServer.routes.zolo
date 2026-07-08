@@ -1,0 +1,9 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    default_route: /
+    zNavBar: false
+
+routes:
+    /:
+        type: zSpark
