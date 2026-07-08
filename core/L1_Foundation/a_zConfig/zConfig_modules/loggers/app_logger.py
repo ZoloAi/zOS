@@ -15,7 +15,7 @@ from .constants import (
     is_zos_log_level,
     get_base_log_level,
 )
-from .utils import get_logs_directory, resolve_logger_path
+from .utils import get_logs_directory, resolve_logger_path, make_rotating_file_handler
 
 
 class AppLogger:
@@ -111,7 +111,7 @@ class AppLogger:
                 log_file.parent.mkdir(parents=True, exist_ok=True)
 
                 file_log_level = LOG_LEVEL_DEBUG if is_prod_mode else base_level
-                file_handler = logging.FileHandler(str(log_file))
+                file_handler = make_rotating_file_handler(log_file)
                 file_handler.setLevel(getattr(logging, file_log_level))
                 file_handler.setFormatter(file_formatter)
                 logger.addHandler(file_handler)

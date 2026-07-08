@@ -4,7 +4,7 @@
 from zOS import logging, Path, Colors
 from zSys.logger import UnifiedFormatter
 from .constants import LOG_PREFIX, is_zos_log_level, get_base_log_level
-from .utils import get_logs_directory
+from .utils import get_logs_directory, make_rotating_file_handler
 
 
 class SessionFrameworkLogger:
@@ -91,8 +91,8 @@ class SessionFrameworkLogger:
             log_file = Path(file_path)
             log_file.parent.mkdir(parents=True, exist_ok=True)
 
-            # Create file handler
-            file_handler = logging.FileHandler(str(log_file))
+            # Create file handler (rotating — bounds per-session file growth too)
+            file_handler = make_rotating_file_handler(log_file)
             file_handler.setLevel(logging.DEBUG)  # Capture everything to file
             file_handler.setFormatter(file_formatter)
             logger.addHandler(file_handler)

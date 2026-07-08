@@ -10,7 +10,7 @@ from .constants import (
     is_zos_log_level,
     get_base_log_level,
 )
-from .utils import get_logs_directory
+from .utils import get_logs_directory, make_rotating_file_handler
 
 
 class FrameworkLogger:
@@ -92,8 +92,8 @@ class FrameworkLogger:
             log_file = Path(file_path)
             log_file.parent.mkdir(parents=True, exist_ok=True)
 
-            # Create file handler
-            file_handler = logging.FileHandler(str(log_file))
+            # Create file handler (rotating — this path is global/shared, see utils)
+            file_handler = make_rotating_file_handler(log_file)
             file_handler.setLevel(getattr(logging, framework_level))
             file_handler.setFormatter(file_formatter)
             logger.addHandler(file_handler)

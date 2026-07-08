@@ -2,6 +2,7 @@
 """Shared logger utilities."""
 
 from zOS import Path, os, logging
+from logging.handlers import RotatingFileHandler
 from zSys import zpath  # zPath grammar — Layer-0 SSOT for sigil/segment decomposition
 from .constants import (
     VALID_LOG_LEVELS,
@@ -11,10 +12,31 @@ from .constants import (
     PATH_SUBSYSTEMS_MARKER,
     PATH_ZOS_MARKER,
     PATH_SUBSYSTEMS_DIR,
+    LOG_FILE_MAX_BYTES,
+    LOG_FILE_BACKUP_COUNT,
     get_base_log_level,
     is_zos_log_level,
 )
 from zOS import Colors
+
+
+def make_rotating_file_handler(path) -> RotatingFileHandler:
+    """
+    Build the ONE file handler every zOS logger writes through (SSOT).
+
+    A plain logging.FileHandler never caps its own size — the global,
+    fixed-path zos-framework.log grows for as long as the machine has ever
+    run zOS (observed: multiple GB, slow enough to open that it stalls every
+    subsequent boot). RotatingFileHandler self-limits: once a file hits
+    LOG_FILE_MAX_BYTES it rotates (.1, .2, .3…) and the oldest backup is
+    dropped — no manual cleanup, no scheduled job, safe for a global path.
+    """
+    return RotatingFileHandler(
+        str(path),
+        maxBytes=LOG_FILE_MAX_BYTES,
+        backupCount=LOG_FILE_BACKUP_COUNT,
+        encoding="utf-8",
+    )
 
 
 def normalize_log_level(level) -> str:
