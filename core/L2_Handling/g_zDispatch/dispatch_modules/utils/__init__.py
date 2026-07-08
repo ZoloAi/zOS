@@ -9,7 +9,6 @@ Utility functions for dispatch operations.
 
 from .launcher_utils import (
     unwrap_content_wrapper,
-    resolve_data_block_if_present,
     expand_nested_shorthands,
     check_walker,
     set_default_action,
@@ -17,7 +16,6 @@ from .launcher_utils import (
 
 __all__ = [
     'unwrap_content_wrapper',
-    'resolve_data_block_if_present',
     'expand_nested_shorthands',
     'check_walker',
     'set_default_action',

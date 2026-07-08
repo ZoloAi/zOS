@@ -520,9 +520,20 @@ class DashboardEvents:
         _zcli: Any,
         logger: Optional[Any]
     ) -> None:
-        """Resolve a panel's `_data` + `zMeta.zLoom` bindings (SSOT) and stash the
-        results into session["_current_block_data"] so %data.* tokens interpolate
-        when the panel renders in CLI mode."""
+        """Resolve a panel's `zMeta.zSpool` bindings and stash the results into
+        session["_current_block_data"] so %data.* tokens interpolate when the
+        panel renders in CLI mode.
+
+        TODO(zLoom leak audit): this hand-rolls build_binding_block ->
+        resolve_block_data -> expand_list_bindings instead of calling the SSOT
+        `resolver.prepare_block_render(block_data, block_data)` — so it skips
+        `expand_knots` (page-scoped zKnot values never collapse in a CLI panel)
+        and MERGES into session["_current_block_data"] where prepare_block_render
+        REPLACES it (replace is arguably more correct — a panel should only see
+        its own resolved data, not leftovers from a previously-viewed panel).
+        Not fixed yet: no zDash-using golden app exists to smoke-test the swap
+        against. Revisit once one does — see zAgents zLoom audit, finding #6.
+        """
         try:
             if not isinstance(block_data, dict):
                 return

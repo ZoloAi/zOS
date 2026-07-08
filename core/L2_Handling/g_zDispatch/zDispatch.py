@@ -356,17 +356,7 @@ class zDispatch:
                 'zImport',
                 'zTransfer',
             }
-            if clean_key == "_data" and isinstance(zHorizontal, dict):
-                # Block-level data binding dispatched by execute_loop.
-                # Resolve queries and cache results in session for template rendering.
-                resolved = self.zos.zloom.resolve_block_data(zHorizontal, context or {})
-                if resolved:
-                    if context is not None:
-                        context["_resolved_data"] = resolved
-                    zos_instance.session["_current_block_data"] = resolved
-                    self.logger.framework.debug(f"[zDispatch] _data block resolved: {list(resolved.keys())}")
-                result = None
-            elif clean_key in ShorthandExpander.UI_ELEMENT_KEYS and isinstance(zHorizontal, (dict, str, bool)):
+            if clean_key in ShorthandExpander.UI_ELEMENT_KEYS and isinstance(zHorizontal, (dict, str, bool)):
                 # Wrap key-value pair so shorthand expansion can see the key.
                 # Handles dict form (zText: {content: ...}), scalar string form
                 # (zText: "..."), AND bare bool shorthand (zCrumbs: true) — the

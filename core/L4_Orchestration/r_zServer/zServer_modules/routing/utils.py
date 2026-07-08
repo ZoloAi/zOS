@@ -101,22 +101,28 @@ class HandlerUtils:
     @staticmethod
     def resolve_route_data(data_block: dict, zos: any, logger: any = None) -> dict:
         """
-        Execute data queries defined in route _data block (Flask pattern).
-        
+        Execute data queries defined in a route's _data block (Flask pattern).
+
         This is the route-level equivalent of Flask's:
             @app.route('/account')
             def account():
                 user = User.query.filter_by(email=session['email']).first()
                 return render_template('account.html', user=user)
-        
+
+        Delegates entirely to ``zos.zloom.resolve_block_data`` — the SAME
+        orchestrator dispatch/zDash use for a block's ``zMeta.zSpool`` reads —
+        so a route-level query and a block-level query never drift (same 3
+        supported forms, same %session/%route interpolation, same silent-mode
+        + limit=1 unwrap, same `fields` whitelist).
+
         Args:
             data_block: _data section from route definition
             zos: zOS instance for data access
             logger: Optional logger instance
-        
+
         Returns:
             Dictionary of query results: {"user": {...}, "stats": [...]}
-        
+
         Examples:
             # In zServer.routes.yaml:
             routes:
@@ -129,62 +135,8 @@ class HandlerUtils:
                       action: read
                       model: "@.models.zSchema.user_stats"
         """
-        results = {}
-
-        if not zos:
+        if not zos or not hasattr(zos, "zloom"):
             if logger:
-                logger.warning("[HandlerUtils] No zOS instance - cannot resolve _data")
-            return results
-
-        for key, query_def in data_block.items():
-            try:
-                # Handle shorthand: user: "@.models.zSchema.contacts"
-                if (isinstance(query_def, str)
-                        and query_def.startswith(zpath_grammar.SIGIL_WORKSPACE)
-                        and zpath_grammar.split(query_def).segments[:1] == ('models',)):
-                    # Shorthand model reference - convert to zData request
-                    # Auto-filter by authenticated user ID for security
-
-                    # Get authenticated user ID from the single signed-in identity
-                    user_id = zos.session.get('zVisitor', {}).get('id')
-
-                    query_def = {
-                        "zData": {
-                            "action": "read",
-                            "model": query_def,
-                            "options": {
-                                "where": f"id = {user_id}" if user_id else "1 = 0",  # Security: no ID = no results
-                                "limit": 1
-                            }
-                        }
-                    }
-
-                # Handle explicit zData block
-                if isinstance(query_def, dict) and "zData" in query_def:
-                    # Execute zData query in SILENT mode (v1.5.12)
-                    # Silent mode: returns rows without displaying, works in any zMode
-                    query_def["zData"]["silent"] = True
-
-                    result = zos.data.handle_request(query_def["zData"])
-
-                    # Extract first record if limit=1 (single record query)
-                    if isinstance(result, list) and query_def["zData"].get("options", {}).get("limit") == 1 and len(result) > 0:
-                        results[key] = result[0]  # Return dict instead of list for single record
-                    else:
-                        results[key] = result
-
-                    if logger:
-                        result_type = type(results[key]).__name__
-                        result_count = len(result) if isinstance(result, list) else 1
-                        logger.debug(f"[HandlerUtils] Query '{key}' returned {result_type} ({result_count} records)")
-                else:
-                    if logger:
-                        logger.warning(f"[HandlerUtils] Invalid _data entry: {key}")
-                    results[key] = None
-
-            except Exception as e:
-                if logger:
-                    logger.error(f"[HandlerUtils] Query '{key}' failed: {e}")
-                results[key] = None
-
-        return results
+                logger.warning("[HandlerUtils] No zOS/zLoom instance - cannot resolve _data")
+            return {}
+        return zos.zloom.resolve_block_data(data_block, {})

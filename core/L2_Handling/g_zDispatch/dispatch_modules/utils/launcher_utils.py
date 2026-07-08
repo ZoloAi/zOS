@@ -31,35 +31,6 @@ def unwrap_content_wrapper(zHorizontal: Dict[str, Any]) -> Optional[Dict[str, An
     return None
 
 
-def resolve_data_block_if_present(
-    zHorizontal: Dict[str, Any],
-    zos: Any,
-    logger: Any
-) -> Optional[Dict[str, Any]]:
-    """Resolve %data.* block references and inject into context.
-    
-    Args:
-        zHorizontal: Dict command
-        zos: zOS instance
-        logger: Logger instance
-    
-    Returns:
-        Context dict with _resolved_data if block found, None otherwise
-    """
-    KEY_ZDATA_DOT_PREFIX = "%data."
-
-    for key in zHorizontal.keys():
-        if key.startswith(KEY_ZDATA_DOT_PREFIX):
-            block_name = key[len(KEY_ZDATA_DOT_PREFIX):]
-            try:
-                data_result = zos.navigation.get_block(block_name)
-                if data_result:
-                    return {"_resolved_data": {key: data_result}}
-            except Exception as e:
-                logger.error(f"Failed to resolve {key}: {e}")
-    return None
-
-
 def expand_nested_shorthands(params: Dict[str, Any]) -> Dict[str, Any]:
     """Expand nested shorthand keys (zL, zT, zH1-6) in items list.
     

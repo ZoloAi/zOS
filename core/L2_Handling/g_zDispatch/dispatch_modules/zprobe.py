@@ -43,7 +43,7 @@ STAGES_ZBTN = ("zDispatch", "zDialog", "zFunc")       # routed, confirmed, execu
 # Keys that are wizard chrome / metadata, not steps.
 _WIZARD_META = {
     "_zClass", "_zStyle", "_zId", "zId", "zProgress",
-    "zMode", "zRaven", "zScripts", "_data",
+    "zMode", "zRaven", "zScripts",
 }
 
 

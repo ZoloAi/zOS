@@ -1,8 +1,8 @@
 # zOS/core/L3_Abstraction/n_zLoom/zLoom_modules/query_ops.py
 """zLoom QUERY ops — build + execute the reads a block declares.
 
-Turns the three ``_data`` query forms (declarative dict, shorthand string,
-explicit ``zData`` block) into zData requests, runs them silently, applies the
+Turns the three spool-def forms (declarative dict, shorthand string, explicit
+``zData`` block) into zData requests, runs them silently, applies the
 ``fields`` whitelist, and returns a {name: value} map. Mixed into the ``zLoom``
 facade; cross-calls ``self._zsession_path`` (ValueOps) for %session interpolation.
 """
@@ -22,7 +22,7 @@ class QueryOps:
         data_block: Dict[str, Any],
         context: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Execute the queries in a block-level ``_data`` map (ORCHESTRATOR).
+        """Execute the queries in a resolved ``zMeta.zSpool`` map (ORCHESTRATOR).
 
         Supports 3 forms: declarative dict ({model, where, limit}), shorthand
         string ("@.models.zSchema.contacts"), explicit {zData: {...}}. Each runs

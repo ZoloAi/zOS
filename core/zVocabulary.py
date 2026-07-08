@@ -161,7 +161,6 @@ ZPATH_REFERENCE_KEYS: frozenset = frozenset({
     "zVaFolder",   # walker / navigation folder targets
     "zVaFile",     # walker / navigation file targets
     "_navigate",   # zVar immediate-navigation target
-    "_data",       # block-level data binding (inner `model` is the zPath)
     "path",        # transfer source/target file paths
     "source",      # transfer source paths
     "serve_path",  # zServer mount / serve roots

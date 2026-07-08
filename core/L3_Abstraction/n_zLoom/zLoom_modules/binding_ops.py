@@ -1,10 +1,11 @@
 # zOS/core/L3_Abstraction/n_zLoom/zLoom_modules/binding_ops.py
 """zLoom BINDING ops — the named-read registry + binding assembly.
 
-Turns a block's declared bindings (a literal ``_data`` block and/or
-``zMeta.zLoom: [name]`` references) into ONE query map consumed by QueryOps.
-Owns the ``zLoom/`` folder registry (SSOT for named reads). Mixed into the
-``zLoom`` facade. Shared by CLI (zDash panels) and Bifrost (zWizard).
+Turns a block's ``zMeta.zSpool: [name]`` references into ONE query map
+consumed by QueryOps. Owns the ``zLoom/spools/`` folder registry (SSOT for
+named reads — the ONLY declared-source mechanism; there is no inline form).
+Mixed into the ``zLoom`` facade. Shared by CLI (zDash panels) and Bifrost
+(zWizard).
 """
 
 from zOS import Any, Dict
@@ -18,12 +19,12 @@ class BindingOps:
     zos: Any
 
     def has_bindings(self, block: Dict[str, Any]) -> bool:
-        """True if a block declares any binding: a literal ``_data`` block and/or
-        a ``zMeta.zSpool`` reference into the zSpool registry (zLoom/spools/)."""
+        """True if a block declares a binding: a ``zMeta.zSpool`` reference into
+        the zSpool registry (zLoom/spools/) — the ONLY declared-source mechanism.
+        (The former inline ``_data`` sibling is retired — every read, even a
+        one-off used by a single block, gets its own zLoom/spools/ reel.)"""
         if not isinstance(block, dict):
             return False
-        if isinstance(block.get("_data"), dict):
-            return True
         zmeta = block.get("zMeta")
         return bool(isinstance(zmeta, dict) and zmeta.get("zSpool"))
 
@@ -35,11 +36,10 @@ class BindingOps:
         however it is reached — navigated to (navigation_linking), booted directly
         into (zWalker.run), or served over a route (route_dispatcher). Steps:
 
-          1. build the file-root ``zMeta.zSpool`` + ``_data`` binding (the root is the
+          1. build the file-root ``zMeta.zSpool`` binding (the root is the
              binding site; the extracted block drops the root zMeta),
-          2. merge the landed block's own literal ``_data`` (block scope),
-          3. resolve → ``%data.*`` (stashed in session["_current_block_data"]),
-          4. expand any ``zList``/``zShuttle`` in the block into concrete per-row
+          2. resolve → ``%data.*`` (stashed in session["_current_block_data"]),
+          3. expand any ``zList``/``zShuttle`` in the block into concrete per-row
              blocks (``%item.*`` bound, per-row ``zGate`` filtered) BEFORE dispatch.
 
         Returns the block_context (``{"_resolved_data": {...}}``) or the passed
@@ -47,9 +47,6 @@ class BindingOps:
         binding/resolve error logs and yields the context (empty render), never raises.
         """
         binding = self.build_binding_block(zfile_parsed)
-        literal = block.get("_data") if isinstance(block, dict) else None
-        if isinstance(literal, dict):
-            binding.update(literal)
         if not binding:
             return context
         block_context = context if isinstance(context, dict) else {}
@@ -73,17 +70,12 @@ class BindingOps:
         return block_context
 
     def build_binding_block(self, block: Dict[str, Any]) -> Dict[str, Any]:
-        """Merge a block's ``_data`` literals + ``zMeta.zSpool`` refs into one query
-        map (the shape ``resolve_block_data`` consumes), so literal reads and
-        spool refs share one resolution path. (Route gates bridge their route-level
+        """Build the query map from a block's ``zMeta.zSpool`` refs (the shape
+        ``resolve_block_data`` consumes). (Route gates bridge their route-level
         ``zLoom`` field into this same ``zSpool`` key — see route_dispatcher.)"""
         merged: Dict[str, Any] = {}
         if not isinstance(block, dict):
             return merged
-
-        literal = block.get("_data")
-        if isinstance(literal, dict):
-            merged.update(literal)
 
         zmeta = block.get("zMeta")
         zspool = zmeta.get("zSpool") if isinstance(zmeta, dict) else None
@@ -110,6 +102,22 @@ class BindingOps:
                     )
 
         return merged
+
+    def resolve_spool(self, names: Any, context: Any = None) -> Dict[str, Any]:
+        """Resolve one or more zSpool names directly — no block/zMeta wrapper.
+
+        A thin convenience over ``build_binding_block`` + ``resolve_block_data``
+        for callers that only hold bare spool names/refs (a route's own
+        ``zLoom`` field, a route's synthesized gate check) rather than a parsed
+        block dict. Keeps every caller off the internal ``{"zMeta": {"zSpool":
+        ...}}`` binding shape — that IR stays private to BindingOps.
+        """
+        binding = self.build_binding_block({"zMeta": {"zSpool": names}})
+        if not binding:
+            return {}
+        return self.resolve_block_data(  # pylint: disable=no-member
+            binding, context if isinstance(context, dict) else {}
+        )
 
     # zVaFile type-prefix that starts a zLoom artifact filename (spools + patterns
     # are both authored as zUI.* files — see the zUI-prefix decision). Used to split

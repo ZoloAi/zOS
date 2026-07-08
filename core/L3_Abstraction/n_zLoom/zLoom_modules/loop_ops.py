@@ -143,6 +143,18 @@ class LoopOps:
             return [val]
         return val if isinstance(val, list) else None
 
+    def resolve_list_source(self, source_ref: Any, context: Any = None) -> list:
+        """Public SSOT: resolve a ``%data.<key>`` reference to a list of rows.
+
+        Thin context-unwrapping wrapper around ``_lookup_list_source`` for callers
+        outside the zList expansion path (e.g. a zMenu's dynamic ``options:``) that
+        only hold a dispatch context, not an already-extracted resolved_data map.
+        Always returns a list (empty on miss) so callers never branch on None.
+        """
+        resolved_data = context.get("_resolved_data") if isinstance(context, dict) else None
+        val = self._lookup_list_source(source_ref, resolved_data if isinstance(resolved_data, dict) else {})
+        return val if isinstance(val, list) else []
+
     def _resolve_item_tokens(self, node: Any, context: Any) -> Any:
         """Deep-resolve %tokens (esp. ``%item.*``) in a copied each-block against the
         current row (top of the loop-frame stack in ``context``). Non-string leaves pass through.

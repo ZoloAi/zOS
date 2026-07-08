@@ -4,7 +4,8 @@ zLoom — the data-binding subsystem (Layer 3), sibling of zData.
 
 zLoom owns the binding grammar; zData runs the query. Where zData is "execute
 this read/write against a backend", zLoom is "resolve what a block declares it
-needs" — named reads (`zMeta.zLoom` + `%data.<name>`), inline `_data` blocks,
+needs" — named reads declared in `zLoom/spools/` and opted into via
+`zMeta.zSpool: [name]` + `%data.<name>` (the ONE declared-source mechanism),
 `%token` value/render resolution, `zList` loop expansion, and zPattern component
 (structure) expansion.
 
