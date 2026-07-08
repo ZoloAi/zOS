@@ -20,7 +20,7 @@ except ImportError:
             raise ImportError(
                 "zBifrost runtime unavailable (Python ABI mismatch or missing zguard).\n"
                 "Fix: z patch\n"
-                "Docs: https://zolo.media"
+                "Docs: http://127.0.0.1:9090/zStack/zOS"
             )
 
 __all__ = ['zBifrost']
