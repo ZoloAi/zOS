@@ -136,6 +136,8 @@ Version History
 - v1.5.3: Original implementation (file loading, caching, zParser delegation)
 """
 
+import copy
+
 from zOS import Any, Dict, Optional
 from .loader_modules.ui_version import handle_ui_version
 from .loader_modules import (
@@ -360,7 +362,16 @@ class zLoader:
             if cached is not None:
                 self.display.zDeclare(MSG_CACHED, color=self.mycolor, indent=INDENT_PRIMARY, style=STYLE_TILDE)
                 self.logger.debug("[SystemCache] Cache hit: %s", cache_key)
-                return cached
+                # Never hand out the shared cached object: zLoom's list/knot
+                # expansion mutates the returned block in place (e.g.
+                # loop_ops.expand_list_bindings pops `zList` after expanding
+                # it once) — a bare `return cached` lets the FIRST render
+                # permanently consume the cached file's loop template, so
+                # every later render (new connection, Back nav, reload) of
+                # the same UI file gets a pre-expanded, frozen snapshot
+                # instead of a fresh one. A cheap deep copy per cache hit
+                # keeps the cache itself pristine for every caller.
+                return copy.deepcopy(cached)
         else:
             self.logger.debug("[zSchema] Skipping cache - schemas are loaded fresh each time")
 
