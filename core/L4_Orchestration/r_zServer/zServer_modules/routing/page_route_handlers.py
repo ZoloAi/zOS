@@ -134,20 +134,17 @@ class PageRouteHandlersMixin:
                     self.logger.debug(f"[RouteDispatcher] Route override: zBlock={zBlock}")
 
             # Get templates directory using MountManager
-            from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+            from ..rendering.default_templates import render_zvaf
 
             templates_dir = self.handler.mount_manager.get_folder_path("templates")
-
-            # Create Jinja2 environment
-            env = Environment(loader=FileSystemLoader(templates_dir))
 
             # Add cache-busting timestamp
             import time
             context['timestamp'] = int(time.time() * 1000)
 
-            # Render template
-            template = env.get_template(template_name)
-            html_content = template.render(**context)
+            # Render template — physical templates/<name> wins; falls back to the
+            # built-in default zVaF.html on TemplateNotFound (SSOT: default_templates).
+            html_content = render_zvaf(templates_dir, template_name, context, self.logger)
 
             # Resolve navbar with route metadata fallback (same as zWalker routes)
             resolved_navbar = None
@@ -303,8 +300,7 @@ class PageRouteHandlersMixin:
             exists = False
             try:
                 resolver = zos.zloom
-                binding = resolver.build_binding_block({"zMeta": {"zSpool": [gate_name]}})
-                results = resolver.resolve_block_data(binding, {})
+                results = resolver.resolve_spool([gate_name])
                 # The merged key is the read NAME (alias) or the @-path TAIL, not the
                 # raw gate_name — so read the single resolved value directly.
                 row = next(iter(results.values()), None) if isinstance(results, dict) else None
@@ -340,7 +336,7 @@ class PageRouteHandlersMixin:
             route: Route definition with optional "context" dict
         """
         try:
-            from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+            from ..rendering.default_templates import render_zvaf
 
             zos = self.router.zos if hasattr(self.router, 'zos') else None
 
@@ -380,8 +376,7 @@ class PageRouteHandlersMixin:
             if zos and route.get("zLoom"):
                 try:
                     resolver = zos.zloom
-                    binding = resolver.build_binding_block({"zMeta": {"zSpool": route["zLoom"]}})
-                    zloom_data = resolver.resolve_block_data(binding, {})
+                    zloom_data = resolver.resolve_spool(route["zLoom"])
                     if zloom_data:
                         rd = context.setdefault("_resolved_data", {})
                         if isinstance(rd, dict):
@@ -452,16 +447,13 @@ class PageRouteHandlersMixin:
             # Get templates directory using MountManager
             templates_dir = self.handler.mount_manager.get_folder_path("templates")
 
-            # Create Jinja2 environment
-            env = Environment(loader=FileSystemLoader(templates_dir))
-
             # Add cache-busting timestamp
             import time
             context['timestamp'] = int(time.time() * 1000)
 
-            # Render template with context (Jinja2 support)
-            template = env.get_template(template_name)
-            html_content = template.render(**context)
+            # Render template — physical templates/zVaF.html wins; falls back to the
+            # built-in default zVaF.html on TemplateNotFound (SSOT: default_templates).
+            html_content = render_zvaf(templates_dir, template_name, context, self.logger)
 
             # Resolve navbar with route metadata fallback
             resolved_navbar = None

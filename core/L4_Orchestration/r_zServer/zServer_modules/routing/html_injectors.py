@@ -9,19 +9,22 @@ template and zWalker render paths (see page_route_handlers).
 """
 
 import html
+import os
 
 
 # Canonical immortal CDN base for the zBifrost client bundle. The version lives in
 # the npm `@1` channel (server-owned) — NOT in app HTML — so the app's <script> line
-# never moves. zbase.css is derived from THIS constant, decoupled from the template:
+# never moves. zbase.css is derived from this base, decoupled from the template:
 # the server owns the version, exactly like bifrost_core_url (zGuard bridge_connection).
-# DEV (local source mount): the @1 alias trails a release by up to ~12h and purge
-# can't force it, so during development we serve the working tree from the /zbifrost/
-# zEnv mount (see zCloud/zEnv.development.zolo) — byte-truth == disk, no CDN lag.
-# Production: restore the CDN line below (and the <script> in zVaF.html).
-# BIFROST_CDN_BASE = 'https://fastly.jsdelivr.net/npm/@zolomedia/bifrost-client@1'
-BIFROST_CDN_BASE = '/zbifrost'
-_ZBASE_CSS_URL = f'{BIFROST_CDN_BASE}/zSys/theme/zbase.css'
+# DEV override (app policy, not zOS): the @1 alias trails a release by up to ~12h,
+# so an app serving the working tree declares ZBIFROST_CLIENT_BASE in its zEnv
+# (e.g. zCloud sets `/zbifrost` next to its source mount) — byte-truth == disk.
+BIFROST_CDN_BASE = 'https://fastly.jsdelivr.net/npm/@zolomedia/bifrost-client@1'
+
+
+def _bifrost_client_base() -> str:
+    """Resolve at call time — zEnv loads into os.environ after import."""
+    return os.getenv('ZBIFROST_CLIENT_BASE') or BIFROST_CDN_BASE
 
 
 def _build_styles_links(zVaFile_meta, logger=None, styles_folder=None, zbase_css_url=None, zcanvas_name=None):
@@ -113,7 +116,7 @@ def _inject_zui_head(html_content, zui_config_values, zVaFile_meta, styles_folde
     the template path does not), keeping their only real difference at the call site.
     """
     import json
-    zbase_css_url = _ZBASE_CSS_URL
+    zbase_css_url = f'{_bifrost_client_base()}/zSys/theme/zbase.css'
     styles_html = _build_styles_links(
         zVaFile_meta, logger, styles_folder=styles_folder, zbase_css_url=zbase_css_url,
         zcanvas_name=zcanvas_name

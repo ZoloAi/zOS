@@ -112,13 +112,15 @@ class RouteManager:
         hot-reload path (:meth:`reload`) shares the exact same construction.
 
         Args:
-            routes_files: List of route file paths (relative to serve_path)
+            routes_files: List of route file paths (relative to serve_path); may be
+                EMPTY — _build_router still runs and auto-injects the default `/`
+                zWalker, so a bare zSpark-only app needs zero route files to serve.
         """
-        if not routes_files or len(routes_files) == 0:
-            self.logger.framework.debug("[zServer] No routes files to load - static serving only")
-            return
+        if routes_files:
+            self.logger.info(f"[zServer] Loading routes from {len(routes_files)} files...")
+        else:
+            self.logger.framework.debug("[zServer] No zServer route files found — building zero-config default router")
 
-        self.logger.info(f"[zServer] Loading routes from {len(routes_files)} files...")
         router, route_count, zapi_count = self._build_router(routes_files)
         if router is None:
             self.logger.warning("[zServer] No valid routes found - static serving only")
@@ -260,9 +262,9 @@ class RouteManager:
             self.logger.warning(f"[zServer] reload: zEnv refresh skipped ({exc})")
 
         files = self.auto_detect_routes_files()
-        new_router, route_count, zapi_count = (
-            self._build_router(files) if files else (None, 0, 0)
-        )
+        # Build even with zero files — the default `/` zWalker auto-injects inside
+        # _build_router, matching the boot path (load_and_merge_routes).
+        new_router, route_count, zapi_count = self._build_router(files)
 
         if new_router is None:
             return {"ok": False, "routes": 0, "zapis": 0,

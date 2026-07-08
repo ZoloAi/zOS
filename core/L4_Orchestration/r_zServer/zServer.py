@@ -91,7 +91,10 @@ class zServer:
             else:
                 self.route_manager.auto_detect_routes_files()
 
-            if self.route_manager.routes_files and zos:
+            # Build the router even with ZERO route files — the default `/` zWalker
+            # is auto-injected inside load_and_merge_routes (SSOT for zero-config
+            # apps: no routes/ folder needed just to serve the zSpark homepage).
+            if zos:
                 self.route_manager.load_and_merge_routes(self.route_manager.routes_files)
 
             # Auto-initialize database schemas
