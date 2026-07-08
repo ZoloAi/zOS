@@ -23,6 +23,16 @@ from pathlib import Path
 _BUNDLED_PYTHON_TAG = "cp312"
 
 
+def _dev_mode() -> bool:
+    """
+    True when this machine has the local zOS/zGuard/zLSP source checkouts
+    (i.e. a dev box, not an end-user install). In dev mode there are no
+    bundled .so binaries by design — z patch must never fall back to a
+    PyPI registry reinstall, only sync editable local source.
+    """
+    return all(Path(src).exists() for _, src in _DEV_PACKAGES)
+
+
 def _current_python_tag() -> str:
     """e.g. 'cp312', 'cp314'"""
     vi = sys.version_info
@@ -329,6 +339,15 @@ def handle_patch_command(verbose: bool = False, live: bool = False) -> int:
     print("\n[z patch] Checking for stale .so files in ZGUARD_DEV_PATH...")
     _purge_stale_so_files()
     _ensure_editable_in_tools_venv()
+
+    if _dev_mode():
+        print(f"\n✓ Dev mode (local zOS/zGuard/zLSP source found) — skipping "
+              f"registry ABI check, editable source is source of truth.")
+        _check_and_fix_playwright()
+        _run_agents()
+        if live:
+            _live_reload_running_servers()
+        return 0
 
     if _abi_ok():
         print(f"\n✓ zOS runtime OK ({current} matches bundled {bundled}).")
