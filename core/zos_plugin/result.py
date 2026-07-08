@@ -118,9 +118,15 @@ class ZResult:
             # Plain data dict.
             return cls.success(data=d)
 
-        # Bare values: None/False → no-op success-empty; truthy → success payload.
+        # Bare values: None/False → no-op success-empty.
         if value is None or value is False:
             return cls.success(data=None)
+        # Bare string → the detail AS the message (documented contract: "a plain
+        # return → a zSignal, the detail as message" — 12_zfunc.md). Non-string
+        # truthy values (dict handled above; numbers/lists/etc.) stay structured
+        # payload in .data since they aren't human-facing text.
+        if isinstance(value, str):
+            return cls.success(message=value)
         return cls.success(data=value)
 
     # ── binary response ─────────────────────────────────────────────────────

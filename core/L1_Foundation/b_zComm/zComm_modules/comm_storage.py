@@ -26,6 +26,7 @@ from .comm_constants import (
     STORAGE_SUPPORTED_BACKENDS,
     STORAGE_CONFIG_KEY_BACKEND,
     STORAGE_CONFIG_KEY_LOCAL_ROOT,
+    STORAGE_CONFIG_KEY_PUBLIC_BASE,
     STORAGE_CONFIG_KEY_S3_BUCKET,
     STORAGE_CONFIG_KEY_S3_REGION
 )
@@ -262,7 +263,21 @@ class LocalAdapter(StorageAdapter):
             # Fallback: current directory
             self.root = Path.cwd() / "storage"
 
-        self.logger.framework.debug(f"{_LOG_PREFIX} LocalAdapter root: {self.root}")
+        # Web base the root is served under (app policy, e.g. "/static/media").
+        # Unset + relative root → the root's own path doubles as the URL base,
+        # since a relative root lives inside the served app dir. Absolute root
+        # with no declared base has no derivable URL (get_url falls back to path).
+        public_base = self.get_config(STORAGE_CONFIG_KEY_PUBLIC_BASE, None)
+        if public_base:
+            self.public_base = "/" + str(public_base).strip("/")
+        elif root_path and not Path(root_path).is_absolute():
+            self.public_base = "/" + Path(root_path).as_posix().strip("/")
+        else:
+            self.public_base = None
+
+        self.logger.framework.debug(
+            f"{_LOG_PREFIX} LocalAdapter root: {self.root} (public base: {self.public_base})"
+        )
 
     def _resolve(self, key: str) -> Path:
         """Resolve ``key`` under the storage root and assert it stays inside it.
@@ -311,7 +326,15 @@ class LocalAdapter(StorageAdapter):
         return self._resolve(key).exists()
 
     def get_url(self, key: str, expires_in: int = 3600) -> str:
-        """Return local file path (no URL for local storage)."""
+        """Return the web URL the stored key is served at.
+
+        Uses the configured/derived public base (see __init__). Only when no
+        base is derivable (absolute root, no STORAGE_PUBLIC_BASE declared) does
+        this fall back to the filesystem path — a server path must never be the
+        default answer for a web-facing URL.
+        """
+        if self.public_base:
+            return f"{self.public_base}/{key}"
         return str(self._resolve(key))
 
 

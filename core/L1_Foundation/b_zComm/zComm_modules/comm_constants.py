@@ -37,6 +37,10 @@ STORAGE_SUPPORTED_BACKENDS = ["local", "s3", "azure", "gcs"]
 # Storage Config Keys (Public API - used in .zEnv files)
 STORAGE_CONFIG_KEY_BACKEND = "storage_backend"
 STORAGE_CONFIG_KEY_LOCAL_ROOT = "storage_local_root"
+# Web base the local root is served under (e.g. "/static/media"). Optional:
+# when unset, a RELATIVE local root is assumed to be inside the served app dir
+# and its own path is used ("static/media" → "/static/media/<key>").
+STORAGE_CONFIG_KEY_PUBLIC_BASE = "storage_public_base"
 STORAGE_CONFIG_KEY_S3_BUCKET = "storage_s3_bucket"
 STORAGE_CONFIG_KEY_S3_REGION = "storage_s3_region"
 

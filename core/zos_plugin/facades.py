@@ -239,9 +239,12 @@ class TransferFacade:
         })
         if not res.get("success"):
             raise ZAbort(f"Storage write failed: {res.get('error')}", status=500)
+        # URL comes from the storage backend (SSOT): the local adapter derives
+        # it from STORAGE_PUBLIC_BASE / a relative root; s3 presigns. No app
+        # layout (e.g. /static/media) is ever invented here.
         return Stored(
             key=res.get("key", key),
-            url=res.get("url") or f"/static/media/{key}",
+            url=res.get("url") or "",
             path=res.get("path"),
         )
 
@@ -282,6 +285,10 @@ class DataFacade:
         return self._d.update(
             table=table, fields=list(values), values=list(values.values()), where=where
         )
+
+    def delete(self, table: str, where: dict) -> Any:
+        """Delete rows matching ``where``. ``where`` is required — no truncate-by-mistake."""
+        return self._d.delete(table=table, where=where)
 
     def upsert(self, table: str, where: dict, values: dict) -> Row:
         """Update the row matching ``where`` (or insert ``where+values``); return it."""
