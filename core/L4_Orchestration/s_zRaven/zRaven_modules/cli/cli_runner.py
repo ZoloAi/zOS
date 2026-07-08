@@ -526,6 +526,11 @@ class CLIRunner(BaseStepRunner):
         return True
 
     def _run_pick(self, step_name: str, option: str, soft: bool = False) -> bool:
+        # zolo is string-first: a bare `zPick: 4` parses to an int, not str —
+        # coerce once here so every downstream use (index match, difflib
+        # fallback) gets a real string, matching how the rendered menu option
+        # itself is always text.
+        option = str(option)
         # Refresh buffer to capture any menu output that arrived after the last send.
         self._drain(wait_first=not bool(self._step_buf))
         buf = "\n".join(self._step_buf)

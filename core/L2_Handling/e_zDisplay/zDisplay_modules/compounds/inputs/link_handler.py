@@ -83,10 +83,14 @@ class LinkHandler:
             labels = [opt.get('label', str(opt)) for opt in options]
             return (labels, options)
         else:
-            # Parse plain strings for modifiers and extract clean labels
+            # Parse plain strings for modifiers and extract clean labels.
+            # zolo is string-first: a bare `options: [3, 4, 5, 6]` list parses
+            # to real ints/floats, not str — coerce here so a numeric-answer
+            # option renders instead of raising inside parse_option_string's
+            # re.search (which then got swallowed upstream as a silent skip).
             clean_labels = []
             for opt in options:
-                parsed = self.parse_option_string(opt)
+                parsed = self.parse_option_string(opt if isinstance(opt, str) else str(opt))
                 if parsed['is_disabled']:
                     clean_labels.append(f"{parsed['clean_label']} [disabled]")
                 else:

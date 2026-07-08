@@ -474,6 +474,20 @@ class ShorthandExpander(ShorthandElementExpanders):
                 # causes JSON depth-limit sentinel (<max_depth_exceeded>) at serialization time.
                 if clean_key in PLURAL_SHORTHAND_KEYS:
                     continue
+                # Never pre-expand INTO a gated/conditional step (zGate/zRBAC/if
+                # sibling). This recursive walk fires from unrelated outer
+                # contexts (e.g. probing a whole zWizard block for its parent
+                # render) — long before the step's own dispatch turn, where
+                # should_execute_step strips the condition key first. Racing
+                # ahead here sees the gate as an "organizational sibling" and
+                # expands zSelect/etc IN PLACE (preserving the outer key), so a
+                # later, correct expansion pass sees an already-`zDisplay`-
+                # wrapped value and skips re-expanding — permanently corrupting
+                # the cached step into a double-wrapped `{zSelect: {zDisplay:
+                # {...}}}` that mis-resolves through zHat. Leave gated steps
+                # raw; they expand cleanly (single-wrap) at their own turn.
+                if any(k in value for k in ('zGate', 'zRBAC', 'if')):
+                    continue
                 # Recursively expand nested structures
                 nested_expanded, nested_expansion_occurred = self._expand_ui_elements(value)
                 if nested_expansion_occurred:

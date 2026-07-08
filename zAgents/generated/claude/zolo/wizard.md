@@ -26,21 +26,23 @@ menu: let the PERSON pick the next step
     same jump as looping, human-driven | shorthand `Start*: [Basics, Network, Finish]` — a `*` key + SIBLING step names
     pause → pick → jump → stride ON (fall-through): pick Network → Network + everything after · pick Basics → all three
     scope — options name same-level siblings; never reach a sealed bundle; free-text doesn't count
-    rule  — a menu is the looping rule with a person at the wheel; want the wizard to decide? that's `if:`
+    rule  — a menu is the looping rule with a person at the wheel; want the wizard to decide? that's `zGate:`
 
-if: a step that runs only when it earns its turn
-    `if: <expr>` beside a step's event — tested against the hat on arrival; false → step skipped WHOLE (nothing shows/lands)
+zGate: a step that runs only when it earns its turn
+    `zGate: <predicate>` beside a step's event — tested against the hat on arrival; false → step skipped WHOLE (nothing shows/lands)
     self-judging — the test reads the hat, so each step decides from what earlier steps gathered (no branches, no else)
-    test_language (read against the hat):
-        read    — `zHat[Track]` · `zHat[0]` · `zHat[Details][0]` (into a bundle by POSITION)
-        yes/no  — `zHat[Track]` · `not zHat[Track]`
-        equality— `== 'both'` · `!= 'talks'`
-        order   — `>` `<` `>=` `<=` · chained `zHat[A] == zHat[B] == 'same'`
-        member  — `in ['talks','both']` · `not in [...]` · `zHat[Pick] in zHat[Allowed]`
-        combine — `and` · `or` · parens `(zHat[A] or zHat[B]) and zHat[C]`
-        literals— `'both'` · `18` · `['a','b']`
-    fences  — an allowlist, NOT Python eval: no calls/.methods/attributes/arithmetic; every hat answer is TEXT (`>`/`<` compare as text); malformed or missing → reads FALSE + skips (never an error)
-    not_rbac— gating a step by WHO's asking is zRBAC, not `if:` → Advanced
+    canonical — same `zGate:` a page uses to gate by WHO's asking (→ Advanced RBAC); on a step it reads the hat instead of the session
+    read    — `%zHat.Track` by name · `%zHat.0` by position · `%zHat.Details.0` into a bundle (by position)
+    predicate_language (a declared dict, read against the hat):
+        yes/no  — filled `{%zHat.Track: zSet}` · empty/never-answered `{%zHat.Track: zNotSet}` (or `{zNull: true}`)
+        equality— matches `{%zHat.Track: both}` · not-equal `{zNot: {%zHat.Track: talks}}`
+        order   — `{%zHat.Age: {zAbove: 18}}` · `zBelow` · a range `{zBetween: [30, 35]}`
+        member  — `{%zHat.Track: {zIN: [talks, both]}}` · negate with `zNot`
+        combine — all of `{zAll: [...]}` · any of `{zAny: [...]}` · nest freely (two keys on one leaf AND automatically)
+        literals— text `both` · numbers `18` · lists `[a, b]`
+    fences  — a declared predicate, NOT Python eval: no calls/.methods/attributes/arithmetic; `zAbove`/`zBelow`/`zBetween` compare as numbers, equality/`zIN` by value; malformed or never-answered → reads FALSE + skips (never an error, fail-closed)
+    one_step_one_event — `zGate:` is a sibling MODIFIER key beside the step's single real event (`zGate: {...}` + `zSelect:` / `zText:` / …), never a second event: the step still tucks exactly ONE answer under its own name, and `zHat[Step]` on a gated step reads that SAME plain answer a plain step would give — never a wrapper, never the gate's own verdict
+    legacy  — a bare `if: '<python-ish expr>'` string still lowers to this same predicate (deprecation warning, removed in a future release) — author new steps with `zGate:`
 
 bounds: a wizard stays PUT — intra-flow moves work, hops out don't
     honored — zBack · zCrumb · menu pick (intra-flow)
@@ -62,9 +64,12 @@ transaction: all-or-nothing data steps → lives in zData
     scope   — commit/rollback lifecycle, ACID per backend, the $alias rule → Advanced › zData › Transactions
 
 engine: what RUNS the steps
-    you author the EVENT (named steps, zHat, if:, gates); the run model (zEngine/zWalker/zStride/zForce) → Advanced › zEngine
+    you author the EVENT (named steps, zHat, zGate:, gates); the run model (zEngine/zWalker/zStride/zForce) → Advanced › zEngine
     a step is made of OTHER events, sequenced: field → Input · button/action → Control · function return → zFunc · multi-field → Forms
 
 terminal: write once, it reads the room
     same zWizard in zCLI (a prompt per step) + zBifrost (a progressive form, a gate that holds the line) — no second version
     rule — works in the terminal → works in the GUI: same steps into the same hat, only the skin differs
+    multi_gate — a chain of gates (zBtn submit after zBtn submit, e.g. Track_Next → Q1_Next → Q2_Next) reveals ONE segment
+        per resolve, stopping at the NEXT gate each time — same as the CLI's one-prompt-at-a-time walk; a later
+        zFunc/zGate step only runs once the walk genuinely reaches it, never eagerly on an earlier gate's resolve

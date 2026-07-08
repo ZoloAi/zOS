@@ -1,0 +1,144 @@
+/* zquiz.css — loaded via zMeta.zBrush: [zquiz] -> /styles/zquiz.css
+   Teaching goal: a branching zWizard (11_wizard.md) skinned to read like a
+   real trivia card — each Q/Next pair (one screen per 11_wizard.md) becomes
+   one white card with its options laid open (`type: radio`, 05_controls.md
+   "dropdown vs radio is purely a Bifrost look"), no new events added. */
+
+:root {
+    --zq-bg: #f4f5f7;
+    --zq-ink: #1c2033;
+    --zq-muted: #8a8f9c;
+    --zq-line: rgba(28, 32, 51, 0.08);
+    --zq-accent: #2f7ef2;
+    --zq-good: #34c759;
+}
+
+body {
+    background: var(--zq-bg);
+}
+
+#zVaF-content {
+    max-width: 480px;
+    margin: 48px auto;
+    padding: 0 16px;
+}
+
+#zVaF-content > h1,
+.zQuiz-title {
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.zQuiz-intro {
+    text-align: center;
+    color: var(--zq-muted);
+    font-size: 0.95rem;
+    margin-bottom: 24px;
+}
+
+/* Every question screen (Track/Q1-Q4) is its own progressively-appended
+   wizard step — style the step wrapper itself as a card, no _zClass needed
+   on the wrapper since data-zkey is already a stable, unique hook. */
+[data-zkey="Track"],
+[data-zkey="Q1"],
+[data-zkey="Q2"],
+[data-zkey="Q3"],
+[data-zkey="Q4"] {
+    display: block;
+    background: #fff;
+    border: 1px solid var(--zq-line);
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(28, 32, 51, 0.08);
+    padding: 20px 20px 8px;
+    margin-bottom: 12px;
+}
+
+.zQuiz-options .zLabel {
+    display: block;
+    font-weight: 600;
+    color: var(--zq-ink);
+    margin-bottom: 14px;
+    font-size: 1.02rem;
+}
+
+.zQuiz-options.zForm-check-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.zQuiz-options .zForm-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px;
+    border-radius: 10px;
+    transition: background 0.15s ease;
+}
+
+.zQuiz-options .zForm-check:hover {
+    background: var(--zq-bg);
+}
+
+.zQuiz-options .zForm-check-input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--zq-accent);
+    flex: 0 0 auto;
+}
+
+.zQuiz-options .zForm-check-label {
+    font-size: 0.95rem;
+    color: var(--zq-ink);
+}
+
+/* Next/Start/See-results buttons ride right under their card as a full-width
+   pill, matching the other golden apps' primary-action styling. */
+[data-zkey="Track_Next"],
+[data-zkey="Q1_Next"],
+[data-zkey="Q2_Next"],
+[data-zkey="Q3_Next"],
+[data-zkey="Q4_Next"] {
+    display: block;
+    margin-bottom: 20px;
+}
+
+.zQuiz-next {
+    display: block;
+    width: 100%;
+    padding: 12px 0;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+[data-zkey="Show_Results"] {
+    display: block;
+    background: #fff;
+    border: 1px solid var(--zq-line);
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(28, 32, 51, 0.08);
+    padding: 20px 22px;
+    margin-bottom: 16px;
+    color: var(--zq-ink);
+    line-height: 1.55;
+}
+
+.zQuiz-results h3 {
+    margin-top: 0;
+}
+
+.zQuiz-retake {
+    display: block;
+    width: 100%;
+    padding: 12px 0;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+@media (max-width: 420px) {
+    #zVaF-content {
+        margin: 24px auto;
+    }
+}

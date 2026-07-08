@@ -115,7 +115,7 @@ topic_refs:
     zData CRUD — zSchema shape + action: insert/read/update/delete; table auto-builds on first write, migrations evolve it, one Data_Type line picks the store; declared not raw SQL (bulk/txn/advanced → data_advanced) → read ~/.claude/zolo/data_crud.md
     zTable — columns + rows → a styled grid (Bifrost) / ASCII table (zCLI) → read ~/.claude/zolo/tables.md
     zMedia — zImage / zVideo / zEmbed. Reach for when a page shows images, video, or embeds another site → read ~/.claude/zolo/media.md
-    zWizard — multi-step flow: named steps run in order, zHat reads prior answers, if:/menu/gate steer the walk. Reach for when a later step depends on an earlier answer (a flat set of fields is a zDialog) → read ~/.claude/zolo/wizard.md
+    zWizard — multi-step flow: named steps run in order, zHat reads prior answers, zGate:/menu/gate steer the walk. Reach for when a later step depends on an earlier answer (a flat set of fields is a zDialog) → read ~/.claude/zolo/wizard.md
     zFunc — call a Python/JS function via the & sigil (no imports); runs on render, actions on click. Reach for when a value or behaviour needs code → read ~/.claude/zolo/zfunc.md
     zRaven — zOS tests its own work: z raven --gen writes the test from zSpark+zUI, --run boots + walks it green/red; string-first .zolo, one Tests: block; fix the zUI not the test → read ~/.claude/zolo/testing.md
     zServer — flip one zSpark key and the terminal app serves the web: zViews/ → URLs, mounts, guarded error pages, caching, live reload, zAPI. Declared, never plumbed → read ~/.claude/zolo/server.md

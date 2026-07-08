@@ -1,0 +1,116 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    zBrush: [zquiz]
+
+Main:
+    zH1:
+        label: Trivia Quiz
+        color: PRIMARY
+        _zClass: zQuiz-title
+
+    Intro:
+        zMD:
+            content: Pick a track, then answer as you go — Advanced adds two bonus rounds.
+            _zClass: zQuiz-intro
+
+    #> MVP dogfood segment 1: the whole branching flow, CLI-first — a zWizard
+    #  is one state machine (11_wizard.md): each Q/Next pair is one screen
+    #  (a lone zSelect never gates, so it renders alongside its own Next
+    #  gate — 06_inputs.md / 05_controls.md), Track picks the branch, zGate:
+    #  reads %zHat.Track to admit/skip the Advanced-only rounds, and Results
+    #  is a zFunc reaching back into the WHOLE hat at once for scoring <#
+    #  Bifrost skin pass: `type: radio` is purely a Bifrost look (05_controls.md
+    #  "dropdown vs radio is purely a Bifrost look; the answer is the same
+    #  either way") — laying every option open reads more like a real quiz
+    #  than a dropdown, no new event/logic added <#
+    zWizard:
+        Track:
+            zSelect:
+                prompt: Choose your track
+                type: radio
+                options: [Beginner, Advanced]
+                _zClass: zQuiz-options
+
+        Track_Next:
+            zBtn:
+                label: Start
+                type: submit
+                _zClass: zQuiz-next
+
+        Q1:
+            zSelect:
+                prompt: 1) What is the capital of France?
+                type: radio
+                options: [Paris, London, Berlin, Madrid]
+                _zClass: zQuiz-options
+
+        Q1_Next:
+            zBtn:
+                label: Next
+                type: submit
+                _zClass: zQuiz-next
+
+        Q2:
+            zSelect:
+                prompt: 2) What is 2 + 2?
+                type: radio
+                options: [3, 4, 5, 6]
+                _zClass: zQuiz-options
+
+        Q2_Next:
+            zBtn:
+                label: Next
+                type: submit
+                _zClass: zQuiz-next
+
+        #> Advanced-only round — the question AND its own gate share the same
+        #  zGate: predicate, so a skipped question never leaves a bare "Next"
+        #  button behind on a Beginner run (11_wizard.md zGate rule) <#
+        Q3:
+            zGate: {%zHat.Track: Advanced}
+            zSelect:
+                prompt: 3) What is the square root of 144?
+                type: radio
+                options: [10, 11, 12, 13]
+                _zClass: zQuiz-options
+
+        Q3_Next:
+            zGate: {%zHat.Track: Advanced}
+            zBtn:
+                label: Next
+                type: submit
+                _zClass: zQuiz-next
+
+        Q4:
+            zGate: {%zHat.Track: Advanced}
+            zSelect:
+                prompt: 4) Which planet is known as the Red Planet?
+                type: radio
+                options: [Venus, Mars, Jupiter, Saturn]
+                _zClass: zQuiz-options
+
+        Q4_Next:
+            zGate: {%zHat.Track: Advanced}
+            zBtn:
+                label: See results
+                type: submit
+                _zClass: zQuiz-next
+
+        #> the score function reaches into zHat itself (12_zfunc.md "a prior
+        #  return zHat[Step]") — Beginner's Q3/Q4 were never filed, so they
+        #  arrive as None and the plugin scores only the questions this
+        #  branch actually asked <#
+        Results:
+            zFunc: &.quiz.score(zHat[Track], zHat[Q1], zHat[Q2], zHat[Q3], zHat[Q4])
+
+        Show_Results:
+            zMD:
+                content: zHat[Results]
+                _zClass: zQuiz-results
+
+        Retake:
+            zBtn:
+                label: Retake quiz
+                action: Track
+                _zClass: zQuiz-retake
