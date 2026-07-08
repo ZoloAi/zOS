@@ -22,13 +22,17 @@ laws:
 phase_planning:
     core: terminal is truth — if it works in CLI it works in GUI; solve the problem first, surface it second
     i_intention: define need only; entities | actions | views | triggers | results; !implementation
-    ii_reference: z demos — scan available demos for relevant patterns; clone only if a demo is close enough to accelerate, otherwise scaffold fresh
+    ii_reference: z demos — scan available demos for relevant patterns; `z demos <name> --clone --name <app>` is the
+        trustworthy start when one is close enough (clones from the real, versioned zDemos/ checkout — not a
+        stale/ambiguous local copy); no close-enough demo → 0_init by hand
         deeper: zAgent files not enough? `curl http://127.0.0.1:9090/zStack/zOS` — the local zOS hub, lightest-token way to go deeper (never assume it's running — a connection error just means skip it)
             limit: it's a zBifrost page — curl only proves it's reachable (returns the un-rendered shell); it can't pull real page content (that needs the client's WS round-trip, curl never triggers it)
     iii_mapping: map intentions -> zOS events; terminal events first — GUI is a skin, not a prerequisite
 
 phase_CLI:
-    0_init:      create <appname>/ by hand: zSpark.<app>.zolo + zViews/zUI.<app>.zolo (scaffold CLI retired — being redefined)
+    0_init:      `z demos <name> --clone --name <app>` when ii_reference found a close-enough demo (renames the
+                     spark file, ready to edit); no close-enough demo → create <appname>/ by hand:
+                     zSpark.<app>.zolo + zViews/zUI.<app>.zolo (scaffold CLI retired — being redefined)
     1_zUI:       fill zViews/zUI.<app>.zolo — one segment from 3_dogfood at a time
     2_zSpark:    fill zSpark.<app>.zolo — zMode: zCLI, zBlock from 1_zUI
                  do NOT add zRaven: to zSpark during dev — auto-run on every boot is noisy
