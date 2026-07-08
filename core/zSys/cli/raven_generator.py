@@ -19,13 +19,16 @@ Generation rules
   zDash.sidebar       → panel nav steps + zH2.label assert per panel
   ~Name*: [items]     → Pick_Item (bare zPick:) + action steps (+ zBack for nested)
   ^Action: zDialog    → one declarative zFill: step ({field: value} per line)
+  zDialog (bare)      → same zFill: step, for a page-level form with no menu/gate wrapper
   ^Action: zData      → shared zAssert: contains first column / model label
   ^Action: zWizard    → nested zWizard: confirm/fill sub-steps
   Export*/Import*     → sub-menu pick + content steps + zBack
   ^Button: zLogger    → bare zClick + zBifrost-scoped zLogger assertion
 
-Output: single Tests: block. Step mode is INFERRED from primitive vocabulary
-(zPick/zFill/zWizard → zCLI; zOpen/zWait/zShot/zClick → zBifrost) so no
+Output: single Tests: block. Step mode is INFERRED from primitive vocabulary:
+zPick/zFill are DUAL-MODE (same step drives stdin in zCLI, translated to the
+rendered DOM — data-key/name — in zBifrost); zWizard stays zCLI-only;
+zOpen/zWait/zShot/zClick stay zBifrost-only (no terminal equivalent). No
 zCLI:/zBifrost: wrappers are emitted; wrappers remain honored by the runners
 and are used only where vocabulary is ambiguous (e.g. a zLogger-only assert).
 zAssert:/zMarker: steps are shared and run in both modes.
@@ -85,6 +88,20 @@ _FIELD_DEFAULTS: Dict[str, str] = {
 
 def _field_default(field: str) -> str:
     return _FIELD_DEFAULTS.get(field.lower(), "test_" + field.lower())
+
+
+def _field_name(entry: Any) -> str:
+    """Normalize a `fields:` entry to its name — bare key ('email') or a dict
+    ({zConv: age, type: number, ...}) where zConv is canonical, name/field
+    accepted aliases (see 07_forms.md). Returns "" for a malformed entry."""
+    if isinstance(entry, dict):
+        return str(entry.get("zConv") or entry.get("name") or entry.get("field") or "")
+    return str(entry)
+
+
+def _field_type(entry: Any) -> str:
+    """Normalize a `fields:` entry to its declared type ("" if bare/unspecified)."""
+    return str(entry.get("type") or "") if isinstance(entry, dict) else ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -326,9 +343,11 @@ def generate_raven(
 
     lines: List[str] = []
     lines += _header_comment(ui_version, ui_file_path.name, effective_shots)
-    # Single Tests: block — step mode is inferred from primitive vocabulary
-    # (zPick/zFill → zCLI, zOpen/zWait/zShot → zBifrost); zMode in the active
-    # zSpark selects the runner. Shared steps (zAssert:, zMarker:) run in both.
+    # Single Tests: block, one grammar, both surfaces: zPick/zFill are DUAL-MODE
+    # (cli_runner drives stdin; ws_runner translates to the rendered DOM via
+    # data-key/name) — the SAME generated steps run unmodified whichever
+    # runner zMode in the active zSpark selects. zOpen/zWait/zShot/zClick stay
+    # zBifrost-only (no terminal equivalent). zAssert:/zMarker: run in both.
     lines += ["", "Tests:", ""]
 
     # Bifrost boot at the top so the page is ready for any browser interactions
@@ -428,6 +447,18 @@ def _walk_block(
             step_prefix = f"{_slug(panel_name)}_" if panel_name else ""
             _gen_action(action_name, value, lines, indent, step_prefix=step_prefix,
                         zos=zos, ctx=ctx)
+
+        # Bare zDialog — a page IS the form, no menu/gate wrapper (e.g. a
+        # single-purpose form page). Same zFill skeleton as ^Action: zDialog,
+        # just reached directly instead of via a menu pick.
+        elif key == "zDialog" and isinstance(value, dict):
+            step_prefix = f"{_slug(panel_name)}_" if panel_name else ""
+            dialog_name = value.get("title") or panel_name or "Form"
+            model_path  = value.get("model") or ""
+            _gen_dialog_fill(
+                dialog_name, value.get("fields", []), lines, indent,
+                step_prefix=step_prefix, model_path=str(model_path), zos=zos, ctx=ctx,
+            )
 
         # skip private / gate keys
         # NOTE: the old `!` suffix gate was retired 2026-06 (docs 14/15) — `key!`
@@ -636,25 +667,35 @@ def _gen_action(name: str, action: Dict[str, Any], lines: List[str], indent: int
     return False
 
 
-def _gen_dialog_fill(name: str, fields: List[str], lines: List[str], indent: int,
+def _gen_dialog_fill(name: str, fields: List[Any], lines: List[str], indent: int,
                      step_prefix: str = "", model_path: str = "", zos: Any = None,
                      ctx: Optional[Dict[str, Any]] = None) -> None:
     """Emit one declarative zFill step for a dialog form — one line per field.
 
-    The CLI runner asserts each prompt mentions the field name, then submits
-    the value. Values resolve: hand-tuned (preserved) → schema → placeholder.
-    Mode is inferred from zFill (zCLI-only) — no wrapper emitted.
+    zFill is dual-mode (see 13_testing): cli_runner asserts each prompt
+    mentions the field name then submits the value; ws_runner sets the
+    rendered `[name='field']`. Values resolve: hand-tuned (preserved) →
+    schema → type-aware placeholder. Each `fields:` entry may be a bare key
+    or a `{zConv/name/field: ..., type: ...}` dict (see 07_forms.md) —
+    normalized via _field_name/_field_type before use.
     """
     p0 = "    " * indent          # step level
     p1 = "    " * (indent + 1)    # zFill:
     p2 = "    " * (indent + 2)    # field: value
 
-    schema_vals = _schema_defaults(fields, model_path, zos)
+    field_names = [n for n in (_field_name(f) for f in fields) if n]
+    schema_vals = _schema_defaults(field_names, model_path, zos)
     step_key    = f"Fill_{step_prefix}{_slug(name)}_Form"
 
     body = [f"{p0}{step_key}:", f"{p1}zFill:"]
-    for field in fields:
-        default = schema_vals.get(field) or _field_default(field)
+    for i, entry in enumerate(fields):
+        field = _field_name(entry)
+        if not field:
+            continue
+        if _field_type(entry) in ("number", "int"):
+            default = str(3 + i)  # deterministic, distinct-per-field numeric test values
+        else:
+            default = schema_vals.get(field) or _field_default(field)
         body.append(f"{p2}{field}: {_preserved_value(ctx, step_key, field, default)}")
     lines += body
 
@@ -682,7 +723,10 @@ def _gen_wizard(name: str, wizard: Dict[str, Any], lines: List[str], indent: int
                 f"{p3}zSubmit: y",
             ]
         elif "zDialog" in step_val:
-            for field in ((step_val["zDialog"] or {}).get("fields", [])):
+            for entry in ((step_val["zDialog"] or {}).get("fields", [])):
+                field = _field_name(entry)
+                if not field:
+                    continue
                 value = _preserved_value(ctx, step_key, field, _field_default(field))
                 user_steps += [
                     f"{p2}Enter_{_slug(field)}:",
@@ -741,6 +785,7 @@ def _bifrost_boot_steps(indent: int, wait_selector: str) -> List[str]:
 def _header_comment(version: str, filename: str,
                     shots: Optional[List[str]] = None) -> List[str]:
     out = [
+        "# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.",
         f"# zRavenVersion: {version}",
         f"# Generated by:  z raven --gen",
         f"# Source:        {filename}",

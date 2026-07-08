@@ -24,13 +24,17 @@ BIFROST_ONLY_PREFIXES = ("Browser_", "Bifrost_", "zBifrost_")
 # still needed for the genuinely ambiguous cases (e.g. a zLogger-only assert
 # step that must be scoped to one mode).
 CLI_ONLY_STEP_KEYS = frozenset({
-    "zPick", "zExpect", "zCapture", "zVar", "zAllowError",
-    "zMenu", "zWizard", "zFill",
+    "zExpect", "zCapture", "zVar", "zAllowError", "zMenu", "zWizard",
 })
 BIFROST_ONLY_STEP_KEYS = frozenset({
     "zOpen", "zViewport", "zType", "zClick", "zWait", "zShot", "zScreenshot",
     "zDrag", "zUpload", "zHistory", "zFetch", "zClean", "zExecute", "zBoot",
 })
+# zFill and zPick are DUAL-MODE (shared): the same {field: value}/Option step
+# runs on both runners — cli_runner drives stdin, ws_runner translates to the
+# rendered DOM ([name='field'] / button[data-zkey='Option']). Neither set above
+# claims them, so _infer_step_mode falls through and both runners execute them.
+#
 # zSubmit is the one true collision: a scalar value is a CLI stdin submit,
 # a dict ({path, gate, value}) is a WS wizard-gate submit. zAssert/zMarker/
 # zLogger are shared vocabulary and never force a mode.

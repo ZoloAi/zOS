@@ -20,11 +20,12 @@ async def _evaluate_dom_assert(dom_cfg: dict, page: Any) -> tuple[bool, str]:
     if page is None:
         return False, "zAssert.dom requires an active browser session (add zOpen: zSpark before assertions)"
 
-    selector = _strip_sel(dom_cfg.get("selector", "body"))
-    prop     = dom_cfg.get("property", "innerText")
-    contains = dom_cfg.get("contains")
-    equals   = dom_cfg.get("equals")
-    matches  = dom_cfg.get("matches")
+    selector     = _strip_sel(dom_cfg.get("selector", "body"))
+    prop         = dom_cfg.get("property", "innerText")
+    contains     = dom_cfg.get("contains")
+    not_contains = dom_cfg.get("not_contains")
+    equals       = dom_cfg.get("equals")
+    matches      = dom_cfg.get("matches")
 
     # ── Element-count assertions ───────────────────────────────────────────────
     # count / min_count / max_count operate on how MANY nodes match the selector,
@@ -67,6 +68,10 @@ async def _evaluate_dom_assert(dom_cfg: dict, page: Any) -> tuple[bool, str]:
     if contains is not None and str(contains) not in value:
         snippet = value[:_ASSERT_CONTEXT_CHARS]
         return False, f"expected {prop} to contain {contains!r}\n    got: {snippet!r}"
+
+    if not_contains is not None and str(not_contains) in value:
+        snippet = value[:_ASSERT_CONTEXT_CHARS]
+        return False, f"expected {prop} to NOT contain {not_contains!r}\n    got: {snippet!r}"
 
     if equals is not None and value != str(equals):
         return False, f"expected {prop} == {equals!r}, got {value!r}"
@@ -302,6 +307,7 @@ async def evaluate_assert(
           selector: css
           property: innerText
           contains: text
+          not_contains: text        — inverse of contains
           count:    1               — assert exactly N nodes match the selector
           min_count: 1              — assert at least N match (max_count: at most)
         style:                       — computed style assertion

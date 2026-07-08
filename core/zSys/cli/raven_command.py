@@ -9,6 +9,13 @@ z raven — zRaven test file management.
 --run --v 1.0.0     Boot and run latest raven for UI v1.0.0
 --run --v 1.0.0 --r 1  Exact coordinate: UI v1.0.0 + raven r1
 --hint              Analyze past run history and surface actionable hints
+--commit 'label'    Archive a milestone snapshot of the current flow (spark + raven)
+--commit --force    Commit even when the flow's last run didn't pass
+--clear             Remove committed _zSpark.<flow>.zolo dev flows + orphaned zShots/
+--clear --dry-run   Preview what --clear would remove, without deleting anything
+--revive <flow>     Restore a flow's own spark+raven from its latest zCommit
+--revive <flow> --r 2  Restore from commit c2 specifically instead of the latest
+--revive            List every available commit across the project
 
 File layout (under spark workspace):
     zRaven/
@@ -16,6 +23,11 @@ File layout (under spark workspace):
     zVersions/
         tests/
             zRaven.{name}[v2.0.0]_r1.zolo   ← archived snapshots
+        commits/
+            {name}/c1/, c2/, ...            ← zCommit milestones (see commit_manager.py)
+        commits.csv                          ← project-wide commit ledger
+        clears.csv                           ← project-wide clear ledger (see clear_manager.py)
+        revives.csv                          ← project-wide revive ledger (see revive_manager.py)
 """
 
 from __future__ import annotations
@@ -29,14 +41,33 @@ def handle_raven_command(boot_logger, args, verbose: bool = False) -> int:
     gen       = getattr(args, "gen",        False)
     run       = getattr(args, "run",        False)
     hint      = getattr(args, "hint",       False)
+    commit    = getattr(args, "commit",     False)
+    clear     = getattr(args, "clear",      False)
+    revive    = getattr(args, "revive",     False)
+    force     = getattr(args, "force",      False)
+    dry_run   = getattr(args, "dry_run",    False)
     spark     = getattr(args, "spark",      None)
     ui_ver    = getattr(args, "ui_version", None)
     raven_ver = getattr(args, "raven_ver",  None)
     out       = getattr(args, "out",        None)
 
-    if not gen and not run and not hint:
+    if not gen and not run and not hint and not commit and not clear and not revive:
         _print_usage()
         return 0
+
+    # --clear scans the WHOLE cwd for _zSpark.*.zolo dev flows — it has no
+    # single "the" spark to resolve against, unlike every other subcommand.
+    if clear:
+        flow_filter = clear if isinstance(clear, str) else None
+        return _handle_clear(Path.cwd(), flow_filter, force, dry_run)
+
+    # --revive targets a flow NAME straight against zVersions/commits/ — the
+    # spark being revived usually doesn't even exist in the working tree yet
+    # (that's the whole point), so there's no spark to resolve here either.
+    if revive:
+        flow_name = revive if isinstance(revive, str) else None
+        commit_n = int(raven_ver) if raven_ver else None
+        return _handle_revive(Path.cwd(), flow_name, commit_n, force)
 
     # --run crm_cli / --gen crm_cli  →  spark name hint (middle part of zSpark.*.zolo)
     # --run / --gen                   →  True (auto-detect)
@@ -74,6 +105,10 @@ def handle_raven_command(boot_logger, args, verbose: bool = False) -> int:
 
     if run:
         return _handle_run(boot_logger, spark_path, ui_ver, raven_ver, verbose)
+
+    if commit:
+        label = commit if isinstance(commit, str) else None
+        return _handle_commit(boot_logger, spark_path, label, force, verbose)
 
     return 0
 
@@ -175,6 +210,14 @@ def _handle_run(boot_logger, spark_path: Path, ui_ver, raven_ver, verbose: bool)
         # Store the spark file stem so runner.py can reconstruct the exact
         # spark name to spawn ("zLogin_cli" from "zSpark.zLogin_cli.zolo").
         zspark_config["zSparkStem"] = spark_path.stem.split(".", 1)[-1]
+        # Also store the actual filename — the SSOT runner.py prefers this over
+        # zSparkStem when spawning the CLI subprocess. The stem-based shorthand
+        # ("z add_task") only resolves for a file literally named
+        # "zSpark.add_task.zolo"; a dev/flow spark ("_zSpark.add_task.zolo",
+        # underscore-prefixed by convention — see zAgents zRaven dev-spark
+        # docs) has no such shorthand and must boot via its full filename
+        # (a form the boot loader always accepts regardless of naming).
+        zspark_config["zSparkFile"] = spark_path.name
 
         # ── Safe port isolation ───────────────────────────────────────────────
         # zRaven runs its own server instance on dedicated ports so the test server
@@ -285,6 +328,138 @@ def _handle_hint(boot_logger, spark_path: Path, verbose: bool) -> int:
         if verbose:
             import traceback  # pylint: disable=import-outside-toplevel
             traceback.print_exc()
+        return 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# --commit
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _handle_commit(boot_logger, spark_path: Path, label, force: bool, verbose: bool) -> int:
+    """Archive a milestone snapshot of the current flow (spark + raven)."""
+    try:
+        from zSys.cli.zspark_command import _parse_zspark_file  # pylint: disable=import-outside-toplevel
+        from zOS.L4_Orchestration.s_zRaven.zRaven_modules.utils.commit_manager import (  # pylint: disable=import-outside-toplevel
+            create_commit, CommitBlockedError,
+        )
+
+        zspark_config, exit_code = _parse_zspark_file(
+            boot_logger, Path, spark_path, verbose
+        )
+        if exit_code != 0:
+            return exit_code
+
+        workspace  = spark_path.parent
+        spark_stem = spark_path.stem.split(".", 1)[-1]
+        raven_name = zspark_config.get("zRaven") or spark_stem
+
+        result = create_commit(
+            workspace, spark_path, raven_name, zspark_config,
+            label=label, force=force,
+        )
+
+        rel_path = result["path"].relative_to(workspace)
+        print(f"\n✅ zCommit {result['flow']}/{result['commit']} → {rel_path}")
+        if label:
+            print(f"   label: {label}")
+        print(f"   flow-owned:  {', '.join(result['flow_owned']) or '(none)'}")
+        print(f"   shared:      {len(result['shared'])} file(s)")
+        print(f"   diff.txt:    {'yes' if result['has_diff'] else 'no (genesis commit)'}")
+        print(f"   shots:       {'yes' if result['has_shots'] else 'no'}")
+        print(f"   log:         {'yes' if result['has_log'] else 'no'}\n")
+        return 0
+
+    except CommitBlockedError as e:
+        print(f"\n❌ {e}\n")
+        return 1
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        boot_logger.error("[z raven --commit] %s", e)
+        print(f"\n❌ zCommit failed: {e}\n")
+        if verbose:
+            import traceback  # pylint: disable=import-outside-toplevel
+            traceback.print_exc()
+        return 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# --clear
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _handle_clear(workspace: Path, flow_filter, force: bool, dry_run: bool) -> int:
+    """Remove committed _zSpark.<flow>.zolo dev flows + orphaned zShots/."""
+    try:
+        from zOS.L4_Orchestration.s_zRaven.zRaven_modules.utils.clear_manager import (  # pylint: disable=import-outside-toplevel
+            clear_workspace,
+        )
+
+        result = clear_workspace(workspace, flow_filter=flow_filter, force=force, dry_run=dry_run)
+
+        tag       = "🔎 would clear" if dry_run else "🧹 cleared"
+        shots_tag = "🔎 would wipe shots" if dry_run else "📸 shots wiped"
+        if result["cleared"]:
+            print(f"\n{tag}:")
+            for flow in result["cleared"]:
+                print(f"   - {flow}")
+        if result["shots_wiped"]:
+            print(f"\n{shots_tag}:")
+            for flow in result["shots_wiped"]:
+                print(f"   - {flow}")
+        if result["skipped"]:
+            print("\n⚠️  skipped:")
+            for flow, reason in result["skipped"]:
+                print(f"   - {flow}: {reason}")
+        if not result["cleared"] and not result["shots_wiped"] and not result["skipped"]:
+            print("\n✅ nothing to clear — workspace already tidy\n")
+        else:
+            print()
+        return 0
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        print(f"\n❌ zClear failed: {e}\n")
+        return 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# --revive
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _handle_revive(workspace: Path, flow_name, commit_n, force: bool) -> int:
+    """Restore a flow's own spark+raven files from a zCommit."""
+    from zOS.L4_Orchestration.s_zRaven.zRaven_modules.utils.revive_manager import (  # pylint: disable=import-outside-toplevel
+        revive_flow, list_commits, ReviveNotFoundError, ReviveConflictError,
+    )
+
+    if not flow_name:
+        rows = list_commits(workspace)
+        if not rows:
+            print("\n❌ No commits found in this project. Nothing to revive.\n")
+            return 1
+        print("\nAvailable commits (z raven --revive <flow> [--r N]):")
+        for r in rows:
+            print(f"   {r['flow']}/{r['commit']}  \"{r['label']}\"  ({r['timestamp']})")
+        print()
+        return 0
+
+    try:
+        result = revive_flow(workspace, flow_name, commit_n=commit_n, force=force)
+        print(f"\n✅ zRevive {result['flow']}/{result['commit']} restored:")
+        for rel in result["restored"]:
+            print(f"   - {rel}")
+        if result["shared_drift"]:
+            print("\nℹ️  shared files changed since this commit (NOT restored — historical record only):")
+            for rel in result["shared_drift"]:
+                print(f"   - {rel}")
+        print()
+        return 0
+
+    except ReviveNotFoundError as e:
+        print(f"\n❌ {e}\n")
+        return 1
+    except ReviveConflictError as e:
+        print(f"\n❌ {e}\n")
+        return 1
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        print(f"\n❌ zRevive failed: {e}\n")
         return 1
 
 
@@ -456,6 +631,13 @@ def _print_usage() -> None:
     print("  z raven --run --r 2         Run archived raven r2")
     print("  z raven --run --v 1.0.0     Run latest raven for UI v1.0.0")
     print("  z raven --hint              Analyze history + surface hints")
+    print("  z raven --commit 'label'    Archive a milestone snapshot of this flow")
+    print("  z raven --commit --force    Commit even if the last run failed")
+    print("  z raven --clear             Remove committed dev flows + orphaned zShots/")
+    print("  z raven --clear --dry-run   Preview what --clear would remove")
+    print("  z raven --revive <flow>     Restore a flow's spark+raven from its latest commit")
+    print("  z raven --revive <flow> --r 2  Restore a specific commit instead of the latest")
+    print("  z raven --revive            List every available commit across the project")
     print()
 
 

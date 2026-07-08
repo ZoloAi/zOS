@@ -508,7 +508,11 @@ class CLIRunner(BaseStepRunner):
                     return True
                 self._record_fail(f"{label} [prompt]", reason)
                 return False
-            self._send(self._resolve_vars(str(value)))
+            # bool -> lowercase "true"/"false": str(True) is "True", but a
+            # rendered checkbox/select prompt only recognizes the lowercase
+            # token (zolo's own written form, per data_crud bool type).
+            send_value = "true" if value is True else "false" if value is False else str(value)
+            self._send(self._resolve_vars(send_value))
             post_buf = "\n".join(self._step_buf)
             if "ERROR:" in post_buf:
                 err_lines = [l.strip() for l in post_buf.splitlines() if "ERROR:" in l]

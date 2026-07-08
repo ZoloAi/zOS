@@ -74,7 +74,7 @@ def rule_cross_mode(data: dict) -> list[Hint]:
     if cli_pass and bifrost_fail:
         return [Hint(
             "CLI runs pass but Bifrost runs fail → this is a selector/rendering issue, "
-            "not a logic bug; check zbifrost-client version or button data-key selectors"
+            "not a logic bug; check zbifrost-client version or button data-zkey selectors"
         )]
     return []
 
@@ -240,8 +240,8 @@ def rule_error_class_pattern(data: dict) -> list[Hint]:
             "or check that the target element appears within the wait window"
         ),
         "selector": (
-            "Recurring selector failures in Bifrost — verify `button[data-key]` "
-            "matches the rendered element; use `~Name*` menu prefix for proper data-key output"
+            "Recurring selector failures in Bifrost — verify `button[data-zkey]` "
+            "matches the rendered element; the zolo block key IS the data-zkey"
         ),
         "assertion": (
             "Recurring assertion failures — the app renders but the expected content "

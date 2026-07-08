@@ -33,7 +33,7 @@ from ..base_runner import BaseStepRunner
 from ..constants import MODE_BIFROST as _MODE_BIFROST
 from ..utils.colors import CYAN, RESET, BOLD
 from ..utils.parser import strip_sel as _strip_sel
-from ..utils.reporter import info
+from ..utils.reporter import info, warn_step
 from ..utils.viewport import (
     VIEWPORT_MOBILE_FALLBACK,
     classify_viewport,
@@ -95,6 +95,42 @@ _BIFROST_READY_TIMEOUT_MS = 12_000   # 12s — generous for WS render latency
 _SHOT_SETTLE_MS           = 300
 
 
+def _prune_old_shots(base_dir: str, name: str, fmt: str, keep: int) -> None:
+    """Keep only the ``keep`` most recent timestamped runs of a shot step.
+
+    Every filename a single run writes for ``name`` shares one mm-dd-HH-MM
+    prefix (a burst run writes several files under that same prefix) — group
+    matches by that prefix, rank groups by the mtime of their newest file,
+    and delete every file outside the top ``keep`` groups. Runs BEFORE the
+    new shot is written so a step's history never exceeds the cap even
+    mid-run. Best-effort: a stray permissions/OS error on one file is
+    swallowed so a prune hiccup never fails the actual test step.
+    """
+    import glob as _glob  # pylint: disable=import-outside-toplevel
+
+    pattern = _os.path.join(base_dir, f"[0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9][0-9]_{name}*.{fmt}")
+    matches = _glob.glob(pattern)
+    if len(matches) <= keep:
+        return
+
+    groups: dict[str, list[str]] = {}
+    for path in matches:
+        prefix = _os.path.basename(path)[:11]  # "MM-DD-HH-MM"
+        groups.setdefault(prefix, []).append(path)
+
+    ranked = sorted(
+        groups.items(),
+        key=lambda kv: max(_os.path.getmtime(p) for p in kv[1]),
+        reverse=True,
+    )
+    for _, stale_paths in ranked[keep:]:
+        for stale_path in stale_paths:
+            try:
+                _os.remove(stale_path)
+            except OSError:
+                pass
+
+
 # ── Value generators for ~tokens in zType.value ──────────────────────────────
 # Usage in .zolo:  value: ~email   →  zraven_<ts>@test.local
 # Supported tokens: ~email  ~name  ~phone  ~company  ~text  ~int  ~uuid  ~bool
@@ -129,7 +165,7 @@ _VALUE_GENERATORS: dict[str, Any] = {
 # zAssert are handled separately (assertions, not actions).
 _BIFROST_PRIMITIVE_ORDER = (
     "zViewport", "zOpen", "zBoot", "zExecute", "zFetch", "zClean",
-    "zType", "zUpload", "zClick", "zDrag", "zSubmit", "zHistory",
+    "zType", "zFill", "zUpload", "zClick", "zPick", "zDrag", "zSubmit", "zHistory",
     "zWait", "zShot", "zScreenshot", "zMarker",
 )
 # Deprecated primitive aliases → canonical grammar key. Recognized so strict mode
@@ -467,10 +503,11 @@ class ZRaven(BaseStepRunner):
         # zbase.css is now a server-side <link> — synchronous with page load,
         # no async CDN fetch needed. We only wait for WS-rendered content.
         content_found = False
+        ready_timeout_ms = int(self._raven_opts.get("content_ready_timeout", _BIFROST_READY_TIMEOUT_MS))
         try:
             await self._page.wait_for_selector(
                 _BIFROST_CONTENT_SELECTOR, state="visible",
-                timeout=_BIFROST_READY_TIMEOUT_MS,
+                timeout=ready_timeout_ms,
             )
             content_found = True
         except Exception:
@@ -611,9 +648,13 @@ class ZRaven(BaseStepRunner):
         overwrite   = cfg.get("overwrite", True)
         resolution  = cfg.get("resolution")
         burst_cfg   = cfg.get("burst")
-        # timestamp_shots: keep a dated history of screenshots each run.
-        # Set via zRavenOptions.timestamp_shots: true or per-step shot.timestamp.
-        use_ts      = cfg.get("timestamp", self._raven_opts.get("timestamp_shots", False))
+        # timestamp_shots: a mm-dd-HH-MM prefix on every shot filename, ON by
+        # default — without it, a regenerated shot overwrites the prior one
+        # in place under the identical name and an image viewer/IDE preview
+        # never visually "kicks" (no diff to notice a re-run even happened).
+        # Opt out per-run via zRavenOptions.timestamp_shots: false or
+        # per-step shot.timestamp: false.
+        use_ts      = cfg.get("timestamp", self._raven_opts.get("timestamp_shots", True))
 
         # Built-in settle: sleep for explicit delay OR default, then wait for
         # two rAF cycles so the browser has painted after any pending style recalc.
@@ -627,14 +668,16 @@ class ZRaven(BaseStepRunner):
         if resolution:
             await self._page.set_viewport_size({"width": int(resolution[0]), "height": int(resolution[1])})
 
+        retain = cfg.get("retain", self._raven_opts.get("zshots_retain", 5))
+
         def _shot_path(base_dir: str, name: str, idx: int | None = None) -> str:
-            ts_suffix = ""
+            ts_prefix = ""
             if use_ts or not overwrite:
-                ts_suffix = "_" + _time.strftime("%Y%m%d_%H%M%S")
+                ts_prefix = _time.strftime("%m-%d-%H-%M") + "_"
             if idx is not None:
-                filename = f"{name}{ts_suffix}_{idx}.{fmt}"
+                filename = f"{ts_prefix}{name}_{idx}.{fmt}"
             else:
-                filename = f"{name}{ts_suffix}.{fmt}"
+                filename = f"{ts_prefix}{name}.{fmt}"
             return _os.path.join(base_dir, filename)
 
         shot_kwargs: dict = {"full_page": full_page}
@@ -658,6 +701,8 @@ class ZRaven(BaseStepRunner):
                 info(f"zShot burst {i}/{count} → {p}")
                 if i < count:
                     await asyncio.sleep(every_ms / 1000)
+            if use_ts and retain:
+                _prune_old_shots(burst_dir, step_name, fmt, retain)
         else:
             _os.makedirs(shots_root, exist_ok=True)
             p = _shot_path(shots_root, step_name)
@@ -668,9 +713,40 @@ class ZRaven(BaseStepRunner):
                 await self._page.screenshot(path=p, **shot_kwargs)
             saved.append(p)
             info(f"zShot → {p}")
+            if use_ts and retain:
+                _prune_old_shots(shots_root, step_name, fmt, retain)
 
         self._last_response = {"event": "shot", "paths": saved}
         return True
+
+    async def _capture_failure_shot(self, step_name: str) -> None:
+        """Best-effort screenshot the instant a Bifrost step fails.
+
+        A compound step (zOpen + zWait + zShot) aborts at the first failing
+        primitive and never reaches its own zShot line — so without this, a
+        failing zOpen (the most common failure) leaves zero visual evidence,
+        which is exactly backwards: a failure is when you most need to SEE
+        what the browser actually rendered. Never raises — a failed shot must
+        not mask the original failure reason.
+        """
+        if not self._page:
+            return
+        try:
+            raven_dir  = _os.path.dirname(_os.path.abspath(self._zraven_file)) if self._zraven_file else "zRaven"
+            raven_name = _os.path.basename(self._zraven_file or "zRaven.unknown.zolo")
+            raven_name = raven_name.removeprefix("zRaven.").removesuffix(".zolo")
+            shots_root = _os.path.join(
+                raven_dir, "zShots", raven_name,
+                self._viewport_mode if self._viewport_mode else "",
+            ).rstrip("/")
+            _os.makedirs(shots_root, exist_ok=True)
+            ts_prefix = _time.strftime("%m-%d-%H-%M") + "_"
+            p = _os.path.join(shots_root, f"{ts_prefix}{step_name}_FAILED.png")
+            await self._page.screenshot(path=p, full_page=True)
+            _prune_old_shots(shots_root, f"{step_name}_FAILED", "png", self._raven_opts.get("zshots_retain", 5))
+            info(f"zShot (failure) → {p}")
+        except Exception:  # pylint: disable=broad-except
+            pass
 
     def _resolve_value(self, raw: Any, step_key: str = "") -> str:
         """Resolve a zType value:
@@ -702,6 +778,95 @@ class ZRaven(BaseStepRunner):
         info(f"browser.type → {selector} = {shown}")
         await self._page.fill(selector, value)
         self._last_response = {"event": "typed", "selector": selector, "value": value}
+        return True
+
+    async def _run_fill(self, fields: Any, step_key: str = "") -> bool:
+        """zFill: declarative form fill — the SAME primitive as zCLI, translated
+        to the rendered DOM instead of stdin prompts. Same zRaven step, same
+        zUI field names, both modes — no selectors authored, no mode-specific
+        test steps.
+
+        For each field: locate `[name='<field>']` (rendered from the zDialog
+        field's zConv/name key), set its value per input type, then — after
+        the last field — click the enclosing form's Submit button. That last
+        part mirrors the zCLI dialog's own implicit "last field -> submit"
+        flow, so one zFill both fills AND submits, on both surfaces.
+        """
+        await self._ensure_browser()
+        if not isinstance(fields, dict) or not fields:
+            self._last_response = {"event": "fill_failed", "error": "zFill requires a {field: value} mapping"}
+            return False
+
+        last_selector = None
+        for field, raw_value in fields.items():
+            selector = f"[name='{field}']"
+            value = self._resolve_value(raw_value, f"{step_key}.{field}" if step_key else "")
+            shown = "***" if _looks_secret(field) else f"{value!r}"
+            info(f"browser.fill → {selector} = {shown}")
+            try:
+                el = await self._page.wait_for_selector(selector, state="visible", timeout=self.timeout * 1000)
+            except Exception:
+                self._last_response = {
+                    "event": "fill_failed",
+                    "error": f"field '{field}' not found ({selector}) — is the dialog rendered?",
+                }
+                return False
+            tag = (await el.evaluate("el => el.tagName")).lower()
+            typ = (await el.get_attribute("type") or "").lower()
+            if tag == "select":
+                await el.select_option(str(value))
+            elif typ == "checkbox":
+                truthy = value if isinstance(value, bool) else str(value).strip().lower() in ("true", "1", "yes", "on")
+                await el.set_checked(truthy)
+            elif typ == "radio":
+                await self._page.check(f"{selector}[value='{value}']")
+            else:
+                await el.fill(str(value))
+            last_selector = selector
+
+        # Implicit submit — same UX contract as the zCLI dialog's Enter-to-submit
+        # default. A pure-collection dialog (no submit button) just no-ops here.
+        if last_selector:
+            try:
+                clicked = await self._page.evaluate(
+                    """(sel) => {
+                        const el = document.querySelector(sel);
+                        const form = el && el.closest('form');
+                        const btn = form && form.querySelector("button[type='submit']");
+                        if (btn) { btn.click(); return true; }
+                        return false;
+                    }""",
+                    last_selector,
+                )
+                if clicked:
+                    await asyncio.sleep(0.3)
+            except Exception:  # pylint: disable=broad-except
+                pass
+
+        self._last_response = {"event": "filled", "fields": list(fields.keys())}
+        return True
+
+    async def _run_pick(self, option: Any) -> bool:
+        """zPick: send a menu/action pick — the SAME primitive as zCLI, translated
+        to a click on the rendered `button[data-zkey='<Option>']` (the zUI
+        menu-item/action key — zbifrost-client stamps every rendered element
+        with data-zkey, NOT data-key — now automated so the same zRaven step
+        runs unmodified in both modes).
+        """
+        await self._ensure_browser()
+        opt = str(option)
+        selector = f"button[data-zkey='{opt}']"
+        info(f"browser.pick → {selector}")
+        try:
+            await self._page.click(selector, timeout=self.timeout * 1000)
+        except Exception as exc:  # pylint: disable=broad-except
+            self._last_response = {
+                "event": "pick_failed",
+                "error": f"option '{opt}' not found ({selector}): {exc}",
+            }
+            return False
+        await asyncio.sleep(0.2)
+        self._last_response = {"event": "picked", "option": opt}
         return True
 
     async def _run_clean(self, cfg: dict) -> bool:
@@ -966,10 +1131,14 @@ class ZRaven(BaseStepRunner):
             return await self._run_submit(val)
         if key == "zType":
             return await self._run_type(val, step_key=step_name)
+        if key == "zFill":
+            return await self._run_fill(val, step_key=step_name)
         if key == "zClean":
             return await self._run_clean(val)
         if key == "zClick":
             return await self._run_click(val)
+        if key == "zPick":
+            return await self._run_pick(val)
         if key == "zWait":
             return await self._run_wait(val)
         if key in ("zShot", "zScreenshot"):
@@ -1015,6 +1184,7 @@ class ZRaven(BaseStepRunner):
             ran_primitive = True
             ok = await self._dispatch_primitive(key, step_cfg[key], step_name)
             if not ok:
+                await self._capture_failure_shot(step_name)
                 self._record_fail(
                     step_name,
                     str(self._last_response.get("error", self._last_response.get("result", "step failed"))),
@@ -1063,9 +1233,11 @@ class ZRaven(BaseStepRunner):
             try:
                 ok = await self.run_step(step_name, step_cfg)
             except asyncio.TimeoutError as exc:
+                await self._capture_failure_shot(step_name)
                 self._record_fail(step_name, f"TIMEOUT — {exc}")
                 ok = False
             except Exception as exc:  # pylint: disable=broad-except
+                await self._capture_failure_shot(step_name)
                 self._record_fail(step_name, f"ERROR — {exc}")
                 ok = False
             if not ok and self.stop_on_error:
@@ -1093,6 +1265,17 @@ class ZRaven(BaseStepRunner):
 
         # Isolate Data/ — swap original to Data._zraven_bak/, run against fresh copy
         app_dir   = str(Path(self._zraven_file).parent.parent) if self._zraven_file else ""
+
+        # zVaF.html is optional (zServer falls back to a built-in default — see
+        # rendering/default_templates.py) but the fallback is easy to forget about
+        # mid-project, so raven surfaces it loudly instead of leaving it to a
+        # buried server-log INFO line.
+        if app_dir and not (Path(app_dir) / "templates" / "zVaF.html").is_file():
+            warn_step(
+                "No templates/zVaF.html",
+                "running on built-in default chrome — add one only if you need custom <head>/meta/fonts",
+            )
+
         _isolated = prepare_test_data(app_dir) if app_dir else False
         if _isolated:
             info(f"data isolated: {app_dir}/Data/ (original safe in Data._zraven_bak/)")

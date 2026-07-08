@@ -57,6 +57,62 @@ def add_subparser(subparsers) -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--commit",
+        nargs="?",
+        const=True,
+        default=False,
+        metavar="LABEL",
+        help=(
+            "Archive a milestone snapshot of the current flow (spark + raven) "
+            "under zVersions/commits/. Optionally pass a short label."
+        ),
+    )
+
+    parser.add_argument(
+        "--clear",
+        nargs="?",
+        const=True,
+        default=False,
+        metavar="FLOW_NAME",
+        help=(
+            "Remove committed _zSpark.<flow>.zolo dev flows (+ paired raven + shots) "
+            "from the working tree, and any orphaned zShots/ folders. Only clears a "
+            "flow with a matching commit whose snapshot matches the working copy. "
+            "Optionally scope to one flow name; default scans every _zSpark.*.zolo in cwd."
+        ),
+    )
+
+    parser.add_argument(
+        "--revive",
+        nargs="?",
+        const=True,
+        default=False,
+        metavar="FLOW_NAME",
+        help=(
+            "Restore a flow's own spark+raven files from a zCommit back into "
+            "the working tree. Pass a flow name to revive its latest commit "
+            "(add --r N to target commit cN instead); omit the name to list "
+            "available commits across the project."
+        ),
+    )
+
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "--commit: archive even if the flow's last run didn't pass. "
+            "--clear: clear a dev flow even if it drifted from its last commit. "
+            "--revive: overwrite working files that diverged from the target commit."
+        ),
+    )
+
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="--clear: print what would be removed without deleting anything",
+    )
+
+    parser.add_argument(
         "--spark",
         metavar="SPARK_FILE",
         help="Path to zSpark file (default: auto-detect in cwd)",
@@ -73,7 +129,10 @@ def add_subparser(subparsers) -> argparse.ArgumentParser:
         "--r",
         metavar="RAVEN_VER",
         dest="raven_ver",
-        help="Target a specific raven version number (e.g. 2)",
+        help=(
+            "--run: target a specific archived raven version number (e.g. 2). "
+            "--revive: target a specific commit number (e.g. 2 → c2) instead of the latest."
+        ),
     )
 
     parser.add_argument(

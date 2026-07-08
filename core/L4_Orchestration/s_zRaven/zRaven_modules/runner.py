@@ -205,10 +205,14 @@ class ZRavenRunner:
             self._zos.request_shutdown(source="zRaven")
             return
 
-        # Use the spark file stem injected by raven_command (SSOT).
-        # e.g. zSpark.zLogin_cli.zolo → zSparkStem="zLogin_cli" → ["z", "zLogin_cli"]
-        # Falls back to glob scan (correct for single-spark projects).
-        spark_name = (self._zos.zspark_obj or {}).get("zSparkStem") or self._find_spark_name()
+        # Use the spark filename injected by raven_command (SSOT) — the full
+        # filename (e.g. "_zSpark.add_task.zolo") always boots via the explicit-
+        # path form, unlike zSparkStem's shorthand ("add_task") which only
+        # resolves for a standard "zSpark.<name>.zolo" file. Falls back to
+        # zSparkStem (older callers / no injection) then a glob scan (correct
+        # for single-spark projects).
+        zspark_obj = self._zos.zspark_obj or {}
+        spark_name = zspark_obj.get("zSparkFile") or zspark_obj.get("zSparkStem") or self._find_spark_name()
         if not spark_name:
             self._logger.error(f"{_LOG_PREFIX} Could not find zSpark.*.zolo in {Path.cwd()}")
             self._exit_code = 1
