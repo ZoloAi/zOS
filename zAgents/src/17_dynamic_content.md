@@ -76,11 +76,17 @@ knot: a value COMPUTED on the spot — `{{ a+b }}` / ternary
     zRound — `{zRound: [<value>, <digits>]}` fixes float-precision drift (0.1+0.2 style) before it ever hits the page; wrap the outer arithmetic knot, not just the final display
     money_gotcha — the render layer collapses an INTEGRAL float to a plain int (24.0 -> displays `$24`, not `$24.00`) — a `zRound` knot doesn't stop this, it only fixes precision on non-whole values; accept the inconsistency for MVP or format explicitly (`zJoin` + a padded-decimal dye) if exact 2dp everywhere matters
     ternary — a `zIf` CONDITION is a `zGate` predicate; zKnot only SELECTS then/else (so zAbove/zSet/zAll work inside)
+        gotcha — a BARE token (`zIf: %data.total_votes`) is not a predicate shape and always fails closed (silently
+        takes `else`) — wrap it: `{zIf: {%data.total_votes: zKnown}, then: ..., else: ...}`; for a maybe-NULL
+        aggregate scalar, the `| default(0)` dye (below `set —`) is usually the simpler fix
     two forms — prose slots (`content`/`label`) slurp a value into text → write a knot as a `zKnot:` CHILD (result written into `content`, siblings like `_zClass` kept); non-prose slot uses the short VALUE form (`label: {zAdd: [%a, %b]}`)
     fail-safe — bad op / missing operand / non-number / ÷0 → empty, never a wrong value or crash
     golden — `zDemos/zShop`'s cart/checkout: subtotal is a live `SUM(line_total)` aggregate (no group_by → a single
         scalar, not a `.0.total` row), tax/shipping/total chain `zMul`/`zAdd` wrapped in `zRound` at both the Review
         display AND the PlaceOrder insert (same computed value written and shown, never re-derived twice)
+    golden — `zDemos/zPoll`'s live results: each Option's `votes` column IS the aggregate (a computed `$inc` write,
+        18_data_advanced.md), not a logged-vote table + group_by; percentage is `zRound`+`zMul`+`zDiv` over that
+        SAME counter and `%data.total_votes` (a scalar `sum`), so a vote and its % move together, no join
 
 var: a durable value set once and reused — `{% set %}`
     lives in the session — read `%var.<name>` (or bare `%name`), written by a `zVar:` event or the `shortcut` command; author/session scope, NOT a render computation

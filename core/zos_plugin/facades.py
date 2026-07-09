@@ -282,6 +282,24 @@ class DataFacade:
         return max(rows, key=lambda r: r.get("id", 0))
 
     def update(self, table: str, values: dict, where: dict) -> Any:
+        """Update rows matching ``where``. ``values`` may carry a computed spec
+        (``{"$inc": 1}`` / ``$dec``/``$mul``/``$div``/``zExpr``, 18_data_advanced.md
+        "computed") — resolved here against the row's OWN current value, because
+        ``zos.data.update`` is the plain adapter pass-through (table/fields/values/
+        where straight to the backend) and has none of ``handle_update``'s
+        ``set:``/``data:`` computed-set detection; left unresolved, a literal
+        ``{"$inc": 1}`` dict would land in the cell instead of doing the arithmetic
+        (zDemos/zPoll's vote-counter cast_vote is the worked example). Single-row
+        semantics only — like `upsert` below, ``where`` is expected to pin one row;
+        a computed spec against a multi-row ``where`` reuses that ONE row's base
+        value for every match, not a true per-row delta.
+        """
+        from zOS.L3_Abstraction.m_zData.zData_modules.shared.operations.crud_set_expr import (
+            is_computed, resolve_set_value,
+        )
+        if any(is_computed(v) for v in values.values()):
+            base_row = self.first(table, where=where) or {}
+            values = {k: resolve_set_value(k, v, base_row) for k, v in values.items()}
         return self._d.update(
             table=table, fields=list(values), values=list(values.values()), where=where
         )

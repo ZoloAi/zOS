@@ -51,6 +51,9 @@ zos_plugin: want the contract handled for you? the SDK on top of `&.`
         files — uploads (files.image('field', max_mb=5) → validated image or 4xx)
         transfer — blob storage (transfer.store(bytes, key=...) → where it landed)
         data — zData CRUD (select/first read, insert/update/upsert/delete write; Rows: row.id)
+            data.update supports a computed spec (`{"$inc"/"$dec"/"$mul"/"$div": n}`, 18_data_advanced.md
+            "computed") — resolved against the row's CURRENT value via an internal read-then-write, single
+            row per `where` (zPoll's vote counter is the worked example)
         session | log | params | zos — live session, logger, raw args, the framework
         rule — a caller-supplied arg WINS over an injected provider
     contract — what you RETURN tells zOS what happened:

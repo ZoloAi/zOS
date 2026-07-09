@@ -1,0 +1,26 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:   csv
+    Data_Path:   @.Data
+    Data_Label:  Polls
+    Schema_Name: zSchema.Polls
+
+#> "the current poll" is always the most recently created row (zLoom/spools
+#  pins to it via `order_by: id DESC, limit: 1`) — no multi-poll picker for
+#  this MVP, see zLoom/spools/zUI.zPoll.zolo <#
+Polls:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    question:
+        type:     str
+        required: true
+        rules:
+            max_length: 200
+
+    created_at:
+        type:    datetime
+        default: now

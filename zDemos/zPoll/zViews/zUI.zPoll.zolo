@@ -1,0 +1,108 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    zBrush: [zpoll]
+    zSpool: [poll, options, total_votes, poll_count]
+
+#> MVP dogfood segment 1: view + vote on the current poll. Each option's
+#  `votes` counter (not a logged-vote table) IS the live aggregate — a
+#  zProgress bar (21_progress.md) plus a zKnot percentage read it straight
+#  back, no join required. That counter is the whole reason this app is
+#  more than a static zTaskList. <#
+Main:
+    zH1:
+        label: zPoll — Live Results
+        color: PRIMARY
+
+    Subtitle:
+        zText:
+            content: Vote for an option below and watch the tally move.
+            _zClass: zPoll-subtitle
+
+    Question:
+        zText:
+            content: %data.poll.0.question
+            _zClass: zPoll-question
+
+    Results:
+        _zClass: zPoll-results
+        zList:
+            source: %data.options
+            each:
+                Row:
+                    _zClass: zPoll-row
+
+                    Label:
+                        zText:
+                            content: %item.label
+                            _zClass: zPoll-label
+
+                    Percent:
+                        zText:
+                            zKnot:
+                                zRound: [{zMul: [{zDiv: [%item.votes, %data.total_votes]}, 100]}, 0]
+                            _zClass: zPoll-percent
+
+                    Bar:
+                        zProgress:
+                            label:   %item.label
+                            current: %item.votes
+                            total:   %data.total_votes
+                            color:   primary
+
+                    Vote:
+                        zBtn:
+                            label:   bi-hand-thumbs-up Vote
+                            color:   primary
+                            _zClass: zPoll-vote-btn
+                            action:  &.poll.cast_vote(%item.id)
+
+    Totals:
+        zText:
+            #> a freshly created poll's options all sit at 0 votes -> the SUM
+            #  aggregate over zero matching rows is a genuine SQL NULL, not a
+            #  0 (17_dynamic_content.md aggregate "shape") — the | default(0)
+            #  dye rescues that blank before it ever reaches the page <#
+            content: %data.total_votes | default(0) votes cast · %data.poll_count polls created
+            _zClass: zPoll-totals
+
+    #> a vote is a quiet plugin call (per_row), not a navigation — the SAME
+    #  zList staleness fix zDarkroom hit (17_dynamic_content.md
+    #  expansion_freshness) means a self-hop zDelta is what re-weaves fresh
+    #  counters back onto the page <#
+    Refresh:
+        zBtn:
+            label:   bi-arrow-clockwise Refresh Results
+            _zClass: zPoll-refresh-btn
+            action:  zDelta($Main)
+
+    NewPoll:
+        zBtn:
+            label:   bi-plus-circle Start a New Poll
+            color:   secondary
+            _zClass: zPoll-newpoll-btn
+            action:  zDelta($Add)
+
+#> MVP dogfood segment 2: start a new poll — question + 2-4 options in one
+#  zDialog, same pairing as zDarkroom's Add (06_inputs.md + 07_forms.md) <#
+Add:
+    zH1:
+        label: Start a New Poll
+        color: PRIMARY
+
+    zDialog:
+        title: New Poll
+        fields: [
+            {zConv: question,  type: text, label: Question,          required: true},
+            {zConv: option_1,  type: text, label: Option 1,          required: true},
+            {zConv: option_2,  type: text, label: Option 2,          required: true},
+            {zConv: option_3,  type: text, label: Option 3 (optional)},
+            {zConv: option_4,  type: text, label: Option 4 (optional)},
+        ]
+        onSubmit:
+            zFunc: &.poll.create_poll(zConv.question, zConv.option_1, zConv.option_2, zConv.option_3, zConv.option_4)
+
+    Back:
+        zBtn:
+            label:  ← Back
+            action: zDelta($Main)

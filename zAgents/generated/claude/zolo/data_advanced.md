@@ -21,6 +21,9 @@ aggregate: many rows → one answer — `action: aggregate`
     shape    — NO `group_by` → the whole reel resolves to a bare SCALAR (`%data.cart_subtotal`), never a `.0.<alias>`
         row; add `group_by` and it flips to a LIST of `{<group_field>, <alias>}` rows like any other read — the
         `alias:` key only matters once it's a row you're pulling a named field off of
+    empty    — a scalar `sum`/`avg`/etc over ZERO matching rows is a genuine NULL, not a 0 — a brand-new group
+        (zPoll's just-created poll, 0 options voted) needs `%data.total_votes | default(0)` (17_dynamic_content.md
+        dye) to render clean instead of a blank/"None"
 
 window: an answer per row, keep every row — `action: window`
     rank/offset — row_number · rank · dense_rank · percent_rank · cume_dist · ntile (+buckets: 4) · lag/lead (+field:, offset: 1)
@@ -67,6 +70,7 @@ upsert: insert-or-update per row — `action: upsert`
 update_advanced: more than a flat value in `set:`
     zCase — per-row, first match: `set: {role: {zCase: [{when: score zABOVE 8, then: admin}, {when: score zABOVE 5, then: editor}], else: viewer}}` (when speaks zFilters; no else → unmatched keep value)
     computed — `{$inc: n}` · `{$dec: n}` · `{$mul: n}` · `{$div: n}` · `{zExpr: price * qty}` (math over the row's own columns, never code)
+        from a plugin — `data.update(table, {field: {"$inc": n}}, where)` also resolves it (12_zfunc.md `data`)
     cross-table — `from: {model, on: a.x = b.y}` then reach with `%table.field`; inner-join (no partner → untouched); `%row.field` = the row being written
     hooks — onBeforeUpdate/onAfterUpdate: &.func · re-validates unique, guards immutable, applies transform on edit
 

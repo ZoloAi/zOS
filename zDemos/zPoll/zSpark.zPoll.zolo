@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     zPoll
+    zMode:     zBifrost
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zPoll
+    zBlock:    Main
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — polling/voting app, real-time vote aggregation + simple analytics
+    tags: [zData, zSchema, zList, zKnot, aggregate, zProgress, zDialog]
+    author: zAgents

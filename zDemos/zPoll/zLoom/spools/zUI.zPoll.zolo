@@ -1,0 +1,40 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+#> "the current poll" is always the most recently created one — no
+#  multi-poll picker for this MVP (17_dynamic_content.md). `options` and
+#  `total_votes` both pin to that poll's id via an uncorrelated scalar
+#  subquery (18_data_advanced.md "subquery: nest a zData inside where") <#
+poll:
+    zData:
+        action:   read
+        model:    @.models.zSchema.Polls
+        fields:   [id, question, created_at]
+        order_by: id DESC
+        limit:    1
+
+options:
+    zData:
+        action: read
+        model:  @.models.zSchema.Options
+        fields: [id, label, votes]
+        where:
+            poll_id: {zData: {action: read, model: @.models.zSchema.Polls, fields: [id], order_by: id DESC, limit: 1}}
+        order_by: id ASC
+
+#> no group_by -> a bare SCALAR (17_dynamic_content.md aggregate "shape"),
+#  read straight as %data.total_votes, not a `.0.<field>` row <#
+total_votes:
+    zData:
+        action:   aggregate
+        model:    @.models.zSchema.Options
+        function: sum
+        field:    votes
+        where:
+            poll_id: {zData: {action: read, model: @.models.zSchema.Polls, fields: [id], order_by: id DESC, limit: 1}}
+
+poll_count:
+    zData:
+        action:   aggregate
+        model:    @.models.zSchema.Polls
+        function: count
+        field:    id

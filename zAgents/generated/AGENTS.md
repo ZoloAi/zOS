@@ -973,6 +973,9 @@ zos_plugin: want the contract handled for you? the SDK on top of `&.`
         files — uploads (files.image('field', max_mb=5) → validated image or 4xx)
         transfer — blob storage (transfer.store(bytes, key=...) → where it landed)
         data — zData CRUD (select/first read, insert/update/upsert/delete write; Rows: row.id)
+            data.update supports a computed spec (`{"$inc"/"$dec"/"$mul"/"$div": n}`, 18_data_advanced.md
+            "computed") — resolved against the row's CURRENT value via an internal read-then-write, single
+            row per `where` (zPoll's vote counter is the worked example)
         session | log | params | zos — live session, logger, raw args, the framework
         rule — a caller-supplied arg WINS over an injected provider
     contract — what you RETURN tells zOS what happened:
@@ -1551,11 +1554,17 @@ knot: a value COMPUTED on the spot — `{{ a+b }}` / ternary
     zRound — `{zRound: [<value>, <digits>]}` fixes float-precision drift (0.1+0.2 style) before it ever hits the page; wrap the outer arithmetic knot, not just the final display
     money_gotcha — the render layer collapses an INTEGRAL float to a plain int (24.0 -> displays `$24`, not `$24.00`) — a `zRound` knot doesn't stop this, it only fixes precision on non-whole values; accept the inconsistency for MVP or format explicitly (`zJoin` + a padded-decimal dye) if exact 2dp everywhere matters
     ternary — a `zIf` CONDITION is a `zGate` predicate; zKnot only SELECTS then/else (so zAbove/zSet/zAll work inside)
+        gotcha — a BARE token (`zIf: %data.total_votes`) is not a predicate shape and always fails closed (silently
+        takes `else`) — wrap it: `{zIf: {%data.total_votes: zKnown}, then: ..., else: ...}`; for a maybe-NULL
+        aggregate scalar, the `| default(0)` dye (below `set —`) is usually the simpler fix
     two forms — prose slots (`content`/`label`) slurp a value into text → write a knot as a `zKnot:` CHILD (result written into `content`, siblings like `_zClass` kept); non-prose slot uses the short VALUE form (`label: {zAdd: [%a, %b]}`)
     fail-safe — bad op / missing operand / non-number / ÷0 → empty, never a wrong value or crash
     golden — `zDemos/zShop`'s cart/checkout: subtotal is a live `SUM(line_total)` aggregate (no group_by → a single
         scalar, not a `.0.total` row), tax/shipping/total chain `zMul`/`zAdd` wrapped in `zRound` at both the Review
         display AND the PlaceOrder insert (same computed value written and shown, never re-derived twice)
+    golden — `zDemos/zPoll`'s live results: each Option's `votes` column IS the aggregate (a computed `$inc` write,
+        18_data_advanced.md), not a logged-vote table + group_by; percentage is `zRound`+`zMul`+`zDiv` over that
+        SAME counter and `%data.total_votes` (a scalar `sum`), so a vote and its % move together, no join
 
 var: a durable value set once and reused — `{% set %}`
     lives in the session — read `%var.<name>` (or bare `%name`), written by a `zVar:` event or the `shortcut` command; author/session scope, NOT a render computation
@@ -1592,6 +1601,9 @@ aggregate: many rows → one answer — `action: aggregate`
     shape    — NO `group_by` → the whole reel resolves to a bare SCALAR (`%data.cart_subtotal`), never a `.0.<alias>`
         row; add `group_by` and it flips to a LIST of `{<group_field>, <alias>}` rows like any other read — the
         `alias:` key only matters once it's a row you're pulling a named field off of
+    empty    — a scalar `sum`/`avg`/etc over ZERO matching rows is a genuine NULL, not a 0 — a brand-new group
+        (zPoll's just-created poll, 0 options voted) needs `%data.total_votes | default(0)` (17_dynamic_content.md
+        dye) to render clean instead of a blank/"None"
 
 window: an answer per row, keep every row — `action: window`
     rank/offset — row_number · rank · dense_rank · percent_rank · cume_dist · ntile (+buckets: 4) · lag/lead (+field:, offset: 1)
@@ -1638,6 +1650,7 @@ upsert: insert-or-update per row — `action: upsert`
 update_advanced: more than a flat value in `set:`
     zCase — per-row, first match: `set: {role: {zCase: [{when: score zABOVE 8, then: admin}, {when: score zABOVE 5, then: editor}], else: viewer}}` (when speaks zFilters; no else → unmatched keep value)
     computed — `{$inc: n}` · `{$dec: n}` · `{$mul: n}` · `{$div: n}` · `{zExpr: price * qty}` (math over the row's own columns, never code)
+        from a plugin — `data.update(table, {field: {"$inc": n}}, where)` also resolves it (12_zfunc.md `data`)
     cross-table — `from: {model, on: a.x = b.y}` then reach with `%table.field`; inner-join (no partner → untouched); `%row.field` = the row being written
     hooks — onBeforeUpdate/onAfterUpdate: &.func · re-validates unique, guards immutable, applies transform on edit
 

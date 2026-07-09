@@ -1,0 +1,34 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:   csv
+    Data_Path:   @.Data
+    Data_Label:  Options
+    Schema_Name: zSchema.Options
+
+#> votes is a denormalized counter, not a logged-vote table — cast_vote
+#  (plugins/poll.py) bumps it with a computed `{$inc: 1}` update
+#  (18_data_advanced.md "computed"), the ONE golden app to dogfood that op.
+#  zero double-vote guard by design — this is an engagement widget (think
+#  a one-off site poll), not an authenticated ballot <#
+Options:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    poll_id:
+        type:        int
+        required:    true
+        foreign_key: Polls.id
+        on_delete:   cascade
+
+    label:
+        type:     str
+        required: true
+        rules:
+            max_length: 80
+
+    votes:
+        type:    int
+        default: 0
