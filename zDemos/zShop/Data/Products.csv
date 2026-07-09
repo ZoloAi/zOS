@@ -1,7 +1,7 @@
-id,name,price,category,description
-1,Classic Tee,24.0,Apparel,Soft cotton crew neck for every day
-2,Canvas Tote,18.5,Accessories,Durable canvas tote for market runs
-3,Ceramic Mug,14.0,Home,Stoneware mug safe for dishwasher and microwave
-4,Wool Beanie,22.0,Apparel,Warm ribbed knit beanie for cold mornings
-5,Leather Wallet,45.0,Accessories,Slim bifold wallet in full-grain leather
-6,Scented Candle,16.0,Home,Hand-poured soy candle in cedar and sage
+id,name,price,category,description,image
+1,Classic Tee,24.0,Apparel,Soft cotton crew neck for every day,@.static.products.classic_tee.jpg
+2,Canvas Tote,18.5,Accessories,Durable canvas tote for market runs,@.static.products.canvas_tote.jpg
+3,Ceramic Mug,14.0,Home,Stoneware mug safe for dishwasher and microwave,@.static.products.ceramic_mug.jpg
+4,Wool Beanie,22.0,Apparel,Warm ribbed knit beanie for cold mornings,@.static.products.wool_beanie.jpg
+5,Leather Wallet,45.0,Accessories,Slim bifold wallet in full-grain leather,@.static.products.leather_wallet.jpg
+6,Scented Candle,16.0,Home,Hand-poured soy candle in cedar and sage,@.static.products.scented_candle.jpg

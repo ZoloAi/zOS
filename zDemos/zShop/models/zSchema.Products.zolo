@@ -6,7 +6,7 @@ zMeta:
     Data_Label:        Products
     Schema_Name:       zSchema.Products
     zMigration:        true
-    zMigrationVersion: v1.0.0
+    zMigrationVersion: v1.1.0
 
 Products:
     id:
@@ -31,4 +31,7 @@ Products:
         default: General
 
     description:
+        type: str
+
+    image:
         type: str

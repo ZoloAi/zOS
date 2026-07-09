@@ -4,7 +4,7 @@ products:
     zData:
         action:   read
         model:    @.models.zSchema.Products
-        fields:   [id, name, price, category, description]
+        fields:   [id, name, price, category, description, image]
         order_by: id ASC
 
 #> auto_join'd to Products for the display name/category — CartItems itself
@@ -28,4 +28,13 @@ cart_subtotal:
         model:    @.models.zSchema.CartItems
         function: sum
         field:    line_total
+        alias:    total
+
+#> single-row aggregate — item count for the nav's cart badge <#
+cart_count:
+    zData:
+        action:   aggregate
+        model:    @.models.zSchema.CartItems
+        function: count
+        field:    id
         alias:    total

@@ -80,7 +80,7 @@ Tests:
     # ── View Cart — subtotal is SUM(line_total), no qty*price anywhere ──────
     Click_View_Cart:
         zClick:
-            selector: "[data-zkey='ViewCart'] button"
+            selector: ".zShop-nav-cart-btn"
         zWait:
             selector: .zShop-cart-list
             state: visible
@@ -144,7 +144,7 @@ Tests:
 
     Reopen_Cart_After_Remove:
         zClick:
-            selector: "[data-zkey='ViewCart'] button"
+            selector: ".zShop-nav-cart-btn"
         zWait:
             selector: .zShop-cart-list
             state: visible
@@ -195,7 +195,7 @@ Tests:
 
     Reopen_Cart:
         zClick:
-            selector: "[data-zkey='ViewCart'] button"
+            selector: ".zShop-nav-cart-btn"
         zWait:
             selector: .zShop-cart-list
             state: visible
@@ -325,7 +325,7 @@ Tests:
 
     Reopen_Cart_After_Order:
         zClick:
-            selector: "[data-zkey='ViewCart'] button"
+            selector: ".zShop-nav-cart-btn"
         zWait:
             selector: .zShop-subtotal
             state: visible

@@ -12,18 +12,39 @@
 
 zMeta:
     zBrush: [zShop]
-    zSpool: [products, cart_items, cart_subtotal]
+    zSpool: [products, cart_items, cart_subtotal, cart_count]
 
 Main:
-    zH1:
-        label: zShop
-        color: PRIMARY
-        _zClass: zShop-title
+    Nav:
+        _zClass: zShop-nav
+        Brand:
+            zText:
+                content: zShop
+                _zClass: zShop-nav-brand
+        NavCart:
+            _zClass: zShop-nav-cart
+            ViewCart:
+                zBtn:
+                    label:  bi-bag + Cart
+                    color:  secondary
+                    _zClass: zShop-nav-cart-btn
+                    action: zDelta($Cart)
+            CartCount:
+                zText:
+                    content: %data.cart_count
+                    _zClass: zShop-nav-badge
 
-    Lead:
-        zText:
-            content: Everyday essentials, simply checked out.
-            _zClass: zShop-lead
+    Hero:
+        _zClass: zShop-hero
+        HeroTitle:
+            zH1:
+                label: Everyday essentials, thoughtfully made.
+                color: PRIMARY
+                _zClass: zShop-hero-title
+        HeroLead:
+            zText:
+                content: Small-batch goods for daily life — free shipping over $50.
+                _zClass: zShop-hero-lead
 
     Products_List:
         _zClass: zShop-product-grid
@@ -32,6 +53,12 @@ Main:
             each:
                 Card:
                     _zClass: zShop-card
+
+                    Photo:
+                        zImage:
+                            src:      %item.image
+                            alt_text: %item.name
+                            _zClass:  zShop-card-photo
 
                     Name:
                         zText:
@@ -76,14 +103,31 @@ Main:
                                                     product_id: %item.id
                                                     line_total: %item.price
 
-    ViewCart:
-        zBtn:
-            label:  bi-bag + View Cart
-            color:  secondary
-            _zClass: zShop-cart-btn
-            action: zDelta($Cart)
+    Footer:
+        zText:
+            content: © 2026 zShop — a golden zOS demo app. Mock store, no real transactions.
+            _zClass: zShop-footer
 
 Cart:
+    Nav:
+        _zClass: zShop-nav
+        Brand:
+            zText:
+                content: zShop
+                _zClass: zShop-nav-brand
+        NavCart:
+            _zClass: zShop-nav-cart
+            NavCartBtn:
+                zBtn:
+                    label:  bi-bag + Cart
+                    color:  secondary
+                    _zClass: zShop-nav-cart-btn-active
+                    action: zDelta($Cart)
+            NavCartCount:
+                zText:
+                    content: %data.cart_count
+                    _zClass: zShop-nav-badge
+
     zH1:
         label: Your Cart
         color: PRIMARY
@@ -138,7 +182,31 @@ Cart:
             _zClass: zShop-back-btn
             action: zDelta($Main)
 
+    Footer:
+        zText:
+            content: © 2026 zShop — a golden zOS demo app. Mock store, no real transactions.
+            _zClass: zShop-footer
+
 Checkout:
+    Nav:
+        _zClass: zShop-nav
+        Brand:
+            zText:
+                content: zShop
+                _zClass: zShop-nav-brand
+        NavCart:
+            _zClass: zShop-nav-cart
+            NavCartBtn:
+                zBtn:
+                    label:  bi-bag + Cart
+                    color:  secondary
+                    _zClass: zShop-nav-cart-btn
+                    action: zDelta($Cart)
+            NavCartCount:
+                zText:
+                    content: %data.cart_count
+                    _zClass: zShop-nav-badge
+
     zH1:
         label: Checkout
         color: PRIMARY
@@ -279,3 +347,8 @@ Checkout:
             color:  secondary
             _zClass: zShop-back-btn
             action: zDelta($Main)
+
+    Footer:
+        zText:
+            content: © 2026 zShop — a golden zOS demo app. Mock store, no real transactions.
+            _zClass: zShop-footer
