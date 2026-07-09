@@ -31,17 +31,35 @@ Tests:
                 selector: .zPoll-row
                 count: 4
 
-    # ── vote on "A CLI tool" — the plugin bumps its `votes` counter with a
-    #    computed {$inc: 1} update (18_data_advanced.md "computed") ────────
+    # ── vote on "A CLI tool" — zModal + zDialog(fields: []) onSubmit holds a
+    #    real zData block directly (08_data_crud.md per_row "preferred"), a
+    #    computed {$inc: 1} update (18_data_advanced.md "computed"), no
+    #    plugin ──────────────────────────────────────────────────────────────
     Click_Vote_CLI_Tool:
         zClick:
             selector: ".zPoll-row:has-text('A CLI tool') .zPoll-vote-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
         zShot:
             full_page: true
 
-    # ── a quiet per_row action doesn't re-render the page on its own — the
-    #    Refresh button is a top-level Main child, data-zkey is reliable
-    #    here (13_testing.md !data_zkey_depth) ──────────────────────────────
+    Confirm_Vote_CLI_Tool:
+        zClick:
+            selector: ".zModal-overlay button[type='submit']"
+
+    Close_Vote_CLI_Tool:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+
+    # ── a zModal detour is trail-invisible (08_data_crud.md per_row
+    #    "gotcha") — the Refresh button is the next REAL navigation
+    #    (self-hop zDelta) that picks up the fresh counter ──────────────────
     Click_Refresh:
         zClick:
             selector: "[data-zkey='Refresh'] button"

@@ -48,7 +48,10 @@ Main:
                         #  return detour: %item.* bakes in at zList expansion
                         #  (same as every other field in this row), so the
                         #  dialog opens pre-filled with THIS card's own
-                        #  title/caption <#
+                        #  title/caption. onSubmit holds a real zData block
+                        #  directly (08_data_crud.md per_row "preferred") — a
+                        #  plain field update, no file involved, needs no
+                        #  plugin at all <#
                         Edit:
                             zBtn:
                                 label:  bi-pencil Edit
@@ -63,7 +66,13 @@ Main:
                                                 {zConv: caption, type: text, label: Caption, default: %item.caption},
                                             ]
                                             onSubmit:
-                                                zFunc: &.gallery.update_photo(%item.id, zConv.title, zConv.caption)
+                                                zData:
+                                                    action: update
+                                                    model:  @.models.zSchema.Photos
+                                                    where:  id = %item.id
+                                                    data:
+                                                        title:   zConv.title
+                                                        caption: zConv.caption
 
                         #> per_row delete (08_data_crud.md `per_row`) — a bare
                         #  zBtn.action is a CALL straight to a @zfunc, not a

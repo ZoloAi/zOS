@@ -144,6 +144,18 @@ body {
     letter-spacing: 0.01em;
 }
 
+.zTaskList-refresh {
+    display: block;
+    width: 100%;
+    padding: 10px 0;
+    border-radius: 12px;
+    font-weight: 500;
+    margin-top: 8px;
+    background: #eef1f6;
+    color: var(--tl-ink);
+    border: none;
+}
+
 @media (max-width: 420px) {
     #zVaF-content {
         margin: 24px auto;

@@ -50,14 +50,6 @@ def add_photo(title, caption, photo, data):
 
 
 @zfunc
-def update_photo(photo_id, title, caption, data):
-    """Edit details (zModal + zDialog, 03_navigation.md) — a plain field
-    update, no file involved, so a straight zData.update is enough."""
-    data.update(_TABLE, {"title": title, "caption": caption or ""}, where={"id": photo_id})
-    return f"Updated {title}"
-
-
-@zfunc
 def delete_photo(photo_id, data):
     """Per-row delete (08_data_crud.md `per_row`) — a bare zBtn.action CALL,
     not a full zData block, so the row's own static file is cleaned up first.

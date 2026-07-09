@@ -80,18 +80,42 @@ Tests:
         zShot:
             full_page: true
 
-    # ── Delete: tap the trash icon beside the row, no id typed ───────────────
+    # ── Delete: zModal + zDialog(fields: []) onSubmit holds a real zData
+    #    block directly (08_data_crud.md per_row "preferred"), no plugin ────
     Click_Delete_New_Row:
         zClick:
-            selector: ".zTaskList-row:has-text('Buy groceries') [data-zkey='Delete']"
+            selector: ".zTaskList-row:has-text('Buy groceries') .zTaskList-delete"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
         zShot:
             full_page: true
 
-    Wait_Delete_Reload:
+    Confirm_Delete_New_Row:
+        zClick:
+            selector: ".zModal-overlay button[type='submit']"
+
+    Close_Delete_New_Row:
+        zClick:
+            selector: .zModal-close
         zWait:
-            selector: ".zTaskList-row:has-text('Buy groceries')"
-            state: detached
+            selector: .zModal-overlay
+            state: hidden
             timeout: 8000
+
+    #> a zModal detour is trail-invisible (08_data_crud.md per_row "gotcha")
+    #  — Refresh is the next real navigation (self-hop zDelta) that picks
+    #  up the post-delete row set <#
+    Click_Refresh:
+        zClick:
+            selector: "[data-zkey='Refresh'] button"
+        zWait:
+            selector: .zTaskList-card
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
 
     Assert_Row_Gone:
         zAssert:

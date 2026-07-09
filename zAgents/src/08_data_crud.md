@@ -92,6 +92,13 @@ delete: remove what you name — `action: delete`
     per_row — a bare `zBtn.action:` is a CALL, not a full zData block — a dynamic-row one-click delete (`where: id = %item.id`)
         needs a `@zfunc` (inject `data`, call `data.delete(table, where=...)`) → zFunc leaf; a `zDialog.onSubmit` CAN
         hold a real `zData: {action: delete}` block directly (no plugin needed) since a dialog submit is a full dispatch
+        preferred — wrap the row action in `zModal: {zDialog: {title: ..., fields: [], onSubmit: {zData: ...}}}` (zShop's
+            cart Add/Remove, every one-click row mutation) instead of a bare zBtn+plugin: zero Python, a free confirm
+            step, and the SAME full-dispatch onSubmit repaint — a plugin is for real behavior (computed transitions,
+            external calls), not a pass-through insert/update/delete a dialog already does declaratively
+        gotcha — a zModal detour is trail-invisible (never re-renders the page that opened it) — the mutated row
+            stays in the DOM until the NEXT real navigation (zDelta away and back); don't assert removal/change
+            right after `Close`, assert it after that next hop (zShop's cart Remove, zContacts' row Delete)
     depth — on_delete cascades, soft delete, subquery/cross-table/time-based/RETURNING → Advanced Writes
 
 migrations: evolve the shape without losing data — edit the zSchema to what it SHOULD be, zData finds the smallest safe path

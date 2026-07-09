@@ -66,23 +66,32 @@ Tests:
                 selector: ".zContacts-row:has-text('Margaret Hamilton') .zContacts-detail"
                 contains: Company #1
 
-    # ── Delete the row just added, prove it's gone ──────────────────────────
+    # ── Delete the row just added — zModal+zDialog(fields: []) onSubmit, no
+    #    plugin (08_data_crud.md per_row). A modal detour is trail-invisible
+    #    (navigation_detour.py) — it never re-renders Main, so the row stays
+    #    in the DOM until the next REAL navigation (the Companies hop right
+    #    after this proves it, same "re-read via a fresh hop" as zShop cart) ─
     Click_Delete_New_Row:
         zClick:
-            selector: ".zContacts-row:has-text('Margaret Hamilton') [data-zkey='Delete']"
+            selector: ".zContacts-row:has-text('Margaret Hamilton') .zContacts-delete"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
         zShot:
             full_page: true
 
-    Wait_Delete_Reload:
-        zWait:
-            selector: ".zContacts-row:has-text('Margaret Hamilton')"
-            state: detached
-            timeout: 8000
+    Confirm_Delete_New_Row:
+        zClick:
+            selector: ".zModal-overlay button[type='submit']"
 
-    Assert_Row_Gone:
-        zAssert:
-            dom:
-                not_contains: Margaret Hamilton
+    Close_Delete_New_Row:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
 
     # ── Companies: manage the OTHER side of the relationship ────────────────
     Pick_Manage_Companies:
@@ -141,6 +150,15 @@ Tests:
             selector: .zContacts-card
             state: visible
             timeout: 8000
+        zShot:
+            full_page: true
+
+    #> the Companies detour above is the real navigation that re-runs
+    #  prepare_block_render on Main, picking up the post-delete spool <#
+    Assert_Row_Gone:
+        zAssert:
+            dom:
+                not_contains: Margaret Hamilton
 
     # ── Directory: the relational payoff — auto_join fed to zTable ──────────
     Pick_Directory:

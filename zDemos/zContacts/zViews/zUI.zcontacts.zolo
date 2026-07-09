@@ -1,9 +1,8 @@
 # .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
 
 zMeta:
-    zBrush:   [zcontacts]
-    zScripts: [&.contacts]
-    zSpool:   [contacts, companies]
+    zBrush: [zcontacts]
+    zSpool: [contacts, companies]
 
 Main:
     zH1:
@@ -39,11 +38,25 @@ Main:
                                 content: Company #%item.company_id | default(unassigned) · %item.email
                                 _zClass: zContacts-detail
 
+                        #> per_row (08_data_crud.md): a bare zBtn.action can't
+                        #  carry a full zData block — a zModal + zDialog
+                        #  (fields: []) onSubmit IS a full dispatch, no plugin
+                        #  needed (same shape zShop uses for every one-click
+                        #  cart mutation) <#
                         Delete:
                             zBtn:
                                 label:  bi-trash
                                 _zClass: zContacts-delete
-                                action: &.contacts.delete_contact(%item.id)
+                                action:
+                                    zModal:
+                                        zDialog:
+                                            title:  Delete %item.name?
+                                            fields: []
+                                            onSubmit:
+                                                zData:
+                                                    action: delete
+                                                    model:  @.models.zSchema.Contacts
+                                                    where:  id = %item.id
 
     Add:
         zBtn:
@@ -115,7 +128,16 @@ Companies:
                             zBtn:
                                 label:  bi-trash
                                 _zClass: zContacts-delete
-                                action: &.contacts.delete_company(%item.id)
+                                action:
+                                    zModal:
+                                        zDialog:
+                                            title:  Delete %item.name?
+                                            fields: []
+                                            onSubmit:
+                                                zData:
+                                                    action: delete
+                                                    model:  @.models.zSchema.Companies
+                                                    where:  id = %item.id
 
     Add:
         zBtn:

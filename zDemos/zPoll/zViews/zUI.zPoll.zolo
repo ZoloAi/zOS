@@ -50,12 +50,28 @@ Main:
                             total:   %data.total_votes
                             color:   primary
 
+                    #> per_row (08_data_crud.md, "preferred") — a zModal +
+                    #  zDialog(fields: []) onSubmit holds a real zData block
+                    #  directly, no plugin: the computed `$inc`
+                    #  (18_data_advanced.md "computed") resolves against
+                    #  THIS row's own current votes <#
                     Vote:
                         zBtn:
                             label:   bi-hand-thumbs-up Vote
                             color:   primary
                             _zClass: zPoll-vote-btn
-                            action:  &.poll.cast_vote(%item.id)
+                            action:
+                                zModal:
+                                    zDialog:
+                                        title:  Vote for %item.label?
+                                        fields: []
+                                        onSubmit:
+                                            zData:
+                                                action: update
+                                                model:  @.models.zSchema.Options
+                                                where:  id = %item.id
+                                                data:
+                                                    votes: {$inc: 1}
 
     Totals:
         zText:

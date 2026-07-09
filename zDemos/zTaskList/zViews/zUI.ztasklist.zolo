@@ -46,11 +46,24 @@ Main:
                                 content: %item.title
                                 _zClass: zTaskList-title-%item.done
 
+                        #> per_row (08_data_crud.md, "preferred") — a zModal +
+                        #  zDialog(fields: []) onSubmit holds a real zData
+                        #  block directly, no plugin needed for a plain
+                        #  pass-through delete <#
                         Delete:
                             zBtn:
                                 label:  bi-trash
                                 _zClass: zTaskList-delete
-                                action: &.tasklist.delete_task(%item.id)
+                                action:
+                                    zModal:
+                                        zDialog:
+                                            title:  Delete %item.title?
+                                            fields: []
+                                            onSubmit:
+                                                zData:
+                                                    action: delete
+                                                    model:  @.models.zSchema.Tasks
+                                                    where:  id = %item.id
 
     Add:
         zBtn:
@@ -58,6 +71,17 @@ Main:
             color:  primary
             _zClass: zTaskList-add
             action: zDelta($Add_View)
+
+    #> a zModal detour (Delete, above) is trail-invisible by design
+    #  (08_data_crud.md per_row "gotcha") — a self-hop zDelta to THIS SAME
+    #  block is the next real navigation that re-runs prepare_block_render,
+    #  same fix zPoll's Refresh relies on <#
+    Refresh:
+        zBtn:
+            label:  bi-arrow-clockwise + Refresh
+            color:  secondary
+            _zClass: zTaskList-refresh
+            action: zDelta($Main)
 
 Add_View:
     zDialog:
