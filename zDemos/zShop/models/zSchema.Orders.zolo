@@ -1,0 +1,63 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# One flat row per order — shipping details + the calculated totals, no
+# separate OrderItems table (this golden app's teaching goal is the WIZARD +
+# CALCULATIONS combo, not order-line persistence). The cart itself is cleared
+# right after the order lands, so the summary here IS the receipt.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        Orders
+    Schema_Name:       zSchema.Orders
+    zMigration:        true
+    zMigrationVersion: v1.0.0
+
+Orders:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    customer_name:
+        type:     str
+        required: true
+        rules:
+            max_length: 120
+
+    address:
+        type:     str
+        required: true
+
+    city:
+        type:     str
+        required: true
+
+    zip_code:
+        type:     str
+        required: true
+
+    email:
+        type:     str
+        required: true
+        rules:
+            format: email
+
+    subtotal:
+        type:     float
+        required: true
+
+    tax:
+        type:     float
+        required: true
+
+    shipping_fee:
+        type:     float
+        required: true
+
+    total:
+        type:     float
+        required: true
+
+    placed_at:
+        type:    datetime
+        default: now

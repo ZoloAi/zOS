@@ -1,0 +1,281 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Golden app 12 — cart/checkout, zero plugins. "Add to Cart"/"Remove" are a
+# zModal + zDialog (fields: []) confirm directly on onSubmit (08_data_crud.md
+# "per_row" — a bare zBtn.action is a CALL, not a full zData block; only a
+# zDialog.onSubmit is a full dispatch). Cart math is SUM(line_total) — no
+# qty*price multiplication anywhere (line_total is a price SNAPSHOT taken at
+# add time). Checkout is one zWizard: flat zInput steps + a zBtn:submit gate
+# per screen (Shipping, then Payment) file the hat, a Review segment computes
+# tax/total live via zKnot, PlaceOrder + ClearCart are bare zData steps (a
+# wizard step's event CAN be a zData block directly — see Advanced/Transactions
+# "_transaction wraps its zData STEPS").
+
+zMeta:
+    zBrush: [zShop]
+    zSpool: [products, cart_items, cart_subtotal]
+
+Main:
+    zH1:
+        label: zShop
+        color: PRIMARY
+        _zClass: zShop-title
+
+    Lead:
+        zText:
+            content: Everyday essentials, simply checked out.
+            _zClass: zShop-lead
+
+    Products_List:
+        _zClass: zShop-product-grid
+        zList:
+            source: %data.products
+            each:
+                Card:
+                    _zClass: zShop-card
+
+                    Name:
+                        zText:
+                            content: %item.name
+                            _zClass: zShop-card-name
+
+                    Category:
+                        zText:
+                            content: %item.category
+                            _zClass: zShop-card-category
+
+                    Description:
+                        zText:
+                            content: %item.description
+                            _zClass: zShop-card-desc
+
+                    Price:
+                        zText:
+                            _zClass: zShop-card-price
+                            zKnot:
+                                zJoin: [$, {zRound: [%item.price, 2]}]
+
+                    #> a bare zBtn.action can't carry a full zData block
+                    #  (08_data_crud.md "per_row") — a zModal + zDialog
+                    #  (fields: []) onSubmit IS a full dispatch, same shape
+                    #  zBooking/zBlog use for every other one-click mutation <#
+                    AddToCart:
+                        zBtn:
+                            label:  bi-cart-plus + Add to Cart
+                            color:  primary
+                            _zClass: zShop-add-btn
+                            action:
+                                zModal:
+                                    zDialog:
+                                        title:  Add %item.name to your cart?
+                                        fields: []
+                                        onSubmit:
+                                            zData:
+                                                action: insert
+                                                model:  @.models.zSchema.CartItems
+                                                data:
+                                                    product_id: %item.id
+                                                    line_total: %item.price
+
+    ViewCart:
+        zBtn:
+            label:  bi-bag + View Cart
+            color:  secondary
+            _zClass: zShop-cart-btn
+            action: zDelta($Cart)
+
+Cart:
+    zH1:
+        label: Your Cart
+        color: PRIMARY
+        _zClass: zShop-title
+
+    Items:
+        _zClass: zShop-cart-list
+        zList:
+            source: %data.cart_items
+            each:
+                Row:
+                    _zClass: zShop-cart-row
+
+                    Detail:
+                        zText:
+                            content: %item.Products.name (%item.Products.category) — $%item.CartItems.line_total
+                            _zClass: zShop-cart-detail
+
+                    Remove:
+                        zBtn:
+                            label:  bi-x-circle + Remove
+                            color:  danger
+                            _zClass: zShop-remove-btn
+                            action:
+                                zModal:
+                                    zDialog:
+                                        title:  Remove this item?
+                                        fields: []
+                                        onSubmit:
+                                            zData:
+                                                action: delete
+                                                model:  @.models.zSchema.CartItems
+                                                where:  id = %item.CartItems.id
+
+    Subtotal:
+        zText:
+            _zClass: zShop-subtotal
+            zKnot:
+                zJoin: [Subtotal: $, {zRound: [%data.cart_subtotal, 2]}]
+
+    Checkout:
+        zBtn:
+            label:  bi-credit-card + Checkout
+            color:  primary
+            _zClass: zShop-checkout-btn
+            action: zDelta($Checkout)
+
+    BackToShop:
+        zBtn:
+            label:  ← Back to Shop
+            color:  secondary
+            _zClass: zShop-back-btn
+            action: zDelta($Main)
+
+Checkout:
+    zH1:
+        label: Checkout
+        color: PRIMARY
+        _zClass: zShop-title
+
+    MockNote:
+        zText:
+            content: Mock checkout — no real charge. zOS also ships a real PayPal SDK checkout (ZEMBED_SDK: [paypal]) for a production integration.
+            _zClass: zShop-mock-note
+
+    #> a wizard STEP's own gate is a bare zBtn type:submit (11_wizard.md
+    #  "gate") — the pre-gate zInput fields sit as plain sibling steps ahead
+    #  of it and file into the hat FLAT, one input per step (the client's
+    #  gate-submit only reads one input per pre-gate key, so each field is
+    #  its own step, never bundled — a multi-field zDialog wants its OWN
+    #  onSubmit dispatch and isn't a bare collect-and-advance gate) <#
+    zWizard:
+        Ship_Name:
+            zInput:
+                prompt: Full name
+
+        Ship_Address:
+            zInput:
+                prompt: Address
+
+        Ship_City:
+            zInput:
+                prompt: City
+
+        Ship_Zip:
+            zInput:
+                prompt: Zip code
+
+        Ship_Email:
+            zInput:
+                prompt: Email
+                type: email
+
+        Continue_Shipping:
+            zBtn:
+                label: Continue to Payment
+                type:  submit
+                color: primary
+                _zClass: zShop-checkout-btn
+
+        Pay_Name:
+            zInput:
+                prompt: Name on card
+
+        Pay_Card:
+            zInput:
+                prompt: Card number
+
+        Continue_Payment:
+            zBtn:
+                label: Continue to Review
+                type:  submit
+                color: primary
+                _zClass: zShop-checkout-btn
+
+        Review_Shipping:
+            zMD:
+                content: Shipping to zHat[Ship_Name] — zHat[Ship_Address], zHat[Ship_City] zHat[Ship_Zip]
+                _zClass: zShop-review-line
+
+        Review_Items_Label:
+            zText:
+                content: Items in your order
+                _zClass: zShop-review-label
+
+        Review_Items:
+            zList:
+                source: %data.cart_items
+                each:
+                    Row:
+                        zText:
+                            content: %item.Products.name — $%item.CartItems.line_total
+                            _zClass: zShop-review-item
+
+        Review_Subtotal:
+            zText:
+                _zClass: zShop-review-line
+                zKnot:
+                    zJoin: [Subtotal: $, {zRound: [%data.cart_subtotal, 2]}]
+
+        Review_Tax:
+            zText:
+                _zClass: zShop-review-line
+                zKnot:
+                    zJoin: [Tax (8%): $, {zRound: [{zMul: [%data.cart_subtotal, 0.08]}, 2]}]
+
+        Review_Shipping_Fee:
+            zText:
+                content: Shipping: $4.99
+                _zClass: zShop-review-line
+
+        Review_Total:
+            zText:
+                _zClass: zShop-review-total
+                zKnot:
+                    zJoin: [Total: $, {zRound: [{zAdd: [%data.cart_subtotal, {zMul: [%data.cart_subtotal, 0.08]}, 4.99]}, 2]}]
+
+        ConfirmOrder:
+            zBtn:
+                label:  Place Order
+                type:   submit
+                color:  primary
+                _zClass: zShop-confirm-btn
+
+        PlaceOrder:
+            zData:
+                action: insert
+                model:  @.models.zSchema.Orders
+                data:
+                    customer_name: zHat[Ship_Name]
+                    address:       zHat[Ship_Address]
+                    city:          zHat[Ship_City]
+                    zip_code:      zHat[Ship_Zip]
+                    email:         zHat[Ship_Email]
+                    subtotal:      {zRound: [%data.cart_subtotal, 2]}
+                    tax:           {zRound: [{zMul: [%data.cart_subtotal, 0.08]}, 2]}
+                    shipping_fee:  4.99
+                    total:         {zRound: [{zAdd: [%data.cart_subtotal, {zMul: [%data.cart_subtotal, 0.08]}, 4.99]}, 2]}
+
+        ClearCart:
+            zData:
+                action: delete
+                model:  @.models.zSchema.CartItems
+
+        Confirmation:
+            zMD:
+                content: Order placed! A receipt confirmation would normally be emailed here — thanks for shopping at zShop.
+                _zClass: zShop-confirmation
+
+    BackToShop:
+        zBtn:
+            label:  ← Back to Shop
+            color:  secondary
+            _zClass: zShop-back-btn
+            action: zDelta($Main)

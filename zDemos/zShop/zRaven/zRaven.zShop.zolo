@@ -1,0 +1,374 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Bifrost flow — zMode: zBifrost (was zCLI during phase_CLI; that CLI proof of
+# the same wizard + zKnot logic lives in zVersions/commits/zShop's c1 milestone).
+# Zero plugins anywhere: Add/Remove are zModal + zDialog(fields: []) onSubmit
+# holding a real zData insert/delete directly, checkout totals are zKnot math
+# (zAdd/zMul/zRound) off a live SUM(line_total) aggregate. Cart: Classic Tee
+# ($24.00) + Ceramic Mug ($14.00) -> subtotal $38, tax(8%) $3.04, shipping
+# $4.99, total $46.03. Per-row buttons are deep inside a zList each-block, so
+# selectors use the _zClass :has-text() pattern (data-zkey only survives on a
+# block's own DIRECT top-level children — see zBooking's Cancel button note).
+# Shipping/Payment are FLAT zInput steps + a shared zBtn:submit gate each (not
+# zDialog) — a wizard-step zDialog needs its OWN onSubmit dispatch (07_forms.md
+# !page_dialog_key), while a bare zInput + zBtn:submit rides the dedicated
+# wizard_gate_submit path and needs none.
+
+Tests:
+
+    # ── Open storefront — seeded product grid ───────────────────────────────
+    Open_App:
+        zOpen: zSpark
+        zWait:
+            selector: .zShop-card
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Products_Seeded:
+        zAssert:
+            dom:
+                selector: body
+                contains: Classic Tee
+
+    # ── Add Classic Tee — outer card button opens the confirm modal ────────
+    Click_Add_Classic_Tee:
+        zClick:
+            selector: ".zShop-card:has-text('Classic Tee') .zShop-add-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Confirm_Add_Classic_Tee:
+        zClick:
+            selector: ".zModal-overlay button[type='submit']"
+        zShot:
+            full_page: true
+
+    Close_Add_Classic_Tee:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+
+    # ── Add Ceramic Mug ──────────────────────────────────────────────────────
+    Click_Add_Ceramic_Mug:
+        zClick:
+            selector: ".zShop-card:has-text('Ceramic Mug') .zShop-add-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
+
+    Confirm_Add_Ceramic_Mug:
+        zClick:
+            selector: ".zModal-overlay button[type='submit']"
+
+    Close_Add_Ceramic_Mug:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+
+    # ── View Cart — subtotal is SUM(line_total), no qty*price anywhere ──────
+    Click_View_Cart:
+        zClick:
+            selector: "[data-zkey='ViewCart'] button"
+        zWait:
+            selector: .zShop-cart-list
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Cart_Has_Both_Items:
+        zAssert:
+            dom:
+                selector: .zShop-cart-list
+                contains: Classic Tee
+
+    Assert_Cart_Has_Ceramic_Mug:
+        zAssert:
+            dom:
+                selector: .zShop-cart-list
+                contains: Ceramic Mug
+
+    Assert_Cart_Subtotal:
+        zAssert:
+            dom:
+                selector: .zShop-subtotal
+                contains: $38
+
+    # ── Remove Ceramic Mug — a real delete, not a status flip ───────────────
+    Click_Remove_Ceramic_Mug:
+        zClick:
+            selector: ".zShop-cart-row:has-text('Ceramic Mug') .zShop-remove-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Confirm_Remove_Ceramic_Mug:
+        zClick:
+            selector: ".zModal-overlay button[type='submit']"
+
+    Close_Remove_Ceramic_Mug:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+
+    #> a zModal detour is trail-invisible by design (navigation_detour.py) — it
+    #  never re-renders the firing page, so the just-deleted row is still in
+    #  the DOM until the next real navigation. Same "re-read via a fresh hop"
+    #  fix zBooking's My_Bookings relies on: Back out then back in re-runs
+    #  prepare_block_render, picking up the live %data.cart_items spool <#
+    Back_To_Refresh_Cart:
+        zClick:
+            selector: "[data-zkey='BackToShop'] button"
+        zWait:
+            selector: .zShop-card
+            state: visible
+            timeout: 8000
+
+    Reopen_Cart_After_Remove:
+        zClick:
+            selector: "[data-zkey='ViewCart'] button"
+        zWait:
+            selector: .zShop-cart-list
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Ceramic_Mug_Removed:
+        zAssert:
+            dom:
+                selector: .zShop-cart-list
+                not_contains: Ceramic Mug
+
+    Assert_Classic_Tee_Still_There:
+        zAssert:
+            dom:
+                selector: .zShop-cart-list
+                contains: Classic Tee
+
+    # ── Add Ceramic Mug back — checkout totals below assume both items ──────
+    Back_To_Shop_To_Readd:
+        zClick:
+            selector: "[data-zkey='BackToShop'] button"
+        zWait:
+            selector: .zShop-card
+            state: visible
+            timeout: 8000
+
+    Click_Add_Ceramic_Mug_Again:
+        zClick:
+            selector: ".zShop-card:has-text('Ceramic Mug') .zShop-add-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
+
+    Confirm_Add_Ceramic_Mug_Again:
+        zClick:
+            selector: ".zModal-overlay button[type='submit']"
+
+    Close_Add_Ceramic_Mug_Again:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+
+    Reopen_Cart:
+        zClick:
+            selector: "[data-zkey='ViewCart'] button"
+        zWait:
+            selector: .zShop-cart-list
+            state: visible
+            timeout: 8000
+
+    #> pre-gate zInput steps (Ship_Name/Address/…) get no `name` attribute —
+    #  the wizard-gate client reads them by data-zkey wrapper, not by name —
+    #  so zType (hand-picked selector) stands in for zFill here <#
+    Click_Checkout:
+        zClick:
+            selector: "[data-zkey='Checkout'] button"
+        zWait:
+            selector: "[data-zkey='Ship_Name'] input"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Fill_Shipping:
+        zType:
+            selector: "[data-zkey='Ship_Name'] input"
+            value: Jordan Rivera
+        zShot:
+            full_page: true
+
+    Fill_Shipping_Address:
+        zType:
+            selector: "[data-zkey='Ship_Address'] input"
+            value: 500 Market St
+
+    Fill_Shipping_City:
+        zType:
+            selector: "[data-zkey='Ship_City'] input"
+            value: San Francisco
+
+    Fill_Shipping_Zip:
+        zType:
+            selector: "[data-zkey='Ship_Zip'] input"
+            value: 94105
+
+    Fill_Shipping_Email:
+        zType:
+            selector: "[data-zkey='Ship_Email'] input"
+            value: jordan@example.com
+        zShot:
+            full_page: true
+
+    Submit_Shipping:
+        zClick:
+            selector: "button[data-zkey='Continue_Shipping']"
+        zWait:
+            selector: "[data-zkey='Pay_Name'] input"
+            state: visible
+            timeout: 8000
+
+    Fill_Payment:
+        zType:
+            selector: "[data-zkey='Pay_Name'] input"
+            value: Jordan Rivera
+
+    Fill_Payment_Card:
+        zType:
+            selector: "[data-zkey='Pay_Card'] input"
+            value: 4111111111111111
+        zShot:
+            full_page: true
+
+    Submit_Payment:
+        zClick:
+            selector: "button[data-zkey='Continue_Payment']"
+        zWait:
+            selector: .zShop-review-total
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Review_Shipping:
+        zAssert:
+            dom:
+                selector: body
+                contains: San Francisco
+
+    Assert_Review_Subtotal:
+        zAssert:
+            dom:
+                selector: body
+                contains: Subtotal: $38
+
+    Assert_Review_Tax:
+        zAssert:
+            dom:
+                selector: body
+                contains: Tax (8%): $3.04
+
+    Assert_Review_Total:
+        zAssert:
+            dom:
+                selector: .zShop-review-total
+                contains: $46.03
+
+    # ── Confirm — PlaceOrder + ClearCart are bare zData wizard steps ────────
+    Confirm_Order:
+        zClick:
+            selector: .zShop-confirm-btn
+        zWait:
+            selector: .zShop-confirmation
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Confirmation:
+        zAssert:
+            dom:
+                selector: .zShop-confirmation
+                contains: Order placed
+
+    # ── Cart is empty again — ClearCart ran ─────────────────────────────────
+    Back_To_Shop_From_Checkout:
+        zClick:
+            selector: "[data-zkey='BackToShop'] button"
+        zWait:
+            selector: .zShop-card
+            state: visible
+            timeout: 8000
+
+    Reopen_Cart_After_Order:
+        zClick:
+            selector: "[data-zkey='ViewCart'] button"
+        zWait:
+            selector: .zShop-subtotal
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Cart_Emptied:
+        zAssert:
+            dom:
+                selector: .zShop-subtotal
+                not_contains: $38
+
+    # ── Shippable at all three viewports ─────────────────────────────────────
+    Shot_Desktop:
+        zViewport: desktop
+        zOpen: zSpark
+        zWait:
+            selector: .zShop-card
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Shot_Tablet:
+        zViewport: tablet
+        zOpen: zSpark
+        zWait:
+            selector: .zShop-card
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Shot_Mobile:
+        zViewport: mobile
+        zOpen: zSpark
+        zWait:
+            selector: .zShop-card
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Done:
+        zMarker: done

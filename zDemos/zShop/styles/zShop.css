@@ -1,0 +1,297 @@
+/* zShop.css — loaded via zMeta.zBrush: [zShop] -> /styles/zShop.css
+   Teaching goal: cart/checkout wizard + zKnot calculations. Commercial skin
+   (Shopify-ish storefront: product grid, sticky cart, clean checkout steps)
+   layered on top of the SAME declarative zUI keys — no new logic, no plugins. */
+
+:root {
+    --zs-bg: #fafafa;
+    --zs-surface: #ffffff;
+    --zs-ink: #1a1a1a;
+    --zs-muted: #6b7280;
+    --zs-line: rgba(26, 26, 26, 0.09);
+    --zs-accent: #1a1a1a;
+    --zs-accent-ink: #ffffff;
+    --zs-danger: #d33f3f;
+    --zs-radius: 10px;
+}
+
+body {
+    background: var(--zs-bg);
+}
+
+#zVaF-content {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
+}
+
+/* ── Shared heading rhythm ────────────────────────────────────────────── */
+.zShop-title {
+    text-align: center;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+}
+
+.zShop-lead {
+    text-align: center;
+    color: var(--zs-muted);
+    margin-bottom: 32px;
+    font-size: 0.98rem;
+}
+
+/* ── Product grid (Main) ──────────────────────────────────────────────── */
+.zShop-product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+.zShop-card {
+    background: var(--zs-surface);
+    border: 1px solid var(--zs-line);
+    border-radius: var(--zs-radius);
+    padding: 20px 20px 18px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.zShop-card:hover {
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+    transform: translateY(-1px);
+}
+
+.zShop-card-name {
+    font-weight: 600;
+    font-size: 1.05rem;
+    color: var(--zs-ink);
+    margin-bottom: 2px;
+}
+
+.zShop-card-category {
+    display: inline-block;
+    color: var(--zs-muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+}
+
+.zShop-card-desc {
+    color: var(--zs-muted);
+    font-size: 0.88rem;
+    margin-bottom: 12px;
+    flex-grow: 1;
+}
+
+.zShop-card-price {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--zs-ink);
+    margin-bottom: 14px;
+}
+
+.zShop-add-btn {
+    background: var(--zs-accent) !important;
+    color: var(--zs-accent-ink) !important;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 18px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.zShop-cart-btn {
+    display: block;
+    margin: 8px auto 0;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+/* ── Cart ─────────────────────────────────────────────────────────────── */
+.zShop-cart-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 8px 0 20px;
+}
+
+.zShop-cart-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--zs-surface);
+    border: 1px solid var(--zs-line);
+    border-radius: var(--zs-radius);
+    padding: 14px 18px;
+}
+
+.zShop-cart-detail {
+    color: var(--zs-ink);
+    font-size: 0.92rem;
+}
+
+.zShop-remove-btn {
+    flex-shrink: 0;
+    background: transparent !important;
+    color: var(--zs-danger) !important;
+    border: 1px solid var(--zs-danger) !important;
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-size: 0.76rem;
+}
+
+.zShop-subtotal {
+    text-align: right;
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: var(--zs-ink);
+    border-top: 1px solid var(--zs-line);
+    padding-top: 14px;
+    margin-bottom: 18px;
+}
+
+.zShop-checkout-btn {
+    display: block;
+    width: 100%;
+    padding: 13px 0;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    background: var(--zs-accent) !important;
+    color: var(--zs-accent-ink) !important;
+    border: none;
+    margin-bottom: 10px;
+}
+
+.zShop-back-btn {
+    display: block;
+    margin: 16px auto 0;
+    padding: 7px 18px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    background: transparent !important;
+    border: 1px solid var(--zs-line) !important;
+    color: var(--zs-muted) !important;
+}
+
+/* ── Checkout wizard ──────────────────────────────────────────────────── */
+.zShop-mock-note {
+    background: #fff8e6;
+    border: 1px solid #f0dca0;
+    color: #8a6a1f;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    margin-bottom: 24px;
+}
+
+.zShop-review-line {
+    color: var(--zs-ink);
+    font-size: 0.94rem;
+    margin-bottom: 6px;
+}
+
+.zShop-review-label {
+    font-weight: 600;
+    color: var(--zs-ink);
+    margin-top: 18px;
+    margin-bottom: 6px;
+}
+
+.zShop-review-item {
+    color: var(--zs-muted);
+    font-size: 0.9rem;
+    padding-left: 4px;
+    margin-bottom: 4px;
+}
+
+.zShop-review-total {
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: var(--zs-ink);
+    border-top: 1px solid var(--zs-line);
+    padding-top: 12px;
+    margin-top: 8px;
+    margin-bottom: 20px;
+}
+
+.zShop-confirm-btn {
+    display: block;
+    width: 100%;
+    padding: 13px 0;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    background: var(--zs-accent) !important;
+    color: var(--zs-accent-ink) !important;
+    border: none;
+}
+
+.zShop-confirmation {
+    text-align: center;
+    color: var(--zs-ink);
+    font-size: 1.02rem;
+    background: #eefaf0;
+    border: 1px solid #b9e6c2;
+    border-radius: var(--zs-radius);
+    padding: 20px;
+    margin-top: 8px;
+}
+
+/* zInput wizard fields (Shipping/Payment) — plain, roomy light inputs.
+   Bifrost's default theme ships a dark input skin; override to match the
+   light storefront so checkout doesn't look like a different app. */
+#zVaF-content input[type="text"],
+#zVaF-content input[type="email"],
+#zVaF-content input:not([type]) {
+    background: var(--zs-surface);
+    color: var(--zs-ink);
+    border: 1px solid var(--zs-line);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.92rem;
+    margin-bottom: 16px;
+}
+
+#zVaF-content input[type="text"]:focus,
+#zVaF-content input[type="email"]:focus,
+#zVaF-content input:not([type]):focus {
+    outline: none;
+    border-color: var(--zs-accent);
+}
+
+#zVaF-content label {
+    color: var(--zs-muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: block;
+}
+
+/* Each gate reveal (Payment, Review, Confirmation) ships wrapped in
+   `.wizard-postgate` — a plain in-flow section, no dimming needed. */
+.wizard-postgate {
+    padding-top: 8px;
+    margin-top: 16px;
+    border-top: 1px solid var(--zs-line);
+}
+
+/* A submitted gate button (Continue to Payment/Review) is disabled — it's a
+   one-shot advance, never resubmittable. The base theme's generic
+   `:disabled { opacity: 0.5 }` turns the solid black button into a jarring
+   mid-grey slab that reads as "broken", not "done". Style it as a completed
+   step instead: light, muted, still legible. */
+.zShop-checkout-btn:disabled,
+.zShop-confirm-btn:disabled {
+    opacity: 1 !important;
+    background: #ececec !important;
+    color: var(--zs-muted) !important;
+    cursor: default;
+    filter: none !important;
+}

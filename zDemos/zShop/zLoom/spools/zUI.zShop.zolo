@@ -1,0 +1,31 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+products:
+    zData:
+        action:   read
+        model:    @.models.zSchema.Products
+        fields:   [id, name, price, category, description]
+        order_by: id ASC
+
+#> auto_join'd to Products for the display name/category — CartItems itself
+#  never stores those, only the id + its own price SNAPSHOT (line_total) <#
+cart_items:
+    zData:
+        action:    read
+        model:     @.models.zSchema.CartItems
+        table:     CartItems
+        tables:    [CartItems, Products]
+        auto_join: true
+        fields:    [CartItems.id, CartItems.line_total, Products.name, Products.category]
+        order_by:  CartItems.id ASC
+
+#> a single-row aggregate (no group_by) — the whole cart's line_total column,
+#  summed. Because line_total is a snapshot taken at add-time, this sum IS
+#  the subtotal — no per-row qty*price multiplication needed anywhere <#
+cart_subtotal:
+    zData:
+        action:   aggregate
+        model:    @.models.zSchema.CartItems
+        function: sum
+        field:    line_total
+        alias:    total

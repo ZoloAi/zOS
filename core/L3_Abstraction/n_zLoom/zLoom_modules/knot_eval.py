@@ -10,6 +10,14 @@ single ``z*`` op, mirroring the zGate/zData comparator family:
     {zJoin: [Hi , %name]}        string concat (jinja `~`); optional ``sep:``
     {zIf: <zGate predicate>,     value chosen by a condition —
      then: X, else: Y}           the CONDITION delegates to zos.zgate.evaluate (SSOT)
+    {zRound: [%a, 2]}            round a computed value — digits defaults to 0;
+                                  the `| round(n)` DYE only runs in display
+                                  interpolation (resolve_token_string), never on a
+                                  zKnot operand (resolve_token_value skips dyes
+                                  entirely) — a knot doing its own money math
+                                  (tax/total off an aggregate subtotal) needs its
+                                  OWN rounding step, so zRound wraps the arith
+                                  result BEFORE it lands in content
 
 Reuse, not reinvention:
   • operands resolve through ``zos.zloom.resolve_value`` (the token SSOT) — a ``%token``,
@@ -27,7 +35,7 @@ from zOS import Any
 
 # The recognized knot ops. ``zKnot`` is the authored wrapper / element-child key.
 _ARITH = ("zAdd", "zSub", "zMul", "zDiv")
-KNOT_OPS = frozenset(_ARITH + ("zJoin", "zIf"))
+KNOT_OPS = frozenset(_ARITH + ("zJoin", "zIf", "zRound"))
 
 
 def is_op_ir(node: Any) -> bool:
@@ -55,6 +63,8 @@ def evaluate_knot(ir: Any, zos: Any, context: Any = None) -> Any:
             return _eval_arith(op, ir[op], zos, context)
     if "zJoin" in ir:
         return _eval_join(ir, zos, context)
+    if "zRound" in ir:
+        return _eval_round(ir, zos, context)
     return None                              # unknown op → fail safe
 
 
@@ -133,6 +143,27 @@ def _eval_join(ir: Any, zos: Any, context: Any) -> Any:
         val = _operand(o, zos, context)
         parts.append("" if val is None else str(val))
     return sep.join(parts)
+
+
+def _eval_round(ir: Any, zos: Any, context: Any) -> Any:
+    """``{zRound: [value, digits]}`` — round a computed value. ``digits`` is
+    optional (defaults 0). A bare ``{zRound: value}`` (no list) also works."""
+    operands = ir.get("zRound")
+    if isinstance(operands, list):
+        value = operands[0] if operands else None
+        digits_raw = operands[1] if len(operands) > 1 else 0
+    else:
+        value = operands
+        digits_raw = 0
+    num = _to_num(_operand(value, zos, context))
+    if num is None:
+        return None
+    digits = _to_num(_operand(digits_raw, zos, context))
+    try:
+        digits = int(digits) if digits is not None else 0
+    except (TypeError, ValueError):
+        digits = 0
+    return _clean(round(num, digits))
 
 
 def _eval_if(ir: Any, zos: Any, context: Any) -> Any:

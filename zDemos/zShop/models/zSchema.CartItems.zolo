@@ -1,0 +1,34 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# One row per unit added — "Add to Cart" always inserts a fresh row (no qty
+# field, no upsert-or-increment). line_total is a PRICE SNAPSHOT taken at add
+# time (never re-joined at checkout), so a later price change on Products
+# never reaches back and reprices something already sitting in the cart.
+# Cart subtotal = SUM(line_total) — no per-row multiplication needed anywhere.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        CartItems
+    Schema_Name:       zSchema.CartItems
+    zMigration:        true
+    zMigrationVersion: v1.0.0
+
+CartItems:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    product_id:
+        type:        int
+        required:    true
+        foreign_key: Products.id
+        on_delete:   cascade
+
+    line_total:
+        type:     float
+        required: true
+
+    added_at:
+        type:    datetime
+        default: now

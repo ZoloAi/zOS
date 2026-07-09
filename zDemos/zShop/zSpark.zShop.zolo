@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     zShop
+    zMode:     zBifrost
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zShop
+    zBlock:    Main
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — cart/checkout, multi-step zWizard + zData + zKnot calculations, zero plugins
+    tags: [zData, zSchema, zWizard, zHat, zKnot, aggregate, zModal, zDialog, auto_join]
+    author: zAgents
