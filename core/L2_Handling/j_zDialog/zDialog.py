@@ -552,6 +552,28 @@ class zDialog:
                 else:
                     table_name = model.split(_SCHEMA_PATH_SEPARATOR)[-1]
 
+                # A field the onSubmit `data:` map supplies itself (e.g.
+                # `author_id: %session.zVisitor.id`) is NEVER a dialog
+                # `fields:` control, so it can never be in zConv — validating
+                # it here against the raw form input would always misfire as
+                # "required" even though onSubmit is about to fill it in.
+                # Its real value (session/ambient token or literal) is
+                # resolved later, at submit time (handle_submit); the zData
+                # insert layer still enforces type/required/FK on the FINAL
+                # merged row, so nothing is actually left unchecked — this
+                # only defers the check past the fields the form never asked
+                # the user for.
+                onsubmit_data_keys = set(on_submit.get('zData', {}).get('data', {}).keys()) if isinstance(on_submit, dict) else set()
+                table_schema = schema_dict.get(table_name) if isinstance(schema_dict, dict) else None
+                if onsubmit_data_keys and isinstance(table_schema, dict):
+                    schema_dict = dict(schema_dict)
+                    patched_table_schema = dict(table_schema)
+                    for field_name in onsubmit_data_keys:
+                        field_def = patched_table_schema.get(field_name)
+                        if isinstance(field_def, dict) and field_def.get('required'):
+                            patched_table_schema[field_name] = {**field_def, 'required': False}
+                    schema_dict[table_name] = patched_table_schema
+
                 # Create lightweight validator (no database connection needed)
                 from zOS.L3_Abstraction.m_zData.zData_modules.shared.validator import DataValidator
                 validator = DataValidator(schema_dict, self.logger)

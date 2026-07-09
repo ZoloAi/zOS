@@ -1,0 +1,41 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        Comments
+    Schema_Name:       zSchema.Comments
+    zMigration:        true
+    zMigrationVersion: v1.0.0
+
+Comments:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    #> the relational core of this app: a comment points at the post it
+    #  landed on — zData refuses a post_id that isn't really sitting in
+    #  Posts, and on_delete: cascade means removing a post takes its whole
+    #  comment thread with it (contrast zContacts' set_null — a thread
+    #  orphaned from its post makes no sense to keep around) <#
+    post_id:
+        type:         int
+        required:     true
+        foreign_key:  Posts.id
+        on_delete:    cascade
+
+    author:
+        type:     str
+        required: true
+        default:  Anonymous
+
+    content:
+        type:     str
+        required: true
+        rules:
+            max_length: 500
+
+    created_at:
+        type:    datetime
+        default: now

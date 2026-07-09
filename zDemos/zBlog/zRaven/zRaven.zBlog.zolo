@@ -1,0 +1,505 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# zRavenVersion: v1.1.0
+# Source: zUI.zblog.zolo + zUI.Login/.Register/.Logout/.Profile.zolo
+# Hand-authored — no golden app yet combines zLogin + zGate ownership +
+# auto_join display + zMedia upload in one Bifrost flow, so this IS the
+# reference pattern (15_rbac.md, 08_data_crud.md, 06_inputs.md).
+# CLI-first proof of the ORIGINAL feed+comments shape lives in
+# zVersions/commits/zBlog/c1 (order_by DESC, comment insert, cascade delete).
+# This active file covers the identity/ownership/media cascade added on top.
+
+Tests:
+
+    # ── Bifrost: open page, guest view — feed is public, no session yet ─────
+    Open_App:
+        zOpen: zSpark
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Feed_Order:
+        #> order_by: Posts.created_at DESC on the auto_join'd posts reel —
+        #  "Why CSV First" (09:05, Grace) was seeded AFTER "Welcome to zBlog"
+        #  (09:00, Ada), so it must render FIRST if newest-first still holds
+        #  after the join <#
+        zAssert:
+            dom:
+                selector: ".zBlog-post:first-child .zBlog-post-title"
+                contains: Why CSV First
+
+    Assert_Feed_Author_Joined:
+        #> the identity payoff — Users.name arrives via auto_join, not a
+        #  free-text field, so the top post must show the REAL author <#
+        zAssert:
+            dom:
+                selector: ".zBlog-post:first-child .zBlog-post-meta"
+                contains: Grace
+
+    Assert_Guest_Links_Visible:
+        zAssert:
+            dom:
+                selector: .zBlog-authbar-guest
+                contains: Sign in
+
+    Assert_No_Owner_Actions_As_Guest:
+        #> ownership gate defaults CLOSED — a signed-out visitor has no
+        #  session id to match ANY post's author_id, so zero Edit/Delete
+        #  rows should render anywhere on the page <#
+        zAssert:
+            dom:
+                selector: .zBlog-post-owner-actions
+                count: 0
+
+    # ── Comment as a guest — commenting was never gated ─────────────────────
+    Open_Comment_Dialog_Guest:
+        zClick:
+            selector: ".zBlog-post:first-child .zBlog-comment-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Fill_Comment_Form_Guest:
+        zFill:
+            author: Chuck
+            content: Great read, even as a guest!
+        zShot:
+            full_page: true
+
+    Close_Comment_Dialog_Guest:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    # ── New Post while signed out — the gate bounces to Login (15_rbac.md,
+    #    same "reachable by anyone, proves the gate" shape as zTeamVault) ───
+    Click_New_Post_As_Guest:
+        zClick:
+            selector: "[data-zkey='NewPost'] button"
+        zWait:
+            selector: .zBlog-login-title
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Bounced_To_Login:
+        zAssert:
+            dom:
+                selector: body
+                contains: Sign in
+
+    # ── Sign in as the seeded owner of "Welcome to zBlog" ───────────────────
+    Fill_Login_Ada:
+        zFill:
+            email:    ada@zblog.io
+            password: blog1234
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Signed_In_As_Ada:
+        zAssert:
+            dom:
+                selector: .zBlog-authbar-user
+                contains: Ada
+
+    Assert_Owner_Actions_On_Own_Post:
+        #> Ada's OWN post ("Welcome to zBlog") shows Edit/Delete now that the
+        #  live session id matches its author_id <#
+        zAssert:
+            dom:
+                selector: ".zBlog-post:has-text('Welcome to zBlog') .zBlog-delete-btn"
+                count: 1
+
+    Assert_No_Owner_Actions_On_Others_Post:
+        #> Grace's post stays off-limits even though Ada is signed in —
+        #  ownership, not just "any authed user" <#
+        zAssert:
+            dom:
+                selector: ".zBlog-post:has-text('Why CSV First') .zBlog-post-owner-actions"
+                count: 0
+
+    # ── Edit her own post — zModal + zDialog pre-filled from %item.Posts.* ──
+    Open_Edit_Dialog:
+        zClick:
+            selector: ".zBlog-post:has-text('Welcome to zBlog') .zBlog-edit-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Fill_Edit_Post_Form:
+        zFill:
+            title:   Welcome to zBlog (edited)
+            content: First post on the feed, now with a live edit proving ownership.
+        zShot:
+            full_page: true
+
+    Close_Edit_Dialog:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Reload_After_Edit:
+        zOpen: zSpark
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Edit_Persisted:
+        zAssert:
+            dom:
+                selector: .zBlog-feed
+                contains: Welcome to zBlog (edited)
+
+    # ── Delete her own (edited) post — confirm dialog, fields: [] ───────────
+    #  on_delete: cascade must take its own comment with it <#
+    Open_Delete_Dialog:
+        zClick:
+            selector: ".zBlog-post:has-text('Welcome to zBlog (edited)') .zBlog-delete-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Confirm_Delete:
+        zClick:
+            selector: ".zModal-overlay button[type='submit']"
+        zShot:
+            full_page: true
+
+    Close_Delete_Dialog:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Reload_After_Delete:
+        zOpen: zSpark
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Row_Deleted:
+        zAssert:
+            dom:
+                selector: .zBlog-feed
+                not_contains: Welcome to zBlog
+
+    Assert_Row_Count:
+        zAssert:
+            dom:
+                selector: .zBlog-post
+                count: 1
+
+    # ── Recent Activity — the joined feed: both comments show, the deleted
+    #    post's own comment is gone too (cascade) ───────────────────────────
+    Open_Activity:
+        zClick:
+            selector: "[data-zkey='ViewActivity'] button"
+        zWait:
+            selector: table
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Guest_Comment_Visible:
+        zAssert:
+            dom:
+                selector: table
+                contains: Chuck
+
+    Assert_Cascaded_Comment_Gone:
+        zAssert:
+            dom:
+                selector: table
+                not_contains: Nice to see
+
+    Assert_Other_Post_Comment_Still_There:
+        zAssert:
+            dom:
+                selector: table
+                contains: Ada
+
+    Back_To_Feed:
+        zClick:
+            selector: "[data-zkey='Back'] button"
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    # ── New Post, signed in as Ada — no author FIELD on the form at all;
+    #    author_id comes straight off the live session (15_rbac.md) ────────
+    Open_New_Post:
+        zClick:
+            selector: "[data-zkey='NewPost'] button"
+        zWait:
+            selector: "[name='title']"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Fill_New_Post_Form:
+        zFill:
+            title:   Zolo Ships CLI First
+            content: Terminal is truth — the browser is the coat, not the proof.
+        zShot:
+            full_page: true
+
+    #> content is a textarea — Enter just inserts a newline, it never
+    #  auto-submits the way a single-line Login/Register input does, so
+    #  this dialog (a page block, not a zModal) needs its own explicit
+    #  submit click <#
+    Submit_New_Post:
+        zClick:
+            selector: "button[type='submit']"
+        zShot:
+            full_page: true
+
+    Back_To_Feed_From_New_Post:
+        zClick:
+            selector: "[data-zkey='Back'] button"
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_New_Post_On_Top:
+        zAssert:
+            dom:
+                selector: ".zBlog-post:first-child .zBlog-post-title"
+                contains: Zolo Ships CLI First
+
+    Assert_New_Post_Author_From_Session:
+        zAssert:
+            dom:
+                selector: ".zBlog-post:first-child .zBlog-post-meta"
+                contains: Ada
+
+    # ── Profile — own info + avatar upload (zGallery's plugin pairing) ──────
+    #> ProfileLink lives inside AuthBar > UserLinks, itself zGate-wrapped
+    #  (authed: true) — data-zkey isn't reliable for a block nested under a
+    #  page-level gate (same class of gap as zList's per-row keys), so this
+    #  targets the _zClass instead, same as OwnerActions' Edit/Delete below <#
+    Open_Profile:
+        zClick:
+            selector: ".zBlog-profile-btn"
+        zWait:
+            selector: .zBlog-profile-avatar
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Profile_Info:
+        zAssert:
+            dom:
+                selector: .zBlog-profile-info
+                contains: Ada
+
+    Open_Avatar_Dialog:
+        zClick:
+            selector: ".zBlog-avatar-btn"
+        zWait:
+            selector: "[name='avatar']"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Upload_New_Avatar:
+        zUpload:
+            selector: "[name='avatar']"
+            path: upload_bank/new_avatar.jpg
+        zShot:
+            full_page: true
+
+    Submit_Avatar:
+        zClick:
+            selector: "button[type='submit']"
+        zShot:
+            full_page: true
+
+    Close_Avatar_Dialog:
+        zClick:
+            selector: ".zBlog-back-btn"
+        zWait:
+            selector: .zBlog-profile-avatar
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Reload_Profile_After_Avatar:
+        zOpen: zSpark
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+
+    Open_Profile_After_Avatar:
+        zClick:
+            selector: ".zBlog-profile-btn"
+        zWait:
+            selector: .zBlog-profile-avatar
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Avatar_Changed:
+        zAssert:
+            dom:
+                selector: .zBlog-profile-avatar
+                property: src
+                not_contains: default.png
+
+    Back_To_Feed_From_Profile:
+        zClick:
+            selector: "[data-zkey='Back'] button"
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    # ── Sign out — session clears, guest view returns ───────────────────────
+    Sign_Out:
+        zClick:
+            selector: ".zBlog-signout-btn"
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Guest_Again:
+        zAssert:
+            dom:
+                selector: .zBlog-authbar-guest
+                contains: Sign in
+
+    # ── Register a brand-new account — self-service signup, the pattern
+    #    zTeamVault never exercised (it only ever seeded users) ─────────────
+    Click_Register:
+        zClick:
+            selector: ".zBlog-register-btn"
+        zWait:
+            selector: "[name='name']"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Fill_Register_Form:
+        zFill:
+            name:     Charlie
+            email:    charlie@zblog.io
+            password: charlie123
+        zShot:
+            full_page: true
+
+    Click_Sign_In_From_Register:
+        zClick:
+            selector: "[data-zkey='SignInLink'] button"
+        zWait:
+            selector: .zBlog-login-title
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Fill_Login_Charlie:
+        zFill:
+            email:    charlie@zblog.io
+            password: charlie123
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Signed_In_As_Charlie:
+        #> proves registration truly wrote a working bcrypt hash — a fresh
+        #  account just self-registered above LOGS IN, not just seeded ones <#
+        zAssert:
+            dom:
+                selector: .zBlog-authbar-user
+                contains: Charlie
+
+    # ── Shippable at all three viewports ─────────────────────────────────────
+    Shot_Desktop:
+        zViewport: desktop
+        zOpen: zSpark
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Shot_Tablet:
+        zViewport: tablet
+        zOpen: zSpark
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Shot_Mobile:
+        zViewport: mobile
+        zOpen: zSpark
+        zWait:
+            selector: .zBlog-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Done:
+        zMarker: done

@@ -1,0 +1,195 @@
+/* zblog.css — loaded via zMeta.zBrush: [zblog] -> /styles/zblog.css
+   Teaching goal: a text-heavy feed (zList/%item of title+meta+body) plus a
+   per-row modal comment form — this file only skins the feed/card surface. */
+
+:root {
+    --zb-bg: #f7f6f3;
+    --zb-ink: #24211c;
+    --zb-muted: #8a8377;
+    --zb-line: rgba(36, 33, 28, 0.1);
+    --zb-accent: #b5541f;
+}
+
+body {
+    background: var(--zb-bg);
+}
+
+#zVaF-content {
+    max-width: 720px;
+    margin: 48px auto;
+    padding: 0 16px;
+}
+
+.zBlog-title {
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.zBlog-intro {
+    text-align: center;
+    color: var(--zb-muted);
+    margin-bottom: 28px;
+}
+
+.zBlog-authbar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    font-size: 0.85rem;
+}
+
+.zBlog-authbar-guest,
+.zBlog-authbar-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.zBlog-welcome {
+    color: var(--zb-muted);
+}
+
+.zBlog-signin-btn,
+.zBlog-register-btn,
+.zBlog-profile-btn,
+.zBlog-signout-btn {
+    padding: 4px 14px;
+    font-size: 0.78rem;
+    border-radius: 8px;
+}
+
+.zBlog-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.zBlog-post {
+    background: #fff;
+    border: 1px solid var(--zb-line);
+    border-radius: 14px;
+    padding: 20px 22px;
+    box-shadow: 0 8px 24px rgba(36, 33, 28, 0.06);
+}
+
+.zBlog-post-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.zBlog-post-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.zBlog-post-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--zb-ink);
+    display: block;
+}
+
+.zBlog-post-meta {
+    font-size: 0.8rem;
+    color: var(--zb-muted);
+    display: block;
+    margin-bottom: 10px;
+}
+
+.zBlog-post-body {
+    font-size: 0.95rem;
+    color: var(--zb-ink);
+    display: block;
+    line-height: 1.5;
+    margin-bottom: 14px;
+}
+
+.zBlog-post-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.zBlog-post-owner-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.zBlog-comment-btn,
+.zBlog-edit-btn,
+.zBlog-delete-btn {
+    padding: 4px 12px;
+    font-size: 0.78rem;
+    border-radius: 8px;
+    opacity: 0.85;
+}
+
+.zBlog-comment-btn:hover,
+.zBlog-edit-btn:hover,
+.zBlog-delete-btn:hover {
+    opacity: 1;
+}
+
+.zBlog-profile-avatar {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+    margin: 0 auto 14px;
+}
+
+.zBlog-profile-info {
+    text-align: center;
+    color: var(--zb-muted);
+    margin-bottom: 18px;
+    display: block;
+}
+
+.zBlog-avatar-btn {
+    display: block;
+    margin: 0 auto 20px;
+    padding: 8px 20px;
+    border-radius: 10px;
+}
+
+.zBlog-newpost-btn,
+.zBlog-activity-btn {
+    display: block;
+    width: 100%;
+    max-width: 280px;
+    margin: 20px auto 0;
+    padding: 12px 0;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.zBlog-login-title {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.zBlog-signin-link,
+.zBlog-register-link {
+    display: block;
+    margin: 14px auto;
+    text-align: center;
+}
+
+@media (max-width: 640px) {
+    #zVaF-content {
+        margin: 24px auto;
+    }
+
+    .zBlog-post {
+        padding: 16px 18px;
+    }
+}

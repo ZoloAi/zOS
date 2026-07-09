@@ -253,6 +253,10 @@ zmodal: a modal is a glance, not a move — forward with auto-back built in
         Bifrost plumbing — dispatch stages the woven block (session `_zPendingModal`, the `_zPendingNavigate` pattern); the bridge
         flushes it as a `render_modal` frame; the client paints it into the overlay and owns dismissal LOCALLY (backdrop/ESC/×)
         — the route never moved server-side, so closing needs no round-trip; a menu-resume walk STOPS at the modal (anchor bounce)
+    !file_field — a `zDialog` with a `type: file` field has no proven path inside a `zModal` (Bifrost never wired a
+        file-input's picker/upload plumbing for the overlay-carried form); give it its OWN block instead
+        (`action: zDelta($Edit_X)` or a cross-file `zAlpha`) — same pattern `zDemos/zGallery`'s Add_Photo and
+        `zDemos/zBlog`'s Edit_Avatar use — a page, not a glance
 
 zurl: the rendered, clickable link — what a person presses
     required — label + href; arrives ready, nothing to switch on
@@ -450,6 +454,7 @@ files: type: file
     multiple: true — accept a batch; comes back as a LIST (terminal: comma-separated on one line)
     terminal: asks for a zPath, verifies it EXISTS before accepting — @.folder.file (workspace) | ~.folder.file (home)
     path: extension optional (one match -> found; add .png only to pick between siblings); one bad path rejects, retry
+    !modal: a file field's zDialog wants its OWN page (zDelta/zAlpha), never a zModal detour -> Navigation zmodal
 
 dates: calendar / clock types
     returns ISO always — YYYY-MM-DD | HH:MM:SS | YYYY-WNN — no parsing on your end
@@ -597,6 +602,16 @@ relationships: two tables hold hands — foreign keys + on_delete
         restrict (default) — refuse while children point at it · cascade — remove children then parent
         set_null — clear child's link, keep child · set_default — reset child's link to default, keep child
     depth    — delete-time effect demoed in Advanced Writes; READ joins in Advanced Queries
+    cascade_gotcha — a plain `action: delete` + single-table `model:` only ever loads ITS OWN table's
+        schema; on_delete: cascade/set_null/set_default scans the loaded schema for children pointing
+        at the parent, so a sibling table never referenced anywhere else in this process is invisible
+        to that scan and the cascade silently no-ops (parent row gone, orphaned child rows left behind).
+        Add `tables: [<parent>, <child>]` alongside `model:` on the SAME delete block — it backfills the
+        child's schema from the server-wide registry onto this call, same mechanism a multi-table `read`
+        already relies on for `auto_join`
+    golden   — `zDemos/zBlog`: Posts + Comments (fk + on_delete: cascade), a per-row zModal+zDialog
+        holding a real `zData: {action: insert|delete}` directly on `onSubmit` (no plugin needed),
+        CLI-first, zRaven-covered
 
 enforcement: two guards side by side (only matters if you poke the raw store by hand)
     in the DB    — pk, single-field unique, required, fk + on_delete
@@ -1337,6 +1352,13 @@ proven: exercised by a fresh isolated app (`Tests/zRBAC_app`, Bifrost)
     concurrent mixed-role stress — many roles at once, ZERO cross-session bleed
     caveat — ALPHA: a clean lab run isn't a production promise; a doorman letting the wrong person through is a BUG worth reporting
     golden — `zDemos/zTeamVault`: zLogin + a gated Vault + zLogout, CLI-first then Bifrost, zRaven-covered both modes
+    golden — `zDemos/zBlog`: self-service SIGNUP (a plain zDialog + `zData: {action: insert}` on the user's OWN
+        schema, `zHash: bcrypt` on the password field — no zLogin needed to CREATE the account, only to sign into
+        it after) + ROW-level ownership (not just page/route gating): `zGate: {%item.Posts.author_id: %session.zVisitor.id}`
+        inside a `zList` each-template hides Edit/Delete unless the signed-in visitor OWNS that row — both sides of
+        the comparison are `%` tokens, resolved symmetrically; the SAME id also re-checked server-side in the
+        update/delete `where:` (`where: id = %item.Posts.id zAND author_id = %session.zVisitor.id`) so a forged
+        request against someone else's row still bounces even if the button were somehow clicked
 
 routing_gotcha: a gated page needs its OWN route to actually redirect in Bifrost
     rule    — `onDenied`/zLogin `onSuccess`/zLogout `onSuccess` are always a `zLink` — Bifrost resolves it to a router URL, never an in-page swap
@@ -1427,6 +1449,10 @@ spool: where a live value comes from — the reel a `%` thread pulls off
     rule    — a value ALWAYS has a declared source (one sigil covers a DB read, session, route param, loop row alike)
     migrate — a reel's `fields:` is a hand-written list, NOT auto-synced to its model — a schema migration that adds a
         column (see zData migrations) is invisible to the page until the matching reel also lists the new field
+    !where_form — a reel scoped to the visitor (`currentUser: {zData: {..., where: <expr>}}`) needs `where:` as a
+        DICT (`where: {id: %session.zVisitor.id}`), not a `field = value` STRING — a spool's `%session.*` interpolation
+        only runs on the dict shape; a string `where` ships the literal token text and the read silently returns
+        nothing (no error, just an empty reel) — `zDemos/zBlog`'s Profile page is the worked example
 
 dye: finish a value on its way to the page — the `|` pipe
     `%value | dye` — send through a step; chain freely (`%x | trim | title`), left-to-right

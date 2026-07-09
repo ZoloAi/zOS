@@ -1,0 +1,18 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+#> newest-first — this ordering alone IS the feed's "live/dynamic" feel:
+#  no push, no poll, a fresh post just reads back on top next render
+#  auto_join follows Posts.author_id -> Users.id (18_data_advanced.md "auto")
+#  so the feed can show the poster's real name + avatar, not a free-text
+#  field — the joined row's keys come back table-qualified ("Posts.title",
+#  "Users.name"); %item.Posts.title / %item.Users.name resolve them
+#  (token_resolver.py deep_nav literal-key fallback) <#
+posts:
+    zData:
+        action:    read
+        model:     @.models.zSchema.Posts
+        table:     Posts
+        tables:    [Posts, Users]
+        auto_join: true
+        fields:    [Posts.id, Posts.title, Posts.content, Posts.created_at, Posts.author_id, Users.name, Users.avatar]
+        order_by:  Posts.created_at DESC

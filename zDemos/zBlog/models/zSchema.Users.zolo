@@ -1,0 +1,45 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        Users
+    Schema_Name:       zSchema.Users
+    zMigration:        true
+    zMigrationVersion: v1.0.0
+
+Users:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    email:
+        type:     str
+        required: true
+        unique:   true
+        rules:
+            format: email
+
+    #> zLogin verifies locally against this bcrypt hash — plaintext never lands
+    #  in the session (15_rbac.md "automatic"); the SAME zHash fires on a plain
+    #  zData insert too, so Register (07_forms.md zDialog + zData) needs no
+    #  plugin to hash a new password <#
+    password:
+        type:     str
+        required: true
+        zHash:    bcrypt
+        rules:
+            min_length: 8
+
+    name:
+        type:     str
+        required: true
+
+    #> profile picture — a zPath, same shape as zGallery's Photos.image; the
+    #  default ships every seeded/registered user a servable avatar from day
+    #  one, so Feed/Profile never render a broken image before the first
+    #  upload (06_inputs.md files + zGallery's plugins/gallery.py pairing) <#
+    avatar:
+        type:    str
+        default: @.static.avatars.default.png

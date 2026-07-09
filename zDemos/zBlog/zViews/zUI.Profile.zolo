@@ -1,0 +1,67 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Own file → own auto-discovered route (/Profile) — view your own account +
+# change your avatar (06_inputs.md files + zGallery's plugin pairing, the
+# same type: file → plugin file-move → zData update shape as
+# plugins/gallery.py's update_photo, applied to Users.avatar instead).
+
+zMeta:
+    zSpool: [currentUser]
+
+Profile:
+    zGate:
+        authed: true
+    onDenied:
+        zLink: @.zViews.zUI.Login.Login
+
+    zH1:
+        label: My Profile
+        color: PRIMARY
+        _zClass: zBlog-title
+
+    Avatar:
+        zImage:
+            src:      %data.currentUser.0.avatar
+            alt_text: %data.currentUser.0.name
+            _zClass: zBlog-profile-avatar
+
+    Info:
+        zText:
+            content: %data.currentUser.0.name · %data.currentUser.0.email
+            _zClass: zBlog-profile-info
+
+    EditAvatar:
+        zBtn:
+            label:  bi-camera + Change Avatar
+            color:  primary
+            _zClass: zBlog-avatar-btn
+            action: zDelta($Edit_Avatar)
+
+    Back:
+        zBtn:
+            label:  ← Back to Feed
+            _zClass: zBlog-back-btn
+            action: zLink(@.zViews.zUI.zblog.Main)
+
+#> a file input rides its OWN page (zDelta hop), not a zModal overlay — mirrors
+#  zGallery's Add_Photo (06_inputs.md files + 07_forms.md zDialog pairing).
+#  No precedent anywhere in zOS for a file field inside a zModal; keep this on
+#  proven ground instead of debugging an untested engine combo <#
+Edit_Avatar:
+    zH1:
+        label: Change Avatar
+        color: PRIMARY
+        _zClass: zBlog-title
+
+    zDialog:
+        title:  New Avatar
+        fields: [
+            {zConv: avatar, type: file, label: Avatar, placeholder: @.upload_bank.filename},
+        ]
+        onSubmit:
+            zFunc: &.blog.update_avatar(%session.zVisitor.id, zConv.avatar)
+
+    BackToProfile:
+        zBtn:
+            label:  ← Back to Profile
+            _zClass: zBlog-back-btn
+            action: zLink(@.zViews.zUI.Profile.Profile)

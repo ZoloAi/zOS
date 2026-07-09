@@ -1,0 +1,42 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        Posts
+    Schema_Name:       zSchema.Posts
+    zMigration:        true
+    zMigrationVersion: v1.1.0
+
+Posts:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    title:
+        type:     str
+        required: true
+        rules:
+            max_length: 140
+
+    #> the relational identity link (08_data_crud.md "relationships") — a post
+    #  belongs to the signed-in Users row that made it; cascade means a
+    #  deleted account takes its own posts with it (mirrors Comments.post_id
+    #  below: same fk + on_delete pairing, one level up) <#
+    author_id:
+        type:         int
+        required:     true
+        foreign_key:  Users.id
+        on_delete:    cascade
+
+    content:
+        type:     str
+        required: true
+
+    #> the feed's own clock — every zRaven/UI read orders on this, newest
+    #  first, so a fresh post is the "near-real-time feel" itself: nothing
+    #  pushes, the next read just puts it on top <#
+    created_at:
+        type:    datetime
+        default: now

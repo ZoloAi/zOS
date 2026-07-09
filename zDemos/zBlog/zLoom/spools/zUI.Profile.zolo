@@ -1,0 +1,19 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+#> session["zVisitor"] only ever carries {authenticated, id, username, role,
+#  api_key} (15_rbac.md "writes") — no email/avatar — so Profile needs its
+#  OWN one-row read keyed by the live session id. %data.currentUser.0.<field>
+#  digs into row 0 (deep_nav's list-index support, 17_dynamic_content.md
+#  spool's "the dotted path digs into the record").
+#  where MUST be the dict form ({field: value}), not a "field = value" string
+#  — a zSpool's explicit {zData:{...}} read resolves %session.* only on the
+#  dict form (zLoom query_ops._execute_data_query); a string where is handed
+#  to zData unresolved and matches nothing <#
+currentUser:
+    zData:
+        action: read
+        model:  @.models.zSchema.Users
+        fields: [id, name, email, avatar]
+        where:
+            id: %session.zVisitor.id
+        limit:  1

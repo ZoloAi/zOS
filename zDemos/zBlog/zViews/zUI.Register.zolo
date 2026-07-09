@@ -1,0 +1,45 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Own file → own auto-discovered route (/Register) — self-service signup, the
+# new pattern zTeamVault never exercised (it only ever seeded users via a
+# script). A plain zDialog + zData insert is enough: zHash: bcrypt on
+# Users.password (08_data_crud.md "field extras") fires on ANY insert
+# through zData, not just the special zLogin verb.
+
+Register:
+    #> already signed in? nothing to register for — bounce home, same
+    #  page-level gate shape as Add_Post's authed:true, just inverted <#
+    zGate:
+        authed: false
+    onDenied:
+        zLink: @.zViews.zUI.zblog.Main
+
+    zH1:
+        label: Create an account
+        color: PRIMARY
+        _zClass: zBlog-title
+
+    zDialog:
+        title:  Register
+        model:  @.models.zSchema.Users
+        fields: [name, email, password]
+        onSubmit:
+            zData:
+                action: insert
+                model:  @.models.zSchema.Users
+                data:
+                    name:     zConv.name
+                    email:    zConv.email
+                    password: zConv.password
+
+    SignInLink:
+        zBtn:
+            label:  Already have an account? Sign in
+            color:  secondary
+            _zClass: zBlog-signin-link
+            action: zLink(@.zViews.zUI.Login.Login)
+
+    Back:
+        zBtn:
+            label:  ← Back to Feed
+            _zClass: zBlog-back-btn
+            action: zLink(@.zViews.zUI.zblog.Main)

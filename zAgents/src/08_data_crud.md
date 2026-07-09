@@ -37,6 +37,16 @@ relationships: two tables hold hands — foreign keys + on_delete
         restrict (default) — refuse while children point at it · cascade — remove children then parent
         set_null — clear child's link, keep child · set_default — reset child's link to default, keep child
     depth    — delete-time effect demoed in Advanced Writes; READ joins in Advanced Queries
+    cascade_gotcha — a plain `action: delete` + single-table `model:` only ever loads ITS OWN table's
+        schema; on_delete: cascade/set_null/set_default scans the loaded schema for children pointing
+        at the parent, so a sibling table never referenced anywhere else in this process is invisible
+        to that scan and the cascade silently no-ops (parent row gone, orphaned child rows left behind).
+        Add `tables: [<parent>, <child>]` alongside `model:` on the SAME delete block — it backfills the
+        child's schema from the server-wide registry onto this call, same mechanism a multi-table `read`
+        already relies on for `auto_join`
+    golden   — `zDemos/zBlog`: Posts + Comments (fk + on_delete: cascade), a per-row zModal+zDialog
+        holding a real `zData: {action: insert|delete}` directly on `onSubmit` (no plugin needed),
+        CLI-first, zRaven-covered
 
 enforcement: two guards side by side (only matters if you poke the raw store by hand)
     in the DB    — pk, single-field unique, required, fk + on_delete

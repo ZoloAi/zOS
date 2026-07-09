@@ -203,7 +203,8 @@ def _eval_comparison(token: Any, expected: Any, zos: Any, context: Any):
         return False, f"zGate: could not resolve {token}"
 
     # Unary value operator in bare-string position: ``%token: zSet`` / ``zNotSet``
-    # (the clean truthiness sugar — "is this field filled in?").
+    # (the clean truthiness sugar — "is this field filled in?"). Checked against
+    # the RAW expected (never a resolvable token — an authored literal sentinel).
     if isinstance(expected, str) and expected in (_CMP_SET, _CMP_NOTSET):
         ok = _is_set(actual) if expected == _CMP_SET else not _is_set(actual)
         if ok:
@@ -211,8 +212,16 @@ def _eval_comparison(token: Any, expected: Any, zos: Any, context: Any):
         state = "unset" if expected == _CMP_SET else "set"
         return False, f"zGate: {token} is {state}"
 
+    # A per-row ownership check ("only the row's own author") needs BOTH sides
+    # live — ``%item.Posts.author_id: %session.zVisitor.id`` — so the RHS
+    # resolves through the same navigator as the LHS token whenever it is
+    # itself a ``%token`` string (an authored literal like ``zAdmin`` never
+    # starts with ``%``, so this can't shadow an ordinary fixed-value gate).
+    expected = _resolve_if_token(expected, resolve, context)
+
     if isinstance(expected, dict):
         for op, operand in expected.items():
+            operand = _resolve_if_token(operand, resolve, context)
             if not _apply_op(actual, op, operand):
                 return False, f"zGate: {token} failed {op}"
         return True, None
@@ -221,6 +230,18 @@ def _eval_comparison(token: Any, expected: Any, zos: Any, context: Any):
     if _eq(actual, expected):
         return True, None
     return False, f"zGate: {token} != {expected!r}"
+
+
+def _resolve_if_token(value: Any, resolve: Any, context: Any) -> Any:
+    """Resolve ``value`` through the same navigator as the gate's LHS token,
+    but only when it actually IS one (a bare ``%...`` string) — anything else
+    (a literal, a comparator dict's static operand) passes through unchanged."""
+    if isinstance(value, str) and value.startswith("%"):
+        try:
+            return resolve(value, context)
+        except Exception:  # pylint: disable=broad-except
+            return value
+    return value
 
 
 def _apply_op(actual: Any, op: Any, operand: Any) -> bool:

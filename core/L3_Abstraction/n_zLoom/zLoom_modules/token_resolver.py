@@ -76,6 +76,14 @@ def deep_nav(root: Any, dotted: Any) -> Any:
     node = root
     if node is None:
         return None
+    # An auto_join read (18_data_advanced.md "columns") returns rows whose keys are
+    # table-qualified LITERALS ("Posts.title"), not nested dicts — a bare %item.title
+    # would otherwise require every caller to know a row came from a join. Try the
+    # WHOLE remaining path as one literal key first; a plain (non-joined) dict is
+    # exceedingly unlikely to also carry a literal dotted key, so this never shadows
+    # genuine nested access below.
+    if isinstance(node, dict) and dotted in node:
+        return node[dotted]
     for part in str(dotted).split("."):
         if isinstance(node, dict):
             node = node.get(part)

@@ -56,6 +56,13 @@ proven: exercised by a fresh isolated app (`Tests/zRBAC_app`, Bifrost)
     concurrent mixed-role stress — many roles at once, ZERO cross-session bleed
     caveat — ALPHA: a clean lab run isn't a production promise; a doorman letting the wrong person through is a BUG worth reporting
     golden — `zDemos/zTeamVault`: zLogin + a gated Vault + zLogout, CLI-first then Bifrost, zRaven-covered both modes
+    golden — `zDemos/zBlog`: self-service SIGNUP (a plain zDialog + `zData: {action: insert}` on the user's OWN
+        schema, `zHash: bcrypt` on the password field — no zLogin needed to CREATE the account, only to sign into
+        it after) + ROW-level ownership (not just page/route gating): `zGate: {%item.Posts.author_id: %session.zVisitor.id}`
+        inside a `zList` each-template hides Edit/Delete unless the signed-in visitor OWNS that row — both sides of
+        the comparison are `%` tokens, resolved symmetrically; the SAME id also re-checked server-side in the
+        update/delete `where:` (`where: id = %item.Posts.id zAND author_id = %session.zVisitor.id`) so a forged
+        request against someone else's row still bounces even if the button were somehow clicked
 
 routing_gotcha: a gated page needs its OWN route to actually redirect in Bifrost
     rule    — `onDenied`/zLogin `onSuccess`/zLogout `onSuccess` are always a `zLink` — Bifrost resolves it to a router URL, never an in-page swap

@@ -40,6 +40,10 @@ zmodal: a modal is a glance, not a move — forward with auto-back built in
         Bifrost plumbing — dispatch stages the woven block (session `_zPendingModal`, the `_zPendingNavigate` pattern); the bridge
         flushes it as a `render_modal` frame; the client paints it into the overlay and owns dismissal LOCALLY (backdrop/ESC/×)
         — the route never moved server-side, so closing needs no round-trip; a menu-resume walk STOPS at the modal (anchor bounce)
+    !file_field — a `zDialog` with a `type: file` field has no proven path inside a `zModal` (Bifrost never wired a
+        file-input's picker/upload plumbing for the overlay-carried form); give it its OWN block instead
+        (`action: zDelta($Edit_X)` or a cross-file `zAlpha`) — same pattern `zDemos/zGallery`'s Add_Photo and
+        `zDemos/zBlog`'s Edit_Avatar use — a page, not a glance
 
 zurl: the rendered, clickable link — what a person presses
     required — label + href; arrives ready, nothing to switch on

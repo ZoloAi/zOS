@@ -1,0 +1,279 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    zBrush: [zblog]
+    zSpool: [posts]
+
+#> the feed IS the home screen (no "View Posts" button first) — each row
+#  carries its OWN id (%item.Posts.id, baked in per-row by zList) for its own
+#  actions, same canonical shape as zTaskList/zContacts' Main
+#  data source: zLoom/spools/zUI.zblog.zolo (posts reel), newest-first,
+#  auto_join'd to Users for the real author name + avatar (15_rbac.md
+#  Users, no more free-text author) <#
+Main:
+    zH1:
+        label: zBlog
+        color: PRIMARY
+        _zClass: zBlog-title
+
+    zMD:
+        content: A post lands on top the moment it's added — no push, no poll, just a fresh read.
+        _zClass: zBlog-intro
+
+    #> guest sees Sign in/Register; signed-in sees who they are + Profile/Sign
+    #  out — two per-block gates (15_rbac.md "where: four homes", the `page`
+    #  home applied to a plain child block, not just a top-level view) reading
+    #  the SAME session tag zLogin writes/zLogout clears <#
+    AuthBar:
+        _zClass: zBlog-authbar
+
+        GuestLinks:
+            zGate:
+                authed: false
+            _zClass: zBlog-authbar-guest
+
+            SignInLink:
+                zBtn:
+                    label:  Sign in
+                    color:  primary
+                    _zClass: zBlog-signin-btn
+                    action: zLink(@.zViews.zUI.Login.Login)
+
+            RegisterLink:
+                zBtn:
+                    label:  Register
+                    color:  secondary
+                    _zClass: zBlog-register-btn
+                    action: zLink(@.zViews.zUI.Register.Register)
+
+        UserLinks:
+            zGate:
+                authed: true
+            _zClass: zBlog-authbar-user
+
+            Welcome:
+                zText:
+                    content: Signed in as %auth.username
+                    _zClass: zBlog-welcome
+
+            ProfileLink:
+                zBtn:
+                    label:  Profile
+                    color:  secondary
+                    _zClass: zBlog-profile-btn
+                    action: zLink(@.zViews.zUI.Profile.Profile)
+
+            SignOutLink:
+                zBtn:
+                    label:  Sign out
+                    color:  secondary
+                    _zClass: zBlog-signout-btn
+                    action: zLink(@.zViews.zUI.Logout.Logout)
+
+    Feed:
+        _zClass: zBlog-feed
+
+        List:
+            zList:
+                source: %data.posts
+                each:
+                    Post:
+                        _zClass: zBlog-post
+
+                        Header:
+                            _zClass: zBlog-post-header
+
+                            Avatar:
+                                zImage:
+                                    src:      %item.Users.avatar
+                                    alt_text: %item.Users.name
+                                    _zClass: zBlog-post-avatar
+
+                            Title:
+                                zText:
+                                    content: %item.Posts.title
+                                    _zClass: zBlog-post-title
+
+                        Meta:
+                            zText:
+                                content: by %item.Users.name · %item.Posts.created_at
+                                _zClass: zBlog-post-meta
+
+                        Body:
+                            zText:
+                                content: %item.Posts.content
+                                _zClass: zBlog-post-body
+
+                        Actions:
+                            _zClass: zBlog-post-actions
+
+                            #> zModal + zDialog (03_navigation.md) — a per-row glance-and-
+                            #  return detour, %item.id bakes in at zList expansion, same
+                            #  proven shape as zGallery's per-row Edit dialog. onSubmit
+                            #  holds a real zData insert directly (08_data_crud.md
+                            #  "a zDialog.onSubmit CAN hold a real zData: {action: insert}
+                            #  block — no plugin needed") — schema defaults (created_at:
+                            #  now) apply exactly like Add_Post's insert below. Open to any
+                            #  visitor incl. guests — commenting was never gated <#
+                            AddComment:
+                                zBtn:
+                                    label:  bi-chat-left-text + Comment
+                                    color:  secondary
+                                    _zClass: zBlog-comment-btn
+                                    action:
+                                        zModal:
+                                            zDialog:
+                                                title:  Add Comment
+                                                fields: [
+                                                    {zConv: author,  type: text, default: Anonymous},
+                                                    {zConv: content, type: text, required: true},
+                                                ]
+                                                onSubmit:
+                                                    zData:
+                                                        action: insert
+                                                        model:  @.models.zSchema.Comments
+                                                        data:
+                                                            post_id: %item.Posts.id
+                                                            author:  zConv.author
+                                                            content: zConv.content
+
+                            #> owner-only row — a per-row ownership check, NOT a role
+                            #  (15_rbac.md's `role`/`require` compare a fixed value; this
+                            #  compares two LIVE tokens — gate_evaluator.py's
+                            #  _resolve_if_token extension makes the RHS resolve too, so
+                            #  "only YOUR post" is one gate line, hidden for everyone else's
+                            #  row). Enforcement doesn't stop at hiding the button though —
+                            #  both onSubmit blocks below repeat the SAME check in their
+                            #  own `where:`, so a forged request against someone else's
+                            #  post still no-ops even if this gate were somehow bypassed <#
+                            OwnerActions:
+                                zGate:
+                                    %item.Posts.author_id: %session.zVisitor.id
+                                _zClass: zBlog-post-owner-actions
+
+                                Edit:
+                                    zBtn:
+                                        label:  bi-pencil
+                                        color:  secondary
+                                        _zClass: zBlog-edit-btn
+                                        action:
+                                            zModal:
+                                                zDialog:
+                                                    title:  Edit Post
+                                                    fields: [
+                                                        {zConv: title,   type: text, default: %item.Posts.title,   required: true},
+                                                        {zConv: content, type: text, default: %item.Posts.content, required: true},
+                                                    ]
+                                                    onSubmit:
+                                                        zData:
+                                                            action: update
+                                                            model:  @.models.zSchema.Posts
+                                                            fields: [title, content]
+                                                            values: [zConv.title, zConv.content]
+                                                            where:  id = %item.Posts.id zAND author_id = %session.zVisitor.id
+
+                                Delete:
+                                    zBtn:
+                                        label:  bi-trash
+                                        color:  danger
+                                        _zClass: zBlog-delete-btn
+                                        action:
+                                            zModal:
+                                                zDialog:
+                                                    title:  Delete this post?
+                                                    fields: []
+                                                    onSubmit:
+                                                        zData:
+                                                            action: delete
+                                                            model:  @.models.zSchema.Posts
+                                                            #> tables: backfills Comments' schema from the
+                                                            #  server-wide registry onto THIS call's loaded
+                                                            #  schema — without it, on_delete: cascade can't
+                                                            #  see the sibling table's FK at all, since a
+                                                            #  single-model delete only ever loads its OWN
+                                                            #  table (08_data_crud.md "cascade_gotcha") <#
+                                                            tables: [Posts, Comments]
+                                                            where:  id = %item.Posts.id zAND author_id = %session.zVisitor.id
+
+    #> visible to everyone — clicking while signed out bounces to Login via
+    #  Add_Post's own gate (same "reachable by anyone, proves the gate itself"
+    #  shape zTeamVault's GoVault uses, 15_rbac.md "proven") <#
+    NewPost:
+        zBtn:
+            label:  bi-plus-lg + New Post
+            color:  primary
+            _zClass: zBlog-newpost-btn
+            action: zDelta($Add_Post)
+
+    ViewActivity:
+        zBtn:
+            label:  bi-activity + Recent Activity
+            color:  secondary
+            _zClass: zBlog-activity-btn
+            action: zDelta($Activity)
+
+#> signed-in only — a post needs a real author_id, so posting without a
+#  session makes no sense (15_rbac.md "verb", `page` home) <#
+Add_Post:
+    zGate:
+        authed: true
+    onDenied:
+        zLink: @.zViews.zUI.Login.Login
+
+    zH1:
+        label: New Post
+        color: PRIMARY
+        _zClass: zBlog-title
+
+    zDialog:
+        title:  New Post
+        model:  @.models.zSchema.Posts
+        fields: [title, content]
+        onSubmit:
+            zData:
+                action: insert
+                model:  @.models.zSchema.Posts
+                data:
+                    title:     zConv.title
+                    content:   zConv.content
+                    #> the identity payoff — no free-text author field on the
+                    #  form at all; the row's author IS whoever is signed in
+                    #  right now (15_rbac.md "%auth.*"/"%session.*" ambient) <#
+                    author_id: %session.zVisitor.id
+
+    Back:
+        zBtn:
+            label:  ← Back to Feed
+            _zClass: zBlog-back-btn
+            action: zDelta($Main)
+
+#> the relational payoff (same lane as zContacts' Directory): a comment
+#  needs its POST's title, and a per-row %item loop can't reach a second
+#  table by itself — auto_join: true follows the post_id FK declared on
+#  Comments, and the joined read alone auto-draws as a table (08_data_crud
+#  "zTable draws, zData feeds" — zData's own auto-draw, no zTable wrapper) <#
+Activity:
+    zH1:
+        label: Recent Activity
+        color: PRIMARY
+        _zClass: zBlog-title
+
+    zMD:
+        content: Every comment, newest first, joined to the post it landed on.
+        _zClass: zBlog-intro
+
+    Table:
+        zData:
+            action:    read
+            model:     @.models.zSchema.Comments
+            table:     Comments
+            tables:    [Comments, Posts]
+            auto_join: true
+            fields:    [Posts.title, Comments.author, Comments.content, Comments.created_at]
+            order_by:  Comments.created_at DESC
+
+    Back:
+        zBtn:
+            label:  ← Back to Feed
+            _zClass: zBlog-back-btn
+            action: zDelta($Main)

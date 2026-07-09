@@ -28,6 +28,10 @@ spool: where a live value comes from — the reel a `%` thread pulls off
     rule    — a value ALWAYS has a declared source (one sigil covers a DB read, session, route param, loop row alike)
     migrate — a reel's `fields:` is a hand-written list, NOT auto-synced to its model — a schema migration that adds a
         column (see zData migrations) is invisible to the page until the matching reel also lists the new field
+    !where_form — a reel scoped to the visitor (`currentUser: {zData: {..., where: <expr>}}`) needs `where:` as a
+        DICT (`where: {id: %session.zVisitor.id}`), not a `field = value` STRING — a spool's `%session.*` interpolation
+        only runs on the dict shape; a string `where` ships the literal token text and the read silently returns
+        nothing (no error, just an empty reel) — `zDemos/zBlog`'s Profile page is the worked example
 
 dye: finish a value on its way to the page — the `|` pipe
     `%value | dye` — send through a step; chain freely (`%x | trim | title`), left-to-right

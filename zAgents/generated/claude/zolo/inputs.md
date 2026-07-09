@@ -32,6 +32,7 @@ files: type: file
     multiple: true — accept a batch; comes back as a LIST (terminal: comma-separated on one line)
     terminal: asks for a zPath, verifies it EXISTS before accepting — @.folder.file (workspace) | ~.folder.file (home)
     path: extension optional (one match -> found; add .png only to pick between siblings); one bad path rejects, retry
+    !modal: a file field's zDialog wants its OWN page (zDelta/zAlpha), never a zModal detour -> Navigation zmodal
 
 dates: calendar / clock types
     returns ISO always — YYYY-MM-DD | HH:MM:SS | YYYY-WNN — no parsing on your end

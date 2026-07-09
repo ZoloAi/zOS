@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     zBlog
+    zMode:     zBifrost
+    zLog:      DEBUG
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zblog
+    zBlock:    Main
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — full blog (Corey Schafer Flask parity): users, auth, RBAC ownership, relational posts, profile picture upload, activity feed
+    tags: [zData, zSchema, foreign_key, zDialog, zModal, zGate, zLogin, zLogout, zImage, auto_join]
+    author: zAgents

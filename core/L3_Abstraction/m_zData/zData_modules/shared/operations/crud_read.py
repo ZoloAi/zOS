@@ -970,7 +970,11 @@ def handle_read(request: Dict[str, Any], ops: Any) -> Union[bool, List[Dict[str,
 
     # Phase 4: Parse query options
     fields = request.get(_KEY_FIELDS)
-    order = request.get(_KEY_ORDER)
+    # `order_by:` is the ONLY documented author-facing spelling (08_data_crud.md);
+    # the dispatch layer passes it through verbatim (dispatch_constants.KEY_ORDER_BY
+    # is a deliberately distinct key, never renamed to "order" en route). Accept
+    # both, same alias already proven in agg_window.py's window ordering.
+    order = request.get(_KEY_ORDER) or request.get('order_by')
     limit = request.get(_KEY_LIMIT)
     offset = request.get(_KEY_OFFSET, 0)  # Default to 0 (no offset)
     distinct = bool(request.get('distinct', False))

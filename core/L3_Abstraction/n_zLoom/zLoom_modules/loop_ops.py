@@ -95,7 +95,19 @@ class LoopOps:
                 # Denied row is simply not woven (contiguous output keys).
                 if gate is not None and not self._row_passes_gate(gate, row_ctx):
                     continue
-                woven = self._resolve_item_tokens(copy.deepcopy(each_tmpl), row_ctx)
+                row_copy = copy.deepcopy(each_tmpl)
+                # A NESTED zGate (e.g. an "owner actions" child block gated on
+                # `%item.<field>: %session.<field>`) must be settled HERE, while
+                # the %item frame is still live — _resolve_item_tokens below only
+                # does STRING interpolation (a resolver miss is left as the
+                # literal token, per token_resolver.py's display contract), so a
+                # denied comparison would otherwise survive as two now-unresolvable
+                # literal tokens once the loop frame pops, silently comparing
+                # None == None (always "equal") for every later walk. Pruning first
+                # means the gate is answered with the SAME live %item/%session
+                # values the row-level `zList.zGate` filter already uses above.
+                self._prune_denied_subtrees(row_copy, row_ctx)
+                woven = self._resolve_item_tokens(row_copy, row_ctx)
                 # Collapse per-row zKnots WHILE the %item frame is live (so a card's
                 # computed value / ternary sees this row). Same engine as page-scope
                 # (KnotOps.expand_knots) — sibling mixin on the zLoom facade; guarded so
@@ -123,6 +135,25 @@ class LoopOps:
             return True
         granted, _reason = zgate.evaluate(gate, context)
         return bool(granted)
+
+    def _prune_denied_subtrees(self, node: Any, context: Any) -> None:
+        """Depth-first: drop any child block whose own ``zGate`` denies (an
+        action_row-scoped gate NESTED inside a row template, distinct from the
+        whole-row filter on ``zList`` itself). A passing block has its now-spent
+        ``zGate`` key stripped so it never reaches the renderer."""
+        if not isinstance(node, dict):
+            return
+        for key in list(node.keys()):
+            val = node.get(key)
+            if not isinstance(val, dict):
+                continue
+            child_gate = val.get("zGate")
+            if child_gate is not None:
+                if not self._row_passes_gate(child_gate, context):
+                    del node[key]
+                    continue
+                val.pop("zGate", None)
+            self._prune_denied_subtrees(val, context)
 
     def _lookup_list_source(self, source_ref: Any, resolved_data: Dict[str, Any]) -> Any:
         """Resolve a ``%data.<key>`` zList source to a list of rows.

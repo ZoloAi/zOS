@@ -1,0 +1,36 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Own file → own auto-discovered route (/Login) — same shape as zTeamVault's
+# Login (15_rbac.md "golden"): zLogin auto-discovers table + identity field
+# from `model`, bcrypt-checks LOCALLY, then stamps session["zVisitor"].
+
+Login:
+    zGate:
+        authed: false
+    onDenied:
+        zLink: @.zViews.zUI.zblog.Main
+
+    zH1:
+        label: Sign in
+        _zClass: zBlog-login-title
+
+    Form:
+        zLogin:
+            title:  Sign in to zBlog
+            model:  @.models.zSchema.Users
+            fields: [email, password]
+            zAPI:   true
+            onSuccess:
+                zLink: @.zViews.zUI.zblog.Main
+
+    RegisterLink:
+        zBtn:
+            label:  Need an account? Register
+            color:  secondary
+            _zClass: zBlog-register-link
+            action: zLink(@.zViews.zUI.Register.Register)
+
+    Back:
+        zBtn:
+            label:  ← Back
+            _zClass: zBlog-back-btn
+            action: zLink(@.zViews.zUI.zblog.Main)

@@ -18,6 +18,9 @@ Graceful shutdown via SIGINT/SIGTERM handlers (reverse initialization order).
 # IMPORTS (Centralized from __init__.py per IMPORT_CENTRALIZATION_RULES.md)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+import os
+from pathlib import Path
+
 from . import Any, Dict, Optional, contextvars, logging
 from zSys.shutdown import (  # pylint: disable=import-error,wrong-import-order
     perform_shutdown,
@@ -432,6 +435,87 @@ class zOS:  # pylint: disable=invalid-name
     # zRaven binds the live app ports + this offset, so a test run is isolated from a
     # live `z zApp` and only ever clears its OWN test ports. Single source of truth.
     _ZRAVEN_PORT_OFFSET = 100
+    # A fixed offset alone made every project's zRaven run land on the SAME computed
+    # port (e.g. two concurrent `z raven --run` in different repos both want 8180/8865)
+    # — _reserve_free_port then walks forward from that starting point so concurrent
+    # runs (different repos, different agents) each settle on their own free port
+    # instead of colliding/SIGKILLing each other's test server. Bounded so a runaway
+    # scan can never wander into the ephemeral range.
+    _ZRAVEN_PORT_SCAN_TRIES = 50
+
+    # Cross-process reservation ledger: a plain bind-probe alone has a TOCTOU gap
+    # (probe closes the socket immediately, but the real zServer/websocket bind
+    # happens much later in boot) — two zRaven processes launched moments apart can
+    # both probe the SAME "free" port before either actually binds it. A flock'd
+    # registry in the shared system temp dir (visible across repos/agents on this
+    # machine, unlike anything inside a single workspace) closes that gap: port
+    # choice is serialized machine-wide, and a reservation sticks for as long as its
+    # owning PID is alive — dead PIDs (crashes, SIGKILL) are pruned on next use, so
+    # no manual cleanup step is required.
+    _ZRAVEN_PORT_REGISTRY = Path("/tmp/zos_zraven_ports.json")
+    _ZRAVEN_PORT_LOCK     = Path("/tmp/zos_zraven_ports.lock")
+
+    @classmethod
+    def _reserve_free_port(cls, host: str, start_port: int, max_tries: int, tag: str) -> int:
+        """Atomically pick + reserve the first free port at/after *start_port*.
+
+        *tag* namespaces this reservation (e.g. "http"/"ws") so one PID can hold
+        more than one reservation at once without colliding with itself.
+        """
+        import fcntl as _fcntl    # pylint: disable=import-outside-toplevel
+        import json as _json     # pylint: disable=import-outside-toplevel
+        import socket as _socket # pylint: disable=import-outside-toplevel
+
+        def _bindable(port: int) -> bool:
+            sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+            sock.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((host, port))
+                return True
+            except OSError:
+                return False
+            finally:
+                sock.close()
+
+        cls._ZRAVEN_PORT_LOCK.touch(exist_ok=True)
+        lock_fd = os.open(str(cls._ZRAVEN_PORT_LOCK), os.O_RDWR)
+        try:
+            _fcntl.flock(lock_fd, _fcntl.LOCK_EX)  # blocks — serializes port picks machine-wide
+
+            try:
+                registry = _json.loads(cls._ZRAVEN_PORT_REGISTRY.read_text())
+            except (FileNotFoundError, ValueError):
+                registry = {}
+
+            # Prune reservations whose owning process is gone — self-cleaning, so a
+            # crashed/SIGKILLed run never permanently squats on a port.
+            live = {}
+            for key, entry in registry.items():
+                pid = entry.get("pid")
+                try:
+                    os.kill(pid, 0)
+                    live[key] = entry
+                except (OSError, TypeError):
+                    pass
+            registry = live
+
+            reserved_ports = {entry["port"] for entry in registry.values()}
+            for candidate in range(start_port, start_port + max_tries):
+                if candidate in zOS._PROTECTED_PORTS or candidate in reserved_ports:
+                    continue
+                if _bindable(candidate):
+                    registry[f"{os.getpid()}:{tag}"] = {"port": candidate, "pid": os.getpid()}
+                    cls._ZRAVEN_PORT_REGISTRY.write_text(_json.dumps(registry))
+                    return candidate
+
+            raise OSError(
+                f"[zRaven] No free {tag} port found in range "
+                f"{start_port}-{start_port + max_tries - 1} on {host}. Set an explicit "
+                f"ZRAVEN_HTTP_PORT/ZRAVEN_WS_PORT or zRavenPort/zRavenWsPort in zSpark."
+            )
+        finally:
+            _fcntl.flock(lock_fd, _fcntl.LOCK_UN)
+            os.close(lock_fd)
 
     def _apply_raven_port_offset(self) -> None:
         """Shift HTTP + WS ports into zRaven's designated range (app port + offset).
@@ -444,8 +528,12 @@ class zOS:  # pylint: disable=invalid-name
 
         Resolution order (same for every server type / entry path):
           1. Explicit override → ZRAVEN_HTTP_PORT / ZRAVEN_WS_PORT env, then
-             zRavenPort / zRavenWsPort in zSpark. Set absolute (NO offset).
-          2. Otherwise → live app port + offset.
+             zRavenPort / zRavenWsPort in zSpark. Set absolute (NO offset, NO scan —
+             an explicit override is a deliberate pin, honored exactly).
+          2. Otherwise → live app port + offset, then scanned + reserved via the
+             cross-process registry (see _reserve_free_port) — this is what keeps
+             two concurrent `z raven --run` invocations (different repos/agents)
+             from both computing the same fixed port and stepping on each other.
 
         NOTE: callers (e.g. raven_command) must NOT pre-mutate zServer/websocket ports;
         doing so would stack on top of the offset and desync the runner's URL.
@@ -468,19 +556,25 @@ class zOS:  # pylint: disable=invalid-name
         # http_server.port is a plain attribute; websocket.port is a read-only property
         # backed by an internal dict (mutate via its update() method).
         if hasattr(self.config, "http_server"):
+            http_host = getattr(self.config.http_server, "host", "127.0.0.1")
             self.config.http_server.port = (
                 http_override if http_override is not None
-                else self.config.http_server.port + offset
+                else self._reserve_free_port(
+                    http_host, self.config.http_server.port + offset, self._ZRAVEN_PORT_SCAN_TRIES, "http"
+                )
             )
         if hasattr(self.config, "websocket"):
+            ws_host = getattr(self.config.websocket, "host", "127.0.0.1")
             new_ws = (
                 ws_override if ws_override is not None
-                else self.config.websocket.port + offset
+                else self._reserve_free_port(
+                    ws_host, self.config.websocket.port + offset, self._ZRAVEN_PORT_SCAN_TRIES, "ws"
+                )
             )
             self.config.websocket.update("port", new_ws)
 
         self._raven_ports_offset_applied = True
-        _src = "override" if (http_override or ws_override) else f"live app port +{offset}"
+        _src = "override" if (http_override or ws_override) else f"live app port +{offset}, scanned free"
         self.logger.info(
             f"[zRaven] Designated test ports ({_src}): "
             f"HTTP={getattr(getattr(self.config, 'http_server', None), 'port', '?')} "
