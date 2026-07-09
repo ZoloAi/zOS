@@ -97,6 +97,21 @@ class TerminalExecutor:
         if self.mode == _MODE_BIFROST:
             return None
 
+        # Parse code fences (```python ... ```)
+        code_content, detected_lang = self._parse_code_fence(content)
+        if detected_lang:
+            language = detected_lang
+
+        # Display header + the snippet ITSELF — 20_terminal.md's contract is
+        # "shows and copies, but never runs" for the readonly default, so the
+        # render must happen before any run-policy gate, not after it (a return
+        # here previously skipped both header and code whenever the operator
+        # hadn't opted into sandbox/trust, leaving readonly panels silently
+        # blank in zCLI).
+        if title:
+            self.zEvents.header(f"[{title}]", color="CYAN", indent=0, style="single")
+        self.zEvents.code(content=code_content, language=language, indent=0)
+
         # Fail-closed local gate: zTerminal runs only when the operator opted in
         # via zEnv. readonly / absent / empty / unknown => render-only, no exec.
         policy = self._terminal_policy()
@@ -115,18 +130,6 @@ class TerminalExecutor:
                                     getattr(self.zos, "logger", None)):
             self.zEvents.error("zTerminal execution blocked by trust policy", indent=0)
             return None
-
-        # Parse code fences (```python ... ```)
-        code_content, detected_lang = self._parse_code_fence(content)
-        if detected_lang:
-            language = detected_lang
-        
-        # Display header
-        if title:
-            self.zEvents.header(f"[{title}]", color="CYAN", indent=0, style="single")
-        
-        # Display code being executed
-        self.zEvents.code(content=code_content, language=language, indent=0)
 
         # zRun gate — zCLI twin of the Bifrost Run button. Mirrors zImage's
         # open_prompt: show the snippet, then ask before executing. The walker

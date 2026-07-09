@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     zConsole
+    zMode:     zBifrost
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zConsole
+    zBlock:    Console
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — dev console dashboard: zDash shell, runnable zTerminal snippets, live status, hosting info
+    tags: [zDash, zTerminal, zLoom, zKnot, zSpool]
+    author: zAgents

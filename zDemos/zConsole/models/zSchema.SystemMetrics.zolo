@@ -1,0 +1,31 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        SystemMetrics
+    Schema_Name:       zSchema.SystemMetrics
+    zMigration:        true
+    zMigrationVersion: v1.0.0
+
+SystemMetrics:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    cpu_pct:
+        type:     float
+        required: true
+
+    mem_used_mb:
+        type:     int
+        required: true
+
+    mem_total_mb:
+        type:     int
+        required: true
+
+    recorded_at:
+        type:     str
+        required: true

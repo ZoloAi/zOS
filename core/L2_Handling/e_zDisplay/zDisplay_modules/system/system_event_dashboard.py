@@ -524,15 +524,18 @@ class DashboardEvents:
         session["_current_block_data"] so %data.* tokens interpolate when the
         panel renders in CLI mode.
 
-        TODO(zLoom leak audit): this hand-rolls build_binding_block ->
-        resolve_block_data -> expand_list_bindings instead of calling the SSOT
-        `resolver.prepare_block_render(block_data, block_data)` — so it skips
-        `expand_knots` (page-scoped zKnot values never collapse in a CLI panel)
-        and MERGES into session["_current_block_data"] where prepare_block_render
+        TODO(zLoom leak audit): this still hand-rolls build_binding_block ->
+        resolve_block_data -> expand_list_bindings -> expand_knots instead of
+        calling the SSOT `resolver.prepare_block_render(block_data, block_data)`
+        directly. The `expand_knots` gap (page-scoped zKnot values never
+        collapsing in a CLI panel) is now closed — see zDemos/zConsole's Status
+        panel, the first zDash golden app to exercise it. Still open: this
+        MERGES into session["_current_block_data"] where prepare_block_render
         REPLACES it (replace is arguably more correct — a panel should only see
         its own resolved data, not leftovers from a previously-viewed panel).
-        Not fixed yet: no zDash-using golden app exists to smoke-test the swap
-        against. Revisit once one does — see zAgents zLoom audit, finding #6.
+        Left as-is: no observed golden-app case yet where two panels' spools
+        share a field name, so the merge has never mis-rendered in practice.
+        Revisit if one does — see zAgents zLoom audit, finding #6.
         """
         try:
             if not isinstance(block_data, dict):
@@ -557,6 +560,18 @@ class DashboardEvents:
             # resolved) BEFORE dispatch. Same engine the Bifrost path calls — the
             # loop is resolved once, mode-agnostically, not at render time.
             resolver.expand_list_bindings(block_data, resolved)
+
+            # SSOT knot collapse — mirrors prepare_block_render's ordering (loops
+            # first so any loop-scoped %item.* knot is already baked per-row,
+            # THEN page-scoped %data.*/%route.*/zVar knots). Without this a
+            # page-scope zKnot (e.g. a %data.<spool>.<field> computation) never
+            # collapses in a CLI zDash panel — it lands as a raw op dict, which
+            # a prose slot can't render as text and silently drops the line
+            # (zAgents zLoom audit finding #6 — first exercised by zDemos/zConsole's
+            # Status panel).
+            expand_knots = getattr(resolver, 'expand_knots', None)
+            if expand_knots is not None:
+                expand_knots(block_data, {"_resolved_data": resolved})
         except Exception as e:  # pylint: disable=broad-except
             if logger:
                 logger.error(f"[zDash] panel data binding failed: {e}")

@@ -42,3 +42,9 @@ seek_as_need: only if extending the widget, not authoring
     zCLI engine  — core/.../e_zDisplay/zDisplay_modules/system/system_event_dashboard.py (panel discovery, zMeta load, numbered-menu loop, `done` exit, per-panel RBAC filter)
     bifrost render— zbifrost-client/.../composite/dashboard_renderer.js (sidebar/tabs, lazy load via `execute_walker`, mobile drawer) + zbase.css §10 (`.zDash-*`)
     icons        — panel `icon:` is a `bi-*` via IconMapper/IconRenderer SSOT (`[name]` terminal, `<i class="bi bi-*">` browser)
+
+golden: `zDemos/zConsole` — a dev-console zDash (Overview/Snippets/Status/Hosting) proving a
+    panel's OWN `zMeta.zSpool` (nested inside the panel block, not file-root — the one
+    deliberate exception to "zMeta always root-level") resolves a live `%data.*` read AND a
+    page-scope `zKnot` computed off it, in BOTH zCLI and Bifrost — CLI via
+    `zDash._bind_panel_data`, Bifrost via `_bind_root_zinja`'s block-level `zMeta` fallback

@@ -1,0 +1,43 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# The one panel with a zMeta.zSpool + a page-scoped zKnot — a CLI zDash panel
+# binds via system_event_dashboard.py's _bind_panel_data, a hand-rolled path
+# distinct from the SSOT prepare_block_render (see zAgents zLoom audit finding
+# #6). This panel is the first real exercise of that seam.
+
+Status:
+    zMeta:
+        title:       Status
+        icon:        bi-activity
+        description: A live read of the app's own health
+        zSpool:      [metrics]
+
+    Header:
+        zH2:
+            label: Status
+            color: PRIMARY
+
+    Live_Clock:
+        zText:
+            content: Server time right now — &zNow
+
+    CPU_Row:
+        zText:
+            content: CPU usage — %data.metrics.0.cpu_pct percent
+
+    Mem_Row:
+        zText:
+            content: Memory — %data.metrics.0.mem_used_mb MB used of %data.metrics.0.mem_total_mb MB total
+
+    Mem_Pct_Label:
+        zText:
+            content: Memory usage (percent)
+
+    Mem_Pct_Row:
+        zText:
+            _zClass: zConsole-metric
+            zKnot:
+                zMul: [{zDiv: [%data.metrics.0.mem_used_mb, %data.metrics.0.mem_total_mb]}, 100]
+
+    Recorded_Row:
+        zText:
+            content: Last recorded — %data.metrics.0.recorded_at

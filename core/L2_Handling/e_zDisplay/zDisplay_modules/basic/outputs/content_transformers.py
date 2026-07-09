@@ -111,16 +111,23 @@ class ContentTransformers:
             self.display.zos.logger.warning(f"Emoji conversion failed: {e}")
             return text
 
-    def resolve_variables(self, content: str, context: Optional[dict] = None) -> str:
+    def resolve_variables(self, content: Any, context: Optional[dict] = None) -> str:
         """Resolve %variable references in content.
-        
+
         Args:
-            content: Text with %variable references
+            content: Text with %variable references — or an already-resolved
+                scalar (a page-scope ``zKnot`` collapses straight to an int/
+                float/bool; there is nothing left to interpolate in a number,
+                so it is coerced to ``str`` and passed through untouched
+                rather than crashing the ``"%" not in content`` membership
+                check below, which requires a string operand)
             context: Optional context dict for variable resolution
-            
+
         Returns:
             Content with variables resolved
         """
+        if not isinstance(content, str):
+            return "" if content is None else str(content)
         if "%" not in content:
             return content
 
@@ -128,15 +135,18 @@ class ContentTransformers:
         from .....d_zParser.parser_modules.parser_functions import resolve_variables
         return resolve_variables(content, self.display.zos, context)
 
-    def resolve_functions(self, content: str) -> str:
+    def resolve_functions(self, content: Any) -> str:
         """Resolve &function calls in content.
-        
+
         Args:
-            content: Text with &function calls
-            
+            content: Text with &function calls — or an already-resolved
+                scalar (see ``resolve_variables``; same non-str pass-through)
+
         Returns:
             Content with functions resolved
         """
+        if not isinstance(content, str):
+            return "" if content is None else str(content)
         if "&" not in content:
             return content
 

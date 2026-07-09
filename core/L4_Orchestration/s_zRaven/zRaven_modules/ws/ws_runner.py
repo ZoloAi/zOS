@@ -852,10 +852,18 @@ class ZRaven(BaseStepRunner):
         menu-item/action key — zbifrost-client stamps every rendered element
         with data-zkey, NOT data-key — now automated so the same zRaven step
         runs unmodified in both modes).
+
+        A zDash panel pick is the SAME author-facing verb (16_dashboards.md's
+        numbered menu in zCLI == a sidebar click in Bifrost) but a DIFFERENT
+        widget under the hood: dashboard_renderer.js stamps `data-panel` on an
+        `<a>` inside `.zDash-sidebar`, never `data-zkey` on a `<button>` — first
+        exercised end-to-end by zDemos/zConsole. A comma-joined CSS selector
+        matches whichever shape actually rendered, so one zRaven step keeps
+        working across a plain menu AND a zDash sidebar without branching.
         """
         await self._ensure_browser()
         opt = str(option)
-        selector = f"button[data-zkey='{opt}']"
+        selector = f"button[data-zkey='{opt}'], .zDash-sidebar [data-panel='{opt}']"
         info(f"browser.pick → {selector}")
         try:
             await self._page.click(selector, timeout=self.timeout * 1000)

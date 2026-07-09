@@ -1,0 +1,11 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Golden app 10 — a zDash shell assembling panels a developer would want while
+# running an app locally: an overview, runnable snippets (zTerminal), a live
+# status readout (zLoom zSpool + zKnot), and hosting/config info.
+
+Console:
+    zDash:
+        type:    sidebar
+        folder:  @.zViews.panels
+        sidebar: [Overview, Snippets, Status, Hosting]
+        default: Overview

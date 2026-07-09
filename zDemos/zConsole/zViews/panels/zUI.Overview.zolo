@@ -1,0 +1,28 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+Overview:
+    zMeta:
+        title:       Overview
+        icon:        bi-house
+        description: What this console shows
+
+    Header:
+        zH1:
+            label: zConsole
+            color: PRIMARY
+            _zClass: zConsole-title
+
+    Lead:
+        zText:
+            content: A developer's dashboard for a running zOS app — snippets you can run, a live status readout, and where it's hosted.
+            _zClass: zConsole-lead
+
+    Panels_Info:
+        zText:
+            content: Use the rail to switch panels:
+        Panel_List:
+            zUL:
+                items:
+                    - **Snippets** — a couple of runnable code samples
+                    - **Status** — a live read of the app's own health
+                    - **Hosting** — where and how this app is running

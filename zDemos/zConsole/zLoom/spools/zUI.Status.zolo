@@ -1,0 +1,9 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+metrics:
+    zData:
+        action:   read
+        model:    @.models.zSchema.SystemMetrics
+        fields:   [cpu_pct, mem_used_mb, mem_total_mb, recorded_at]
+        order_by: id DESC
+        limit:    1

@@ -1,0 +1,39 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# type: python is safe by default — ZTERMINAL_MODE governs whether Run actually
+# fires (unset/readonly → show + copy only); a demo never assumes trust (06_inputs/
+# 20_terminal.md "the dial is the safety, not the fence").
+
+Snippets:
+    zMeta:
+        title:       Snippets
+        icon:        bi-code-slash
+        description: A couple of runnable code samples
+
+    Header:
+        zH2:
+            label: Snippets
+            color: PRIMARY
+
+    Lead:
+        zText:
+            content: Two small Python samples — copy them, or hit Run if this machine's ZTERMINAL_MODE dial allows it.
+
+    Factorial_Sample:
+        zTerminal:
+            title:   Factorials
+            content: ```python
+                import math
+
+                for n in range(1, 6):
+                    print(f"{n}! = {math.factorial(n)}")
+                ```
+
+    Fib_Sample:
+        zTerminal:
+            title:   Fibonacci
+            content: ```python
+                a, b = 0, 1
+                for _ in range(8):
+                    print(a, end=" ")
+                    a, b = b, a + b
+                ```

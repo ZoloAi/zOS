@@ -1,0 +1,32 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+Hosting:
+    zMeta:
+        title:       Hosting
+        icon:        bi-hdd-network
+        description: Where and how this app runs
+
+    Header:
+        zH2:
+            label: Hosting
+            color: PRIMARY
+
+    Lead:
+        zText:
+            content: This app's own zServer answers its pages — the data plane. A separate control plane (wake, sleep, blue-green deploy) can run a whole fleet of apps like this one; that layer is ALPHA and lives in the plugin SDK, not here.
+
+    Config_Table:
+        zTable:
+            title: This app's config
+            columns: [setting, value]
+            rows:
+                - [App, zConsole]
+                - [zMode, zCLI]
+                - [Data backend, csv via zData]
+                - [ZTERMINAL_MODE, readonly (default)]
+                - [Compute driver, LocalProcessDriver (dev)]
+
+    Note:
+        _zClass: zConsole-note
+        zMD:
+            content: Set `ZTERMINAL_MODE: sandbox` in zEnv to let the Snippets panel actually run its Python. A production fleet swaps `LocalProcessDriver` for a registered driver like `k8s` — every caller (wake/sleep/status) stays identical.
