@@ -1482,6 +1482,30 @@ golden: `zDemos/zConsole` — a dev-console zDash (Overview/Snippets/Status/Host
     page-scope `zKnot` computed off it, in BOTH zCLI and Bifrost — CLI via
     `zDash._bind_panel_data`, Bifrost via `_bind_root_zinja`'s block-level `zMeta` fallback
 
+gotcha: a panel's own same-file `zDelta` (a Refresh button, `action: zDelta($PanelName)`) silently dropped its `%data.*` binding on
+    Bifrost, even though the SAME panel's initial sidebar load resolved it fine
+    why      — the initial load's click carries `_renderTarget` (the dash's own lazy-load
+        marker), which flags the server-side bind as `is_dashboard_panel` and triggers the
+        block-level `zMeta` fallback (this file's golden note above); a plain in-panel zBtn
+        click carries no such marker, so the fallback never fired even though the walker
+        DID correctly re-resolve the target block against the stamped panel file
+        (`_panel_zVaFile`) — the zList just rendered its raw `%item.*` template, unbound
+    fix      — the server marks `is_dashboard_panel = True` whenever resolution actually
+        FALLS BACK to the stamped panel file (not just when the click's own payload says
+        so) — first caught by `zDemos/zCRM`'s zDash capstone (Add-then-Refresh)
+
+gotcha: a standalone (non-`%item`) `zBtn` with `action: {zModal: {...}}` — anywhere, not just in a
+    zDash panel — silently swallowed its click in Bifrost
+    why      — the chunked render engine treats a `zModal` action as a GATE (same family
+        as `zDialog`/`zForm`) needing a `wizard_gate_submit` to resume; `zModal` is actually
+        fire-and-forget client-side like `zDelta`/`zLink`/`zAlpha` — no submit ever arrives,
+        so the paused generator "resumes" on the raw click and skips straight past the
+        zModal dispatch without ever sending it. A zList's PER-ROW `zModal` (Delete/stage
+        buttons) was never affected — those render as plain content, not chunk-engine gates
+    fix      — `zModal` joined the non-gating action set (zEngine `zstride._NAV_ACTION_KEYS`)
+        — a standalone `zModal` button now needs NO `zDelta`-to-a-dialog-page workaround,
+        write it exactly like a per-row one (`zDemos/zCRM`'s panel-level Add Contact/Company/Deal)
+
 ---
 
 zLoom — dynamic content: mark a spot with `%` and zLoom weaves in what's LIVE, REPEATED, or COMPUTED | a value always has a declared source — one sigil covers them all | declared, never hardcoded | write once → resolved before the render split, identical in zCLI + zBifrost
@@ -1832,6 +1856,15 @@ faces: one block, two renders — never branch on zMode
     zCLI    — an ANSI bar redrawn in place with carriage-return (`[████░░░] 60%`), or braille spinner when indeterminate
     bifrost — a `.zProgress` DOM bar with width transition — striped+animated when indeterminate, theme-agnostic fill
     rule    — TERMINAL IS THE TRUTH; the browser bar is the nicer coat
+
+gotcha: a zList of snapshot bars (a per-row breakdown, not a wizard climb) — write `static: true`
+    why      — zCLI's default (no `static`) is an in-place `\r` redraw made for ONE bar animating over
+        time; N zList rows each calling it in a tight loop fight over that SAME terminal line (no
+        newline is emitted until `current >= total`) — Bifrost has no such limit (one DOM node per
+        row) so this ONLY surfaces dogfooding the zCLI face, easy to miss if a zProgress-in-a-zList
+        is only ever exercised in Bifrost (zCRM's Dashboard pipeline-by-stage breakdown, capstone)
+    fix      — `zProgress: {label, current, total, color, static: true}` on the per-row block —
+        forces a plain standalone line per call, no redraw escapes, one bar per row like zText would
 
 seek_as_need: only if extending the widget, not authoring
     zCLI engine  — core/.../e_zDisplay/zDisplay_modules/advanced/timebased_progress.py (ANSI bar, braille spinner, total None never completes) + delegates/delegate_widgets_media.py::progress_bar (current default 0)

@@ -1,0 +1,4 @@
+id,name,email,phone,company_id,created_at
+1,Ada Lovelace,ada@acme.test,555-0100,1,2026-07-07 09:00:00
+2,Grace Hopper,grace@globex.test,555-0101,2,2026-07-07 09:05:00
+3,Alan Turing,alan@acme.test,555-0102,1,2026-07-07 09:10:00

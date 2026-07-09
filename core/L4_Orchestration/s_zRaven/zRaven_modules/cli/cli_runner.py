@@ -227,7 +227,9 @@ class CLIRunner(BaseStepRunner):
 
     _PROMPT_RE = _re.compile(
         r"^[\w\s]{1,40}:\s*$"          # lines ending with ":" (short — a prompt)
-        r"|^\s*\d+[.\]]\s",             # numbered menu option
+        r"|^\s*\d+[.\]]\s"              # numbered menu option
+        r"|^[\w\s]{1,60}\[.{0,20}\]\s*:\s*$"   # field with default — "phone []: "
+        r"|^.{1,80}\?\s*\(y/n\):\s*$",  # zBtn/zModal confirm — "Click [Label]? (y/n): "
         _re.MULTILINE,
     )
 

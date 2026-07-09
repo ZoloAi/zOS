@@ -1,0 +1,15 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Golden reference — full CRM capstone as a zConsole-style zDash shell: a
+# navigable rail assembling pages already proven standalone (16_dashboards.md
+# "you don't build, you ASSEMBLE"). Panels live in zViews/panels/, each its
+# own complete zUI page with its own zMeta.zSpool.
+
+zMeta:
+    zBrush: [zcrm]
+
+Console:
+    zDash:
+        type:    sidebar
+        folder:  @.zViews.panels
+        sidebar: [Contacts, Companies, Pipeline, Dashboard]
+        default: Contacts

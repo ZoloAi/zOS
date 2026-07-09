@@ -98,6 +98,7 @@ class ProgressEvents:
     _active_state: ActiveStateManager
     _spinner_styles: dict
     _supports_carriage_return: bool
+    _ct: Optional[Any]
 
     def __init__(self, display_instance: Any) -> None:
         """
@@ -124,11 +125,41 @@ class ProgressEvents:
             else ActiveStateManager()
         )
         self._supports_carriage_return = getattr(display_instance, '_supports_carriage_return', True)
+        self._ct = None  # lazy ContentTransformers — see _content_transformers()
 
         # Spinner styles for indeterminate progress
         self._spinner_styles = {
             STYLE_DOTS: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         }
+
+    def _content_transformers(self) -> Any:
+        """Lazily build the shared ContentTransformers (avoids import cycles at
+        construction — same lazy pattern as advanced_table.py's markdown build)."""
+        if self._ct is None:
+            from ..basic.outputs.content_transformers import ContentTransformers  # pylint: disable=relative-beyond-top-level
+            self._ct = ContentTransformers(self.display)
+        return self._ct
+
+    def _resolve_str(self, value: Any, context: Optional[dict]) -> str:
+        """Resolve a `%token` string field (label) to display text; a bare
+        literal or already-resolved value passes through unchanged."""
+        if isinstance(value, str) and "%" in value:
+            return self._content_transformers().resolve_variables(value, context)
+        return value
+
+    def _resolve_num(self, value: Any, context: Optional[dict], default: Any) -> Any:
+        """Resolve a `%token` string field (current/total) then coerce to a
+        number — `resolve_variables` always returns a STRING (token_resolver's
+        display path), so `"18000"` still needs a numeric cast before the
+        percentage/width math below can divide by it."""
+        resolved = self._resolve_str(value, context) if isinstance(value, str) else value
+        if resolved is None or resolved == "":
+            return default
+        try:
+            num = float(resolved)
+        except (TypeError, ValueError):
+            return default
+        return int(num) if num == int(num) else num
 
     def progress_bar(
         self,
@@ -140,7 +171,9 @@ class ProgressEvents:
         show_eta: bool = DEFAULT_SHOW_ETA,
         start_time: Optional[float] = None,
         color: Optional[str] = None,
-        static: bool = False
+        static: bool = False,
+        _context: Optional[dict] = None,
+        **_kwargs: Any,
     ) -> str:
         """
         Display a progress bar (zCLI + zBifrost mode).
@@ -154,6 +187,15 @@ class ProgressEvents:
             show_eta: Show estimated time to completion (bool, default False)
             start_time: Start timestamp for ETA calculation (float, optional)
             color: Color name for the bar (str, optional)
+            _context: Context dict for %variable resolution — a DECLARATIVE
+                `zProgress:` block's `current`/`total`/`label` arrive as raw
+                (possibly unresolved) `%data.foo`/`%item.foo` strings; the
+                handler_routing seam stamps `_context` onto every zDisplay
+                call the same way it does for `text()`, so this handler must
+                accept it too (a bare positional/kwarg mismatch here was a
+                silent `TypeError`, swallowed by zDisplay.handle's except,
+                that made every dynamic zCLI zProgress render NOTHING)
+            **_kwargs: absorbs any other passthrough keys, same as text()
         
         Returns:
             str: The rendered progress bar string
@@ -170,6 +212,13 @@ class ProgressEvents:
             - Indeterminate mode: If total=None, shows spinner instead of bar
             - ETA calculation: Requires start_time parameter
         """
+        # A declarative zProgress: current/total/label can still be raw
+        # %token strings (bind-time weaving only resolves list/knot IR, not
+        # arbitrary shorthand-element keys) — resolve + coerce before any math.
+        label = self._resolve_str(label, _context) or _DEFAULT_LABEL_PROCESSING
+        current = self._resolve_num(current, _context, default=0)
+        total = self._resolve_num(total, _context, default=None)
+
         # Generate unique ID - check if we're updating an existing progress bar
         existing_id = self._active_state.find_by_label("progress", label)
         if existing_id:

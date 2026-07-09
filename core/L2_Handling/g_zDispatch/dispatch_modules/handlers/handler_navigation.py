@@ -576,7 +576,19 @@ class NavigationHandler:
         # already re-resolved it on each hop. First caught by zDemos/zBooking's
         # My_Bookings screen: a booking made via New_Booking (a zDelta hop away)
         # never appeared in My_Bookings' zList until the next process restart.
-        block_context = self.zos.zloom.prepare_block_render(raw_zFile, target_block_dict)
+        #
+        # A zDash PANEL file has no file-root zMeta at all — the convention
+        # (16_dashboards.md, zConsole's own panels) puts zMeta NESTED under the
+        # panel's own top block (`Contacts: {zMeta: {zSpool: [...]}, ...}`), so
+        # build_binding_block's `zfile_parsed.get("zMeta")` finds nothing for a
+        # same-file Refresh hop (`zDelta($Contacts)` landing back on itself) —
+        # the panel's zList silently fell back to its unbound %item template
+        # (zCRM's zDash capstone, Refresh-after-Add). Fall back to the LANDED
+        # block's own zMeta when the file has none at its root.
+        binding_source = raw_zFile
+        if isinstance(raw_zFile, dict) and not raw_zFile.get("zMeta") and isinstance(target_block_dict, dict) and target_block_dict.get("zMeta"):
+            binding_source = target_block_dict
+        block_context = self.zos.zloom.prepare_block_render(binding_source, target_block_dict)
 
         # Navigate to the target block.
         # SSOT navigation (parity with zLink): hand the walker's own navigation

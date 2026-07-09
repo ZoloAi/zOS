@@ -41,6 +41,15 @@ faces: one block, two renders — never branch on zMode
     bifrost — a `.zProgress` DOM bar with width transition — striped+animated when indeterminate, theme-agnostic fill
     rule    — TERMINAL IS THE TRUTH; the browser bar is the nicer coat
 
+gotcha: a zList of snapshot bars (a per-row breakdown, not a wizard climb) — write `static: true`
+    why      — zCLI's default (no `static`) is an in-place `\r` redraw made for ONE bar animating over
+        time; N zList rows each calling it in a tight loop fight over that SAME terminal line (no
+        newline is emitted until `current >= total`) — Bifrost has no such limit (one DOM node per
+        row) so this ONLY surfaces dogfooding the zCLI face, easy to miss if a zProgress-in-a-zList
+        is only ever exercised in Bifrost (zCRM's Dashboard pipeline-by-stage breakdown, capstone)
+    fix      — `zProgress: {label, current, total, color, static: true}` on the per-row block —
+        forces a plain standalone line per call, no redraw escapes, one bar per row like zText would
+
 seek_as_need: only if extending the widget, not authoring
     zCLI engine  — core/.../e_zDisplay/zDisplay_modules/advanced/timebased_progress.py (ANSI bar, braille spinner, total None never completes) + delegates/delegate_widgets_media.py::progress_bar (current default 0)
     bifrost render— zbifrost-client/.../display/feedback/progressbar_renderer.js (renderInline, width transition, indeterminate marquee, % suppressed) + zbase.css § Progress bar (`.zProgress-*`)

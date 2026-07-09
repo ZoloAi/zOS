@@ -1,0 +1,31 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:   csv
+    Data_Path:   @.Data
+    Data_Label:  Companies
+    Schema_Name: zSchema.Companies
+
+Companies:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    name:
+        type:     str
+        required: true
+        unique:   true
+        rules:
+            max_length: 120
+
+    industry:
+        type:    str
+        default: ""
+
+    #> zolo is string-first — quotes are literal chars, NOT empty-string syntax.
+    #  an empty-string default is just a bare/blank value after the colon <#
+    notes:
+        type:     str
+        nullable: true
+        default:

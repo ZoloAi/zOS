@@ -262,15 +262,24 @@ class TimeBased:
         show_eta: bool = DEFAULT_SHOW_ETA,
         start_time: Optional[float] = None,
         color: Optional[str] = None,
-        static: bool = False
+        static: bool = False,
+        _context: Optional[dict] = None,
+        **kwargs: Any,
     ) -> str:
         """
         Display a progress bar (zCLI + zBifrost mode).
         
         Delegates to: ProgressEvents.progress_bar()
+
+        `_context`/`**kwargs`: zDisplay.handle's param filter always keeps
+        `_context` (the %token-resolution seam every event gets) — this
+        thin coordinator wrapper must accept and forward it, or a
+        declarative `zProgress:` with dynamic current/total silently
+        raises TypeError here and never reaches ProgressEvents at all.
         """
         return self.ProgressEvents.progress_bar(
-            current, total, label, width, show_percentage, show_eta, start_time, color, static
+            current, total, label, width, show_percentage, show_eta, start_time, color, static,
+            _context=_context, **kwargs
         )
 
     def spinner(

@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     zCRM
+    zMode:     zBifrost
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zCRM
+    zBlock:    Console
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — full CRM capstone, everything combined (zDash console shell, relational data + FK joins, declarative zModal/zDialog CRUD, literal stage transitions, aggregate dashboard with zKnot + zProgress)
+    tags: [zDash, zData, zSchema, foreign_key, zDialog, zModal, auto_join, aggregate, group_by, zKnot, zProgress]
+    author: zAgents

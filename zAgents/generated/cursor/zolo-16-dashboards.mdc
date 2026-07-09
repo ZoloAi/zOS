@@ -51,3 +51,27 @@ golden: `zDemos/zConsole` — a dev-console zDash (Overview/Snippets/Status/Host
     deliberate exception to "zMeta always root-level") resolves a live `%data.*` read AND a
     page-scope `zKnot` computed off it, in BOTH zCLI and Bifrost — CLI via
     `zDash._bind_panel_data`, Bifrost via `_bind_root_zinja`'s block-level `zMeta` fallback
+
+gotcha: a panel's own same-file `zDelta` (a Refresh button, `action: zDelta($PanelName)`) silently dropped its `%data.*` binding on
+    Bifrost, even though the SAME panel's initial sidebar load resolved it fine
+    why      — the initial load's click carries `_renderTarget` (the dash's own lazy-load
+        marker), which flags the server-side bind as `is_dashboard_panel` and triggers the
+        block-level `zMeta` fallback (this file's golden note above); a plain in-panel zBtn
+        click carries no such marker, so the fallback never fired even though the walker
+        DID correctly re-resolve the target block against the stamped panel file
+        (`_panel_zVaFile`) — the zList just rendered its raw `%item.*` template, unbound
+    fix      — the server marks `is_dashboard_panel = True` whenever resolution actually
+        FALLS BACK to the stamped panel file (not just when the click's own payload says
+        so) — first caught by `zDemos/zCRM`'s zDash capstone (Add-then-Refresh)
+
+gotcha: a standalone (non-`%item`) `zBtn` with `action: {zModal: {...}}` — anywhere, not just in a
+    zDash panel — silently swallowed its click in Bifrost
+    why      — the chunked render engine treats a `zModal` action as a GATE (same family
+        as `zDialog`/`zForm`) needing a `wizard_gate_submit` to resume; `zModal` is actually
+        fire-and-forget client-side like `zDelta`/`zLink`/`zAlpha` — no submit ever arrives,
+        so the paused generator "resumes" on the raw click and skips straight past the
+        zModal dispatch without ever sending it. A zList's PER-ROW `zModal` (Delete/stage
+        buttons) was never affected — those render as plain content, not chunk-engine gates
+    fix      — `zModal` joined the non-gating action set (zEngine `zstride._NAV_ACTION_KEYS`)
+        — a standalone `zModal` button now needs NO `zDelta`-to-a-dialog-page workaround,
+        write it exactly like a per-row one (`zDemos/zCRM`'s panel-level Add Contact/Company/Deal)

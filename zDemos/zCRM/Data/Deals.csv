@@ -1,0 +1,5 @@
+id,title,contact_id,value,stage,created_at
+1,Acme Corp - Q3 Renewal,1,18000,Proposal,2026-07-01 09:00:00
+2,Globex Onboarding,2,9500,Qualified,2026-07-02 10:30:00
+3,Initech Expansion,1,32000,Lead,2026-07-03 14:15:00
+4,Umbrella Support Contract,2,5000,Won,2026-07-04 16:45:00

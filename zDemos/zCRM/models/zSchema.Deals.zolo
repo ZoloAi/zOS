@@ -1,0 +1,44 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:   csv
+    Data_Path:   @.Data
+    Data_Label:  Deals
+    Schema_Name: zSchema.Deals
+
+Deals:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    title:
+        type:     str
+        required: true
+        rules:
+            max_length: 120
+
+    #> the relational core, same shape as Contacts.company_id — a deal points
+    #  at a contact row; losing the contact un-links the deal instead of
+    #  blocking the delete or dragging the deal along <#
+    contact_id:
+        type:        int
+        nullable:    true
+        foreign_key: Contacts.id
+        on_delete:   set_null
+
+    value:
+        type:     float
+        required: true
+        default:  0
+
+    #> a fixed vocabulary, not a free string — every writer (Add_Deal's
+    #  insert, Pipeline's per-row stage buttons) sets one of these five
+    #  literal words, declaratively, no plugin <#
+    stage:
+        type:    str
+        default: Lead
+
+    created_at:
+        type:    datetime
+        default: now
