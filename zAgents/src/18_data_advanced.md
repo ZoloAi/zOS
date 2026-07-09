@@ -31,6 +31,12 @@ subquery: nest a `zData` inside `where` — one query answers another
     scalar — `where: {score: {$gt: {zData: {action: aggregate, function: avg, field: score}}}}`
     correlated — `%outer.<field>` inside inner (above THEIR OWN country avg: `where: country = %outer.country`)
     presence — `where: {zExists: {zData: {...}}}` (has a match) · `zNotExists` (empty) — `where: user_id = %outer.id`
+    !outer_alias — on an `auto_join` outer read, `%outer.<field>` must match the OUTER row's own dict key, which is
+        the QUALIFIED `Table.field` from that read's `fields:` list, NOT the bare column name — a plain `%outer.id`
+        silently binds nothing (dict-key lookup, no alias-stripping) and the correlated filter matches every row
+    golden   — `zDemos/zBooking`'s Open_Slots/New_Booking: "is this slot open" is `zNotExists` against Bookings
+        (`where: slot_id = %outer.Slots.id`) — availability is ALWAYS live, never a stored status flag that could
+        drift out of sync with the Bookings table; zero plugins
 
 cte: a big question as a stack of named steps
     `with: {high_scorers: {model, fields, where}}` then `from: high_scorers`

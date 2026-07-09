@@ -562,6 +562,16 @@ terminal: write once, it reads the room
     the same zDialog runs in zCLI (a prompt per field) and in Bifrost (one real form) — no second version
     rule: if it works in the terminal it works in the GUI — same answers into zConv, only the skin differs
 
+!page_dialog_key — a page-level (non-modal) zDialog must be its block's DIRECT event key (`zDialog:` itself,
+    not `SomeName: {zDialog: {...}}`) — zCLI's walker reads onSubmit off either shape fine, but Bifrost's
+    form-submit binding only resolves it off that exact direct path; wrapped under a custom name, submit
+    fails client-side with "No onSubmit action specified" even though the CLI proof of the identical zolo
+    passed. A zModal's inner zDialog is unaffected (different binding path) — see `zDemos/zBlog`'s Add_Post
+    for the correct shape
+golden — `zDemos/zBooking`'s New_Booking: a page-level zDialog (`fields: [slot_id, customer_name]`) whose
+    onSubmit is a bare `zData: {action: insert}` — the unique-constraint rejection renders inline, form
+    intact, in both zCLI and Bifrost, zero plugins
+
 ---
 
 zData: describe what to remember + the rules around it — zOS keeps it | one schema = the shape, one action saves/reads/changes it | table born from schema on first write, migrations grow it later | write once → same on csv/sqlite/postgres, zCLI + zBifrost
@@ -612,6 +622,10 @@ relationships: two tables hold hands — foreign keys + on_delete
     golden   — `zDemos/zBlog`: Posts + Comments (fk + on_delete: cascade), a per-row zModal+zDialog
         holding a real `zData: {action: insert|delete}` directly on `onSubmit` (no plugin needed),
         CLI-first, zRaven-covered
+    golden   — `zDemos/zBooking`: conflict validation is a plain `unique: true` on the booking's fk
+        column — a double-book bounces off the constraint's own built-in message, no validator/plugin;
+        availability itself is a live `zNotExists` read (see Advanced Queries), zero imperative code
+        anywhere in the app
 
 enforcement: two guards side by side (only matters if you poke the raw store by hand)
     in the DB    — pk, single-field unique, required, fk + on_delete
@@ -1025,6 +1039,11 @@ modes: two runners, one grammar — zMode in zSpark picks
         hand-swap, no CLI/Bifrost fork. --gen emits it once and it is correct for whichever zMode runs it.
     wrappers  — `zCLI:`/`zBifrost:` still honored; only needed when vocabulary is truly ambiguous (zLogger-only
         step, dict zSubmit) or to force a one-off hand-picked CSS selector instead of the field/option name
+    !data_zkey_depth — `data-zkey` is stamped per rendered key, but only reliably a `zClick: "[data-zkey='Key']"`
+        target when that key is a DIRECT child of its block (top-level button, e.g. zBlog's NewPost) — one level
+        under a plain organizational wrapper (a grouping block with no zGate, just structure) or inside a zList's
+        `each:` it's unreliable; reach for the element's own `_zClass` instead (zBlog's Edit/Delete buttons under
+        OwnerActions, zBooking's per-row Cancel under a zList row)
     zSubmit   — scalar value → zCLI stdin; dict {path, gate, value} → zBifrost WS gate
     shared    — `zAssert:`/`zMarker:`/`zLogger:` run in both modes (scope with a wrapper if not intended)
     first     — TERMINAL IS TRUTH: CLI green, then flip to zBifrost (the coat, not a second test)
@@ -1418,6 +1437,12 @@ seek_as_need: only if extending the widget, not authoring
     bifrost render— zbifrost-client/.../composite/dashboard_renderer.js (sidebar/tabs, lazy load via `execute_walker`, mobile drawer) + zbase.css §10 (`.zDash-*`)
     icons        — panel `icon:` is a `bi-*` via IconMapper/IconRenderer SSOT (`[name]` terminal, `<i class="bi bi-*">` browser)
 
+golden: `zDemos/zConsole` — a dev-console zDash (Overview/Snippets/Status/Hosting) proving a
+    panel's OWN `zMeta.zSpool` (nested inside the panel block, not file-root — the one
+    deliberate exception to "zMeta always root-level") resolves a live `%data.*` read AND a
+    page-scope `zKnot` computed off it, in BOTH zCLI and Bifrost — CLI via
+    `zDash._bind_panel_data`, Bifrost via `_bind_root_zinja`'s block-level `zMeta` fallback
+
 ---
 
 zLoom — dynamic content: mark a spot with `%` and zLoom weaves in what's LIVE, REPEATED, or COMPUTED | a value always has a declared source — one sigil covers them all | declared, never hardcoded | write once → resolved before the render split, identical in zCLI + zBifrost
@@ -1453,6 +1478,11 @@ spool: where a live value comes from — the reel a `%` thread pulls off
         DICT (`where: {id: %session.zVisitor.id}`), not a `field = value` STRING — a spool's `%session.*` interpolation
         only runs on the dict shape; a string `where` ships the literal token text and the read silently returns
         nothing (no error, just an empty reel) — `zDemos/zBlog`'s Profile page is the worked example
+    freshness — a `zMeta.zSpool` is re-resolved on EVERY landed render (boot, zLink, zDelta alike) — a list-backed
+        reel always reflects a write made moments earlier on a DIFFERENT screen, same session
+    golden   — `zDemos/zBooking`'s My_Bookings: a `zList` reel joining 3 tables, freshly re-read after a `zDelta`
+        hop away and back (New_Booking's own insert) — zero plugins, availability itself is a `zNotExists` read
+        (see Advanced Queries), conflict validation a plain `unique: true` (see Data CRUD)
 
 dye: finish a value on its way to the page — the `|` pipe
     `%value | dye` — send through a step; chain freely (`%x | trim | title`), left-to-right
@@ -1527,6 +1557,12 @@ subquery: nest a `zData` inside `where` — one query answers another
     scalar — `where: {score: {$gt: {zData: {action: aggregate, function: avg, field: score}}}}`
     correlated — `%outer.<field>` inside inner (above THEIR OWN country avg: `where: country = %outer.country`)
     presence — `where: {zExists: {zData: {...}}}` (has a match) · `zNotExists` (empty) — `where: user_id = %outer.id`
+    !outer_alias — on an `auto_join` outer read, `%outer.<field>` must match the OUTER row's own dict key, which is
+        the QUALIFIED `Table.field` from that read's `fields:` list, NOT the bare column name — a plain `%outer.id`
+        silently binds nothing (dict-key lookup, no alias-stripping) and the correlated filter matches every row
+    golden   — `zDemos/zBooking`'s Open_Slots/New_Booking: "is this slot open" is `zNotExists` against Bookings
+        (`where: slot_id = %outer.Slots.id`) — availability is ALWAYS live, never a stored status flag that could
+        drift out of sync with the Bookings table; zero plugins
 
 cte: a big question as a stack of named steps
     `with: {high_scorers: {model, fields, where}}` then `from: high_scorers`

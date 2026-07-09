@@ -1,0 +1,272 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Bifrost flow — zMode: zBifrost (was zCLI during phase_CLI; the CLI-proof of
+# this exact logic — zNotExists availability, unique-constraint conflict,
+# zDelta same-file nav — lives in zVersions/commits/zBooking's CLI milestone).
+# Zero plugins anywhere: conflict validation is Bookings.slot_id: unique: true,
+# availability is a live zNotExists read, booking/cancel are zDialog.onSubmit
+# holding a real zData insert/delete directly.
+
+Tests:
+
+    # ── Bifrost: open page, seeded providers table ──────────────────────────
+    Open_App:
+        zOpen: zSpark
+        zWait:
+            selector: "[data-zkey='OpenSlots_Btn']"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Providers_Seeded:
+        zAssert:
+            dom:
+                selector: body
+                contains: Jamie Rivera
+
+    # ── Open Slots: derived read — the seeded booking's slot must be hidden ──
+    Click_Open_Slots:
+        zClick:
+            selector: "[data-zkey='OpenSlots_Btn'] button"
+        zWait:
+            selector: table
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Slot1_Open:
+        zAssert:
+            dom:
+                selector: table
+                contains: 09:05:00
+
+    #> id 2 has a seeded Booking against it — zNotExists must drop it from
+    #  the open list, proving availability is derived, not a stale flag <#
+    Assert_Slot2_Hidden_Seed:
+        zAssert:
+            dom:
+                selector: table
+                not_contains: 09:35:00
+
+    Back_From_Open_Slots:
+        zClick:
+            selector: "[data-zkey='Back'] button"
+        zWait:
+            selector: "[data-zkey='OpenSlots_Btn']"
+            state: visible
+            timeout: 8000
+
+    # ── New Booking: double-book a slot already taken — unique rejects it ───
+    Click_New_Booking:
+        zClick:
+            selector: "[data-zkey='NewBooking_Btn'] button"
+        zWait:
+            selector: "[name='slot_id']"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Fill_Conflicting_Booking:
+        zFill:
+            slot_id:       2
+            customer_name: Taylor Swift
+        zShot:
+            full_page: true
+
+    Assert_Conflict_Rejected:
+        #> Bookings.slot_id: unique: true is the ENTIRE conflict-validation
+        #  story — no plugin, no hand-rolled overlap check, just zData's own
+        #  constraint bouncing the insert with its own built-in message <#
+        zAssert:
+            dom:
+                selector: body
+                contains: must be unique
+
+    # ── New Booking: a real open slot — insert succeeds ─────────────────────
+    Fill_Real_Booking:
+        zFill:
+            slot_id:       1
+            customer_name: Taylor Swift
+        zShot:
+            full_page: true
+
+    Back_From_New_Booking:
+        zClick:
+            selector: "[data-zkey='Back'] button"
+        zWait:
+            selector: "[data-zkey='OpenSlots_Btn']"
+            state: visible
+            timeout: 8000
+
+    # ── Slot 1 is now taken too — Open Slots must drop it, live ─────────────
+    Click_Open_Slots_While_Booked:
+        zClick:
+            selector: "[data-zkey='OpenSlots_Btn'] button"
+        zWait:
+            selector: table
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Slot1_Hidden_After_Booking:
+        zAssert:
+            dom:
+                selector: table
+                not_contains: 09:05:00
+
+    Back_From_Open_Slots_2:
+        zClick:
+            selector: "[data-zkey='Back'] button"
+        zWait:
+            selector: "[data-zkey='OpenSlots_Btn']"
+            state: visible
+            timeout: 8000
+
+    # ── My Bookings: joined read shows both the seed + the new booking ──────
+    Click_My_Bookings:
+        zClick:
+            selector: "[data-zkey='MyBookings_Btn'] button"
+        zWait:
+            selector: .zBooking-list
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Seed_Booking_Joined:
+        zAssert:
+            dom:
+                selector: .zBooking-list
+                contains: Morgan Lee
+
+    Assert_New_Booking_Joined:
+        zAssert:
+            dom:
+                selector: .zBooking-list
+                contains: Taylor Swift
+
+    # ── Cancel the new booking — a delete, not a status flip ────────────────
+    Open_Cancel_Dialog:
+        zClick:
+            selector: ".zBooking-row:has-text('Taylor Swift') .zBooking-cancel-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Confirm_Cancel:
+        zClick:
+            selector: ".zModal-overlay button[type='submit']"
+        zShot:
+            full_page: true
+
+    Close_Cancel_Dialog:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+
+    #> the zDelta staleness fix (handler_navigation.handle_zdelta now re-runs
+    #  prepare_block_render) is what makes THIS re-read live — Back then
+    #  My Bookings again is a fresh zDelta hop each way, same file <#
+    Back_From_My_Bookings:
+        zClick:
+            selector: "[data-zkey='Back'] button"
+        zWait:
+            selector: "[data-zkey='OpenSlots_Btn']"
+            state: visible
+            timeout: 8000
+
+    Reopen_My_Bookings:
+        zClick:
+            selector: "[data-zkey='MyBookings_Btn'] button"
+        zWait:
+            selector: .zBooking-list
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Booking_Cancelled:
+        zAssert:
+            dom:
+                selector: .zBooking-list
+                not_contains: Taylor Swift
+
+    Assert_Seed_Booking_Still_There:
+        zAssert:
+            dom:
+                selector: .zBooking-list
+                contains: Morgan Lee
+
+    Back_From_My_Bookings_2:
+        zClick:
+            selector: "[data-zkey='Back'] button"
+        zWait:
+            selector: "[data-zkey='OpenSlots_Btn']"
+            state: visible
+            timeout: 8000
+
+    # ── Cancelling frees the slot — Open Slots shows it again, live ─────────
+    Click_Open_Slots_Again:
+        zClick:
+            selector: "[data-zkey='OpenSlots_Btn'] button"
+        zWait:
+            selector: table
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Slot1_Reopened:
+        zAssert:
+            dom:
+                selector: table
+                contains: 09:05:00
+
+    Assert_Slot2_Still_Hidden:
+        zAssert:
+            dom:
+                selector: table
+                not_contains: 09:35:00
+
+    # ── Shippable at all three viewports ─────────────────────────────────────
+    Shot_Desktop:
+        zViewport: desktop
+        zOpen: zSpark
+        zWait:
+            selector: "[data-zkey='OpenSlots_Btn']"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Shot_Tablet:
+        zViewport: tablet
+        zOpen: zSpark
+        zWait:
+            selector: "[data-zkey='OpenSlots_Btn']"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Shot_Mobile:
+        zViewport: mobile
+        zOpen: zSpark
+        zWait:
+            selector: "[data-zkey='OpenSlots_Btn']"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Done:
+        zMarker: done

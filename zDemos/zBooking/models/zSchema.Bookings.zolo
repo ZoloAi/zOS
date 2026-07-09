@@ -1,0 +1,36 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# The conflict-validation payoff (08_data_crud.md "enforcement: in the DB —
+# pk, single-field unique..."): slot_id: unique: true means a second booking
+# for the SAME slot is rejected by zData itself on insert — no validator, no
+# plugin, no hand-rolled overlap check. One booking per slot, full stop.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        Bookings
+    Schema_Name:       zSchema.Bookings
+    zMigration:        true
+    zMigrationVersion: v1.0.0
+
+Bookings:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    slot_id:
+        type:        int
+        required:    true
+        unique:      true
+        foreign_key: Slots.id
+        on_delete:   cascade
+
+    customer_name:
+        type:     str
+        required: true
+        rules:
+            max_length: 120
+
+    created_at:
+        type:    datetime
+        default: now

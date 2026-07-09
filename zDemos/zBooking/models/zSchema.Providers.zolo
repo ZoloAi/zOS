@@ -1,0 +1,25 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        Providers
+    Schema_Name:       zSchema.Providers
+    zMigration:        true
+    zMigrationVersion: v1.0.0
+
+Providers:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    name:
+        type:     str
+        required: true
+        rules:
+            max_length: 120
+
+    role:
+        type:    str
+        default: Stylist

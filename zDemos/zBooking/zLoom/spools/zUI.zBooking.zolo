@@ -1,0 +1,14 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Only fed values a %item loop needs (Cancel's per-row id) live here — a page
+# that only SHOWS its read (Open Slots, Providers) asks zData directly and
+# lets it auto-draw, no spool needed (08_data_crud.md "zTable draws").
+
+my_bookings:
+    zData:
+        action:    read
+        model:     @.models.zSchema.Bookings
+        table:     Bookings
+        tables:    [Bookings, Slots, Providers]
+        auto_join: true
+        fields:    [Bookings.id, Bookings.customer_name, Slots.date, Slots.start_time, Slots.end_time, Providers.name]
+        order_by:  Slots.date ASC

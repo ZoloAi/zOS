@@ -32,6 +32,11 @@ spool: where a live value comes from — the reel a `%` thread pulls off
         DICT (`where: {id: %session.zVisitor.id}`), not a `field = value` STRING — a spool's `%session.*` interpolation
         only runs on the dict shape; a string `where` ships the literal token text and the read silently returns
         nothing (no error, just an empty reel) — `zDemos/zBlog`'s Profile page is the worked example
+    freshness — a `zMeta.zSpool` is re-resolved on EVERY landed render (boot, zLink, zDelta alike) — a list-backed
+        reel always reflects a write made moments earlier on a DIFFERENT screen, same session
+    golden   — `zDemos/zBooking`'s My_Bookings: a `zList` reel joining 3 tables, freshly re-read after a `zDelta`
+        hop away and back (New_Booking's own insert) — zero plugins, availability itself is a `zNotExists` read
+        (see Advanced Queries), conflict validation a plain `unique: true` (see Data CRUD)
 
 dye: finish a value on its way to the page — the `|` pipe
     `%value | dye` — send through a step; chain freely (`%x | trim | title`), left-to-right

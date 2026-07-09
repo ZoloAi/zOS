@@ -1,0 +1,37 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# A slot is a published, bookable window — the provider's own availability,
+# published one row per window (no recurring-weekday rule to evaluate at
+# booking time). Whether a slot is still OPEN is never stored here — it's
+# derived live from Bookings (zNotExists) wherever it's shown, see zLoom spool.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        Slots
+    Schema_Name:       zSchema.Slots
+    zMigration:        true
+    zMigrationVersion: v1.0.0
+
+Slots:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    provider_id:
+        type:        int
+        required:    true
+        foreign_key: Providers.id
+        on_delete:   cascade
+
+    date:
+        type:     date
+        required: true
+
+    start_time:
+        type:     time
+        required: true
+
+    end_time:
+        type:     time
+        required: true

@@ -1,0 +1,206 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Golden app 11 — booking/scheduling, zero plugins. Availability is a derived
+# read (a slot is open iff no Booking references it — zNotExists, never a
+# stored status field to keep in sync). Conflict validation is a plain
+# `unique: true` on Bookings.slot_id — zData rejects a double-booking itself,
+# no validator, no hand-rolled overlap check anywhere.
+
+zMeta:
+    zBrush: [zBooking]
+    zSpool: [my_bookings]
+
+Main:
+    zH1:
+        label: zBooking
+        color: PRIMARY
+        _zClass: zBooking-title
+
+    Lead:
+        zText:
+            content: A stylist/barber shop's slot board — pick an open time, book it, or manage what you've booked.
+            _zClass: zBooking-lead
+
+    Providers_Table:
+        zData:
+            action: read
+            model:  @.models.zSchema.Providers
+            fields: [id, name, role]
+            order_by: id ASC
+
+    #> direct children of Main, NOT nested under a wrapper block — a data-zkey
+    #  survives on a top-level block's own element (zbifrost-client stamps it
+    #  per rendered key), but is unreliable one level down under a plain
+    #  organizational container (same gap zBlog's Actions/OwnerActions hit,
+    #  which is why THOSE reach for their own _zClass instead) <#
+    OpenSlots_Btn:
+        zBtn:
+            label:  bi-calendar-check + Open Slots
+            color:  primary
+            _zClass: zBooking-open-slots-btn
+            action: zDelta($Open_Slots)
+
+    NewBooking_Btn:
+        zBtn:
+            label:  bi-plus-lg + New Booking
+            color:  primary
+            _zClass: zBooking-new-booking-btn
+            action: zDelta($New_Booking)
+
+    MyBookings_Btn:
+        zBtn:
+            label:  bi-list-check + My Bookings
+            color:  secondary
+            _zClass: zBooking-my-bookings-btn
+            action: zDelta($My_Bookings)
+
+#> the availability payoff (08_data_crud.md / Advanced Queries "EXISTS /
+#  NOT EXISTS"): a slot is open iff no Booking's slot_id points at it —
+#  zNotExists re-asks that per row, so open-ness is ALWAYS live, never a
+#  status flag that could drift out of sync with Bookings. %outer.<field>
+#  binds off the OUTER row's own dict keys — an auto_join'd read keys its
+#  rows by the qualified `Table.field` from `fields:`, not the bare column
+#  name, so the correlation MUST read %outer.Slots.id here, not %outer.id
+#  (crud_read._bind_outer does a literal dict-key lookup, no alias-stripping) <#
+Open_Slots:
+    zH1:
+        label: Open Slots
+        color: PRIMARY
+        _zClass: zBooking-title
+
+    Lead:
+        zText:
+            content: Every published slot with no booking against it yet — pick its id for New Booking.
+            _zClass: zBooking-lead
+
+    Table:
+        zData:
+            action:    read
+            model:     @.models.zSchema.Slots
+            table:     Slots
+            tables:    [Slots, Providers]
+            auto_join: true
+            fields:    [Slots.id, Slots.date, Slots.start_time, Slots.end_time, Providers.name]
+            where:
+                zNotExists:
+                    zData:
+                        action: read
+                        model:  @.models.zSchema.Bookings
+                        where:  slot_id = %outer.Slots.id
+            order_by:  Slots.date ASC
+
+    Back:
+        zBtn:
+            label:  ← Back
+            color:  secondary
+            _zClass: zBooking-back-btn
+            action: zDelta($Main)
+
+New_Booking:
+    zH1:
+        label: New Booking
+        color: PRIMARY
+        _zClass: zBooking-title
+
+    Lead:
+        zText:
+            content: Pick a slot id from the open list below.
+            _zClass: zBooking-lead
+
+    OpenSlots_Table:
+        zData:
+            action:    read
+            model:     @.models.zSchema.Slots
+            table:     Slots
+            tables:    [Slots, Providers]
+            auto_join: true
+            fields:    [Slots.id, Slots.date, Slots.start_time, Slots.end_time, Providers.name]
+            where:
+                zNotExists:
+                    zData:
+                        action: read
+                        model:  @.models.zSchema.Bookings
+                        where:  slot_id = %outer.Slots.id
+            order_by:  Slots.date ASC
+
+    #> onSubmit holds a REAL zData insert directly (08_data_crud.md "a
+    #  zDialog.onSubmit CAN hold a real zData: {action: insert} block — no
+    #  plugin needed"). slot_id: unique: true on the Bookings schema is the
+    #  ENTIRE conflict-validation story — a double-booked slot bounces off
+    #  the unique constraint with its own error_message, inline on the form.
+    #  A page-level (non-modal) zDialog must be the block's DIRECT event key,
+    #  not nested under a custom name — Bifrost's form-submit binding reads
+    #  onSubmit off THAT exact path (zCLI's walker doesn't care either way,
+    #  hence this only broke over the wire, matching zBlog's own Add_Post
+    #  shape exactly) <#
+    zDialog:
+        title:  Book a slot
+        model:  @.models.zSchema.Bookings
+        fields: [slot_id, customer_name]
+        _zClass: zBooking-dialog
+        onSubmit:
+            zData:
+                action: insert
+                model:  @.models.zSchema.Bookings
+                data:
+                    slot_id:       zConv.slot_id
+                    customer_name: zConv.customer_name
+
+    Back:
+        zBtn:
+            label:  ← Back
+            color:  secondary
+            _zClass: zBooking-back-btn
+            action: zDelta($Main)
+
+#> the list IS the home screen for bookings — each row carries %item.id for
+#  its own Cancel, same canonical shape as zBlog's per-row Delete <#
+My_Bookings:
+    zH1:
+        label: My Bookings
+        color: PRIMARY
+        _zClass: zBooking-title
+
+    #> a joined %item keys by the QUALIFIED `Table.field` from the spool's
+    #  own `fields:` list (crud_read's row shape, same rule as %outer above)
+    #  — %item.name/.date silently print as literal text, never interpolate,
+    #  unless spelled %item.Providers.name / %item.Slots.date <#
+    List:
+        _zClass: zBooking-list
+        zList:
+            source: %data.my_bookings
+            each:
+                Row:
+                    _zClass: zBooking-row
+
+                    Detail:
+                        zText:
+                            content: %item.Providers.name · %item.Slots.date %item.Slots.start_time-%item.Slots.end_time · %item.Bookings.customer_name
+                            _zClass: zBooking-row-detail
+
+                    #> a per-row zModal + zDialog (fields: []) with a real zData
+                    #  delete directly on onSubmit — zBlog's proven Delete shape
+                    #  (08_data_crud.md), no plugin. Deleting the booking frees
+                    #  the slot for free — Open_Slots' zNotExists just stops
+                    #  matching it, nothing else to update <#
+                    Cancel:
+                        zBtn:
+                            label:  bi-x-circle + Cancel
+                            color:  danger
+                            _zClass: zBooking-cancel-btn
+                            action:
+                                zModal:
+                                    zDialog:
+                                        title:  Cancel this booking?
+                                        fields: []
+                                        onSubmit:
+                                            zData:
+                                                action: delete
+                                                model:  @.models.zSchema.Bookings
+                                                where:  id = %item.Bookings.id
+
+    Back:
+        zBtn:
+            label:  ← Back
+            color:  secondary
+            _zClass: zBooking-back-btn
+            action: zDelta($Main)

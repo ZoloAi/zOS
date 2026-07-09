@@ -1,0 +1,91 @@
+/* zBooking.css — loaded via zMeta.zBrush: [zBooking] -> /styles/zBooking.css
+   Teaching goal: a slot board (auto-drawn zData tables) plus a per-row zList
+   of bookings with its own Cancel modal — this file only skins those two
+   surfaces + the nav bar shared across Main/Open_Slots/New_Booking/My_Bookings. */
+
+:root {
+    --zbk-bg: #f5f7f8;
+    --zbk-ink: #1f2937;
+    --zbk-muted: #6b7280;
+    --zbk-line: rgba(31, 41, 55, 0.1);
+    --zbk-accent: #2563eb;
+}
+
+body {
+    background: var(--zbk-bg);
+}
+
+#zVaF-content {
+    max-width: 680px;
+    margin: 48px auto;
+    padding: 0 16px;
+}
+
+.zBooking-title {
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.zBooking-lead {
+    text-align: center;
+    color: var(--zbk-muted);
+    margin-bottom: 24px;
+}
+
+.zBooking-section-label {
+    font-weight: 600;
+    color: var(--zbk-ink);
+    margin-top: 4px;
+    margin-bottom: 8px;
+}
+
+.zBooking-open-slots-btn,
+.zBooking-new-booking-btn,
+.zBooking-my-bookings-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin: 4px 6px 0 0;
+}
+
+.zBooking-back-btn {
+    margin-top: 20px;
+    padding: 6px 16px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+}
+
+.zBooking-dialog {
+    max-width: 420px;
+}
+
+.zBooking-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.zBooking-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: #fff;
+    border: 1px solid var(--zbk-line);
+    border-radius: 12px;
+    padding: 14px 18px;
+    box-shadow: 0 6px 18px rgba(31, 41, 55, 0.05);
+}
+
+.zBooking-row-detail {
+    color: var(--zbk-ink);
+    font-size: 0.92rem;
+}
+
+.zBooking-cancel-btn {
+    flex-shrink: 0;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+}

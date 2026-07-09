@@ -64,6 +64,11 @@ modes: two runners, one grammar — zMode in zSpark picks
         hand-swap, no CLI/Bifrost fork. --gen emits it once and it is correct for whichever zMode runs it.
     wrappers  — `zCLI:`/`zBifrost:` still honored; only needed when vocabulary is truly ambiguous (zLogger-only
         step, dict zSubmit) or to force a one-off hand-picked CSS selector instead of the field/option name
+    !data_zkey_depth — `data-zkey` is stamped per rendered key, but only reliably a `zClick: "[data-zkey='Key']"`
+        target when that key is a DIRECT child of its block (top-level button, e.g. zBlog's NewPost) — one level
+        under a plain organizational wrapper (a grouping block with no zGate, just structure) or inside a zList's
+        `each:` it's unreliable; reach for the element's own `_zClass` instead (zBlog's Edit/Delete buttons under
+        OwnerActions, zBooking's per-row Cancel under a zList row)
     zSubmit   — scalar value → zCLI stdin; dict {path, gate, value} → zBifrost WS gate
     shared    — `zAssert:`/`zMarker:`/`zLogger:` run in both modes (scope with a wrapper if not intended)
     first     — TERMINAL IS TRUTH: CLI green, then flip to zBifrost (the coat, not a second test)

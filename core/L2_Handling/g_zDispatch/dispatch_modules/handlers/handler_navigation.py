@@ -565,6 +565,19 @@ class NavigationHandler:
                 f"'{target_block_name}' — starting at top"
             )
 
+        # zLoom SSOT pre-render (parity with navigation_linking's zLink hop and
+        # zWalker.run's boot entry): re-bind the file-root zMeta.zSpool + loop-
+        # expand any zList/zShuttle in the LANDED block BEFORE dispatch. Without
+        # this a zDelta ($Block, same-file) hop reused whatever %data.* was
+        # resolved at app boot (session["_current_block_data"]) forever after —
+        # a spool declaring a live list (e.g. a zList's `source: %data.<spool>`)
+        # never saw a row written by an insert/delete that happened AFTER boot,
+        # even though every OTHER nav primitive (zLink, the initial boot render)
+        # already re-resolved it on each hop. First caught by zDemos/zBooking's
+        # My_Bookings screen: a booking made via New_Booking (a zDelta hop away)
+        # never appeared in My_Bookings' zList until the next process restart.
+        block_context = self.zos.zloom.prepare_block_render(raw_zFile, target_block_dict)
+
         # Navigate to the target block.
         # SSOT navigation (parity with zLink): hand the walker's own navigation
         # callbacks to the nested loop so the landed delta block honors zCrumbs.
@@ -585,11 +598,13 @@ class NavigationHandler:
                 items_dict=target_block_dict,
                 start_key=start_key,
                 navigation_callbacks=nav_callbacks,
+                context=block_context,
             )
         return walker.execute_loop(
             items_dict=target_block_dict,
             start_key=start_key,
             navigation_callbacks=nav_callbacks,
+            context=block_context,
         )
 
     def handle_zdelegate(

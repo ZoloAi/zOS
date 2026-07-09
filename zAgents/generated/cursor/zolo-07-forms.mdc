@@ -67,3 +67,13 @@ zconv: the bag of answers
 terminal: write once, it reads the room
     the same zDialog runs in zCLI (a prompt per field) and in Bifrost (one real form) — no second version
     rule: if it works in the terminal it works in the GUI — same answers into zConv, only the skin differs
+
+!page_dialog_key — a page-level (non-modal) zDialog must be its block's DIRECT event key (`zDialog:` itself,
+    not `SomeName: {zDialog: {...}}`) — zCLI's walker reads onSubmit off either shape fine, but Bifrost's
+    form-submit binding only resolves it off that exact direct path; wrapped under a custom name, submit
+    fails client-side with "No onSubmit action specified" even though the CLI proof of the identical zolo
+    passed. A zModal's inner zDialog is unaffected (different binding path) — see `zDemos/zBlog`'s Add_Post
+    for the correct shape
+golden — `zDemos/zBooking`'s New_Booking: a page-level zDialog (`fields: [slot_id, customer_name]`) whose
+    onSubmit is a bare `zData: {action: insert}` — the unique-constraint rejection renders inline, form
+    intact, in both zCLI and Bifrost, zero plugins
