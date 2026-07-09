@@ -1,0 +1,52 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:   csv
+    Data_Path:   @.Data
+    Data_Label:  Processed
+    Schema_Name: zSchema.Processed
+
+#> the whole point of this app: TWO real zPaths per row (before/after), not
+#  one stored image like zGallery's Photos — plugins/darkroom.py does real
+#  PIL work between them, and every stat below is MEASURED, never guessed <#
+Processed:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    title:
+        type:     str
+        required: true
+        rules:
+            max_length: 120
+
+    operation:
+        type:     str
+        required: true
+
+    original_image:
+        type:     str
+        required: true
+
+    processed_image:
+        type:     str
+        required: true
+
+    original_width:
+        type: int
+    original_height:
+        type: int
+    processed_width:
+        type: int
+    processed_height:
+        type: int
+
+    original_kb:
+        type: float
+    processed_kb:
+        type: float
+
+    created_at:
+        type:    datetime
+        default: now

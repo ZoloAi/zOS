@@ -72,7 +72,8 @@ modes: two runners, one grammar — zMode in zSpark picks
         target when that key is a DIRECT child of its block (top-level button, e.g. zBlog's NewPost) — one level
         under a plain organizational wrapper (a grouping block with no zGate, just structure) or inside a zList's
         `each:` it's unreliable; reach for the element's own `_zClass` instead (zBlog's Edit/Delete buttons under
-        OwnerActions, zBooking's per-row Cancel under a zList row)
+        OwnerActions, zBooking's per-row Cancel under a zList row, zShop's Nav-wrapped Cart button under
+        `NavCart` → `.zShop-nav-cart-btn`)
     zSubmit   — scalar value → zCLI stdin; dict {path, gate, value} → zBifrost WS gate
     shared    — `zAssert:`/`zMarker:`/`zLogger:` run in both modes (scope with a wrapper if not intended)
     first     — TERMINAL IS TRUTH: CLI green, then flip to zBifrost (the coat, not a second test)

@@ -1,0 +1,102 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    zBrush: [zdarkroom]
+    zSpool: [jobs, job_count]
+
+Main:
+    zH1:
+        label: Darkroom
+        color: PRIMARY
+
+    Subtitle:
+        zText:
+            content: Upload a photo, pick a real transform, see the measured before/after.
+            _zClass: zDarkroom-subtitle
+
+    #> MVP dogfood segment 1: browse only. Each card is a REAL before/after —
+    #  two zImage side by side, plus stats MEASURED by plugins/darkroom.py
+    #  (not guessed) — the whole reason this app is more than zGallery <#
+    History:
+        _zClass: zDarkroom-history
+        zList:
+            source: %data.jobs
+            each:
+                Card:
+                    _zClass: zDarkroom-card
+
+                    Compare:
+                        _zClass: zDarkroom-compare
+
+                        Before:
+                            _zClass: zDarkroom-before
+                            Tag:
+                                zText:
+                                    content: Before
+                                    _zClass: zDarkroom-tag
+                            Thumb:
+                                zImage:
+                                    src:      %item.original_image
+                                    alt_text: %item.title (original)
+                                    _zClass:  zDarkroom-thumb
+
+                        After:
+                            _zClass: zDarkroom-after
+                            Tag:
+                                zText:
+                                    content: After
+                                    _zClass: zDarkroom-tag
+                            Thumb:
+                                zImage:
+                                    src:      %item.processed_image
+                                    alt_text: %item.title (%item.operation)
+                                    _zClass:  zDarkroom-thumb
+
+                    Title:
+                        zText:
+                            content: %item.title
+                            _zClass: zDarkroom-title
+
+                    Stats:
+                        zText:
+                            content: %item.operation — %item.original_width x %item.original_height (%item.original_kb KB) -> %item.processed_width x %item.processed_height (%item.processed_kb KB)
+                            _zClass: zDarkroom-stats
+
+                    #> per_row delete (08_data_crud.md) — the plugin cleans up
+                    #  BOTH static files before dropping the row <#
+                    Delete:
+                        zBtn:
+                            label:   bi-trash Delete
+                            color:   danger
+                            _zClass: zDarkroom-delete
+                            action:  &.darkroom.delete_processed(%item.id)
+
+    Process:
+        zBtn:
+            label:   bi-magic Process a Photo
+            color:   primary
+            _zClass: zDarkroom-process-btn
+            action:  zDelta($Add)
+
+#> MVP dogfood segment 2: process a photo — file input + zDialog collector
+#  (06_inputs.md + 07_forms.md), same pairing as zGallery's Add_Photo, but
+#  onSubmit hands off to a plugin that does REAL PIL work, not just a copy <#
+Add:
+    zH1:
+        label: Process a Photo
+        color: PRIMARY
+
+    zDialog:
+        title: New Job
+        fields: [
+            {zConv: title,     type: text,   label: Title,     required: true},
+            {zConv: operation, type: select, label: Operation, options: [grayscale, thumbnail, blur, rotate_90, sepia], required: true},
+            {zConv: photo,     type: file,    label: Photo,     placeholder: @.upload_bank.sample_photo.jpg},
+        ]
+        onSubmit:
+            zFunc: &.darkroom.process_photo(zConv.title, zConv.operation, zConv.photo)
+
+    Back:
+        zBtn:
+            label:  ← Back
+            action: zDelta($Main)

@@ -18,6 +18,9 @@ aggregate: many rows → one answer — `action: aggregate`
     function — count · count_distinct · sum · avg · min · max · median · stddev · variance · group_concat (string_agg); non-count takes `field:`
     group_by — `<field>` (one per group) · `[country, occupation]` (per combination) · `alias:` names the computed column
     filter   — `having: total > 1` (by aggregate) · `where: <expr>` (which rows count) · `distinct: true`
+    shape    — NO `group_by` → the whole reel resolves to a bare SCALAR (`%data.cart_subtotal`), never a `.0.<alias>`
+        row; add `group_by` and it flips to a LIST of `{<group_field>, <alias>}` rows like any other read — the
+        `alias:` key only matters once it's a row you're pulling a named field off of
 
 window: an answer per row, keep every row — `action: window`
     rank/offset — row_number · rank · dense_rank · percent_rank · cume_dist · ntile (+buckets: 4) · lag/lead (+field:, offset: 1)

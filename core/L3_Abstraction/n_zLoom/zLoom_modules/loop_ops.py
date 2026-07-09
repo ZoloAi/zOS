@@ -6,9 +6,31 @@ zWizard chunks) BEFORE the render split, so no render-time loop primitive or
 ``%item`` awareness leaks downstream. Mixed into the ``zLoom`` facade.
 """
 
+import json
+
 from zOS import Any, Dict
 
 from .token_resolver import LOOP_FRAME_KEY
+
+# Private stash key for a zList's ORIGINAL directive, surviving past its own
+# expansion. `raw_zFile[block_name]` (handler_navigation._resolve_delta_target_
+# block) hands out a LIVE reference into the loader's cached parse, not a copy
+# — a block revisited via zDelta within the same process re-expands the SAME
+# dict. Popping `zList` outright (the render contract: the walker/dispatcher
+# have no primitive for a raw zList key, only baked zListItem__N children) is
+# fine for a page rendered ONCE, but a page revisited later would find no
+# `zList` left to re-expand and freeze at whatever its FIRST visit saw — e.g.
+# an empty history list on first render never grows even after a real insert.
+#
+# Stored as a JSON STRING, never a dict: every metadata key that ever existed
+# before this one (`_zClass`, `_zStyle`, ...) held a scalar, so more than one
+# render path skips organizational recursion with a bare `isinstance(val,
+# dict)` check rather than an explicit key allow-list — a dict-valued stash
+# would silently render as one more phantom child block (its raw `each`
+# template, unresolved %item tokens and all) under any such path. A string
+# value is inert everywhere without needing every one of those paths found +
+# patched.
+_ZLIST_SOURCE_KEY = "__zListSource"
 
 
 class LoopOps:
@@ -61,9 +83,24 @@ class LoopOps:
                     if isinstance(item, dict):
                         self._expand_node(item, resolved_data, context)
 
+        # A never-yet-expanded node has `zList`; a node REVISITED later in the
+        # same process (see _ZLIST_SOURCE_KEY) only has the stashed original —
+        # either is a valid cfg to re-weave against this call's fresh data.
         cfg = node.get("zList")
+        if not isinstance(cfg, dict):
+            cfg = self._load_zlist_source(node.get(_ZLIST_SOURCE_KEY))
         if isinstance(cfg, dict):
             self._expand_zlist_into(node, cfg, resolved_data, context)
+
+    @staticmethod
+    def _load_zlist_source(stashed: Any) -> Any:
+        """Deserialize a JSON-string ``_ZLIST_SOURCE_KEY`` stash back to a dict."""
+        if not isinstance(stashed, str):
+            return None
+        try:
+            return json.loads(stashed)
+        except (TypeError, ValueError):
+            return None
 
     def _expand_zlist_into(
         self,
@@ -78,8 +115,19 @@ class LoopOps:
         rows = self._lookup_list_source(cfg.get("source", ""), resolved_data)
         each_tmpl = cfg.get("each", {})
         gate = cfg.get("zGate")  # optional per-row filter (jinja `{% for … if … %}`)
-        # Consume the directive regardless, so no render-time loop primitive leaks.
+        # Consume the PUBLIC directive regardless (no render-time loop primitive
+        # leaks), but stash the original so THIS SAME node — a live reference a
+        # revisit within the process shares (see _ZLIST_SOURCE_KEY) — can be
+        # re-woven against fresh data next time instead of freezing forever.
         parent.pop("zList", None)
+        try:
+            parent[_ZLIST_SOURCE_KEY] = json.dumps(cfg)
+        except TypeError:
+            pass  # non-JSON-safe cfg (shouldn't happen for parsed zolo) — skip the stash
+        # Drop any rows woven on a PRIOR visit before reweaving — row count/
+        # content may have changed (grown, shrunk, edited) since then.
+        for stale_key in [k for k in parent if isinstance(k, str) and k.startswith("zListItem__")]:
+            del parent[stale_key]
         if not isinstance(rows, list) or not isinstance(each_tmpl, dict) or not each_tmpl:
             return
 

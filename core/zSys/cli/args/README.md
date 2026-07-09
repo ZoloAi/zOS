@@ -13,10 +13,12 @@ zSys/cli/
 │   ├── config_args.py    # 'config' command arguments
 │   ├── ztests_args.py    # 'ztests' command arguments
 │   ├── migrate_args.py   # 'migrate' command arguments
+│   ├── requirements_args.py # 'requirements' command arguments
 │   └── uninstall_args.py # 'uninstall' command arguments
 ├── shell_command.py      # 'shell' command handler
 ├── config_command.py     # 'config' command handler
 ├── migrate_command.py    # 'migrate' command handler
+├── requirements_command.py # 'requirements' command handler
 ├── ztests_command.py     # 'ztests' command handler
 ├── uninstall_command.py  # 'uninstall' command handler
 ├── route_command.py      # Command routing logic

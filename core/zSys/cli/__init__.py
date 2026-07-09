@@ -8,6 +8,7 @@ This module provides handler functions for all `zolo` CLI commands.
 from .config_command import handle_config_command
 from .info_command import display_info
 from .migrate_command import handle_migrate_command
+from .requirements_command import handle_requirements_command
 from .script_command import handle_script_command
 from .shell_command import handle_shell_command
 from .login_command import handle_login_command
@@ -24,6 +25,7 @@ __all__ = [
     'handle_config_command',
     'handle_ztests_command',
     'handle_migrate_command',
+    'handle_requirements_command',
     'handle_uninstall_command',
     'handle_script_command',
     'handle_zspark_command',

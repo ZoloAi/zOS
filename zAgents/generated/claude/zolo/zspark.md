@@ -15,6 +15,13 @@ env: optional, sensible defaults
     zLog:      INFO            — DEBUG | INFO | WARNING | ERROR; z-prefix (zINFO…) adds engine trace
     zLogPath:  @.logs          — zPath
 
+zRequirements: declared INSIDE zEnv.base.zolo (!zSpark key) — app-specific Python deps for plugins
+    zRequirements: [Pillow>=10.0, requests]  — flat pip-spec list, same grammar as any zEnv value
+    gate     — identical shape to zMigration: boot NEVER installs, only verifies; refuses to launch + prints the fix if anything's missing (zRaven inherits the same refusal)
+    install  — `z requirements <zspark file>` — the one explicit write path (`--dry-run` preview · `--auto-approve` skip prompt)
+    matched_by — distribution name (importlib.metadata), !import name — "Pillow" satisfies even though it imports as `PIL`
+    plugin_use — a plugin does a normal `from PIL import Image`; !sandboxing, !separate venv — runs in-process with the full interpreter (golden: zDemos/zDarkroom)
+
 seek_as_need: !boot-critical — pull the reference when you reach the key
     zServer   — HTTP leg: host/port/routes/static (zBifrost only) -> zServer ref
     zSocket   — WebSocket leg the Bifrost bridge rides (legacy alias: websocket) -> zBifrost ref

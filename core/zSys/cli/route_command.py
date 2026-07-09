@@ -156,6 +156,9 @@ def route_command(
         "migrate": lambda: cli.handle_migrate_command(
             logger, Path, args, verbose=verbose
         ),
+        "requirements": lambda: cli.handle_requirements_command(
+            logger, Path, args, verbose=verbose
+        ),
         "uninstall": lambda: cli.handle_uninstall_command(
             logger, Path, zos_package, verbose=verbose
         ),

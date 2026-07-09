@@ -77,3 +77,7 @@ terminal: write once, it reads the room
 golden — `zDemos/zBooking`'s New_Booking: a page-level zDialog (`fields: [slot_id, customer_name]`) whose
     onSubmit is a bare `zData: {action: insert}` — the unique-constraint rejection renders inline, form
     intact, in both zCLI and Bifrost, zero plugins
+!wizard_step_zdialog — the SAME binding rule bites a moment you'd expect to be safe: a named `zWizard` step
+    (`Shipping: {zDialog: {...}}`) IS a wrapped shape (a step's name is mandatory, so it can't be the direct
+    key) — a multi-field screen mid-wizard wants flat `zInput` steps + a shared `zBtn type: submit` gate
+    instead, never a step-level zDialog → zWizard `!zdialog_step_conflict`, `zDemos/zShop`'s checkout

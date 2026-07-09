@@ -61,11 +61,28 @@ gate: where the walk WAITS for you
     plain   — a `zInput`/`zText` never holds (collects/shows, strides on); a zDialog gates a whole SCREEN of fields → Forms
     not_error — a step that FAILS shows its error + the walk carries on (that's zForce, not the gate)
     retired — the old `!` suffix gate is GONE (2026-06); `key!` is a literal key; gating is an event
+    !zdialog_step_conflict — a WIZARD STEP needs its own NAME (`StepName: {event}`) to earn a hat slot, but
+        Bifrost's form-submit binding only resolves a zDialog off the block's DIRECT `zDialog:` key
+        (see Forms `!page_dialog_key`) — a NAMED step wrapping a zDialog (`Shipping: {zDialog: {...}}`) is
+        exactly the broken shape, so a multi-field SCREEN can't be a single wizard-step zDialog in Bifrost
+        even though the identical zolo passes in zCLI. For a "screen" of fields inside a wizard: flatten to
+        one `zInput` step per field, then a shared `zBtn type: submit` step as the gate (the client's
+        wizard_gate_submit path collects every pre-gate `zInput` back to the last gate/step-1, no onSubmit
+        needed) — `zDemos/zShop`'s Shipping/Payment steps are the worked example
 
 transaction: all-or-nothing data steps → lives in zData
     `_transaction: true` at the `zWizard:` root wraps its `zData` steps as ONE transaction (commit on success, roll back on error)
     each step names its table by the live alias `model: $teams` (not `@.models…`) so all steps share one connection
     scope   — commit/rollback lifecycle, ACID per backend, the $alias rule → Advanced › zData › Transactions
+
+zdata_step: a bare `zData` (no `_transaction`) as a step's own event — no fields collected, nothing shown
+    a step's event CAN be a plain `zData` block directly (insert/update/delete) — same shape zFunc gets,
+    dispatched SERVER-SIDE in BOTH zCLI and Bifrost; its result files into the hat under the step's name,
+    nothing renders for it (it has no visual form, so there's nothing to paint or skip past)
+    use     — a final "commit the order" / "clear the cart" step after a confirm gate, reading earlier
+        steps' answers via `zHat[Step]` in its `data:`/`where:`
+    golden  — `zDemos/zShop`'s PlaceOrder (insert into Orders from the shipping/payment hat) + ClearCart
+        (delete every CartItems row) run as the two steps right after the Place Order gate — zero plugins
 
 engine: what RUNS the steps
     you author the EVENT (named steps, zHat, zGate:, gates); the run model (zEngine/zWalker/zStride/zForce) → Advanced › zEngine

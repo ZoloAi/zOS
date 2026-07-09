@@ -37,6 +37,16 @@ spool: where a live value comes from — the reel a `%` thread pulls off
     golden   — `zDemos/zBooking`'s My_Bookings: a `zList` reel joining 3 tables, freshly re-read after a `zDelta`
         hop away and back (New_Booking's own insert) — zero plugins, availability itself is a `zNotExists` read
         (see Advanced Queries), conflict validation a plain `unique: true` (see Data CRUD)
+    expansion_freshness — the SPOOL resolve (`%data.<name>`) re-runs on every landed render, but the `zList` LOOP
+        EXPANSION into concrete `%item`-baked rows used to run only ONCE per block: `zDelta`'s target is a LIVE
+        reference into the loader's cached parse (not a fresh copy), and expansion used to consume its own `zList`
+        directive outright — a block whose FIRST visit saw 0 rows (an empty History/My_Bookings on first paint)
+        would never re-expand on a later revisit, freezing empty forever even after a real insert. Fixed core-side
+        (zLoom `LoopOps`): the original directive is stashed (as a JSON STRING — a dict-valued stash gets misread
+        as one more phantom child block by any render path that recurses on a bare `isinstance(val, dict)` check)
+        so a revisit re-weaves against CURRENT rows, clearing any stale ones first. `zDemos/zDarkroom`'s History
+        is the worked example (an empty-at-boot list that grows after a `zDelta($Add)` → submit → `zDelta($Main)`
+        round trip) — no zolo authoring change needed, this was a framework gap, not a usage mistake
 
 dye: finish a value on its way to the page — the `|` pipe
     `%value | dye` — send through a step; chain freely (`%x | trim | title`), left-to-right

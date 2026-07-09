@@ -123,6 +123,13 @@ env: optional, sensible defaults
     zLog:      INFO            — DEBUG | INFO | WARNING | ERROR; z-prefix (zINFO…) adds engine trace
     zLogPath:  @.logs          — zPath
 
+zRequirements: declared INSIDE zEnv.base.zolo (!zSpark key) — app-specific Python deps for plugins
+    zRequirements: [Pillow>=10.0, requests]  — flat pip-spec list, same grammar as any zEnv value
+    gate     — identical shape to zMigration: boot NEVER installs, only verifies; refuses to launch + prints the fix if anything's missing (zRaven inherits the same refusal)
+    install  — `z requirements <zspark file>` — the one explicit write path (`--dry-run` preview · `--auto-approve` skip prompt)
+    matched_by — distribution name (importlib.metadata), !import name — "Pillow" satisfies even though it imports as `PIL`
+    plugin_use — a plugin does a normal `from PIL import Image`; !sandboxing, !separate venv — runs in-process with the full interpreter (golden: zDemos/zDarkroom)
+
 seek_as_need: !boot-critical — pull the reference when you reach the key
     zServer   — HTTP leg: host/port/routes/static (zBifrost only) -> zServer ref
     zSocket   — WebSocket leg the Bifrost bridge rides (legacy alias: websocket) -> zBifrost ref
@@ -571,6 +578,10 @@ terminal: write once, it reads the room
 golden — `zDemos/zBooking`'s New_Booking: a page-level zDialog (`fields: [slot_id, customer_name]`) whose
     onSubmit is a bare `zData: {action: insert}` — the unique-constraint rejection renders inline, form
     intact, in both zCLI and Bifrost, zero plugins
+!wizard_step_zdialog — the SAME binding rule bites a moment you'd expect to be safe: a named `zWizard` step
+    (`Shipping: {zDialog: {...}}`) IS a wrapped shape (a step's name is mandatory, so it can't be the direct
+    key) — a multi-field screen mid-wizard wants flat `zInput` steps + a shared `zBtn type: submit` gate
+    instead, never a step-level zDialog → zWizard `!zdialog_step_conflict`, `zDemos/zShop`'s checkout
 
 ---
 
@@ -873,11 +884,28 @@ gate: where the walk WAITS for you
     plain   — a `zInput`/`zText` never holds (collects/shows, strides on); a zDialog gates a whole SCREEN of fields → Forms
     not_error — a step that FAILS shows its error + the walk carries on (that's zForce, not the gate)
     retired — the old `!` suffix gate is GONE (2026-06); `key!` is a literal key; gating is an event
+    !zdialog_step_conflict — a WIZARD STEP needs its own NAME (`StepName: {event}`) to earn a hat slot, but
+        Bifrost's form-submit binding only resolves a zDialog off the block's DIRECT `zDialog:` key
+        (see Forms `!page_dialog_key`) — a NAMED step wrapping a zDialog (`Shipping: {zDialog: {...}}`) is
+        exactly the broken shape, so a multi-field SCREEN can't be a single wizard-step zDialog in Bifrost
+        even though the identical zolo passes in zCLI. For a "screen" of fields inside a wizard: flatten to
+        one `zInput` step per field, then a shared `zBtn type: submit` step as the gate (the client's
+        wizard_gate_submit path collects every pre-gate `zInput` back to the last gate/step-1, no onSubmit
+        needed) — `zDemos/zShop`'s Shipping/Payment steps are the worked example
 
 transaction: all-or-nothing data steps → lives in zData
     `_transaction: true` at the `zWizard:` root wraps its `zData` steps as ONE transaction (commit on success, roll back on error)
     each step names its table by the live alias `model: $teams` (not `@.models…`) so all steps share one connection
     scope   — commit/rollback lifecycle, ACID per backend, the $alias rule → Advanced › zData › Transactions
+
+zdata_step: a bare `zData` (no `_transaction`) as a step's own event — no fields collected, nothing shown
+    a step's event CAN be a plain `zData` block directly (insert/update/delete) — same shape zFunc gets,
+    dispatched SERVER-SIDE in BOTH zCLI and Bifrost; its result files into the hat under the step's name,
+    nothing renders for it (it has no visual form, so there's nothing to paint or skip past)
+    use     — a final "commit the order" / "clear the cart" step after a confirm gate, reading earlier
+        steps' answers via `zHat[Step]` in its `data:`/`where:`
+    golden  — `zDemos/zShop`'s PlaceOrder (insert into Orders from the shipping/payment hat) + ClearCart
+        (delete every CartItems row) run as the two steps right after the Place Order gate — zero plugins
 
 engine: what RUNS the steps
     you author the EVENT (named steps, zHat, zGate:, gates); the run model (zEngine/zWalker/zStride/zForce) → Advanced › zEngine
@@ -1043,7 +1071,8 @@ modes: two runners, one grammar — zMode in zSpark picks
         target when that key is a DIRECT child of its block (top-level button, e.g. zBlog's NewPost) — one level
         under a plain organizational wrapper (a grouping block with no zGate, just structure) or inside a zList's
         `each:` it's unreliable; reach for the element's own `_zClass` instead (zBlog's Edit/Delete buttons under
-        OwnerActions, zBooking's per-row Cancel under a zList row)
+        OwnerActions, zBooking's per-row Cancel under a zList row, zShop's Nav-wrapped Cart button under
+        `NavCart` → `.zShop-nav-cart-btn`)
     zSubmit   — scalar value → zCLI stdin; dict {path, gate, value} → zBifrost WS gate
     shared    — `zAssert:`/`zMarker:`/`zLogger:` run in both modes (scope with a wrapper if not intended)
     first     — TERMINAL IS TRUTH: CLI green, then flip to zBifrost (the coat, not a second test)
@@ -1483,6 +1512,16 @@ spool: where a live value comes from — the reel a `%` thread pulls off
     golden   — `zDemos/zBooking`'s My_Bookings: a `zList` reel joining 3 tables, freshly re-read after a `zDelta`
         hop away and back (New_Booking's own insert) — zero plugins, availability itself is a `zNotExists` read
         (see Advanced Queries), conflict validation a plain `unique: true` (see Data CRUD)
+    expansion_freshness — the SPOOL resolve (`%data.<name>`) re-runs on every landed render, but the `zList` LOOP
+        EXPANSION into concrete `%item`-baked rows used to run only ONCE per block: `zDelta`'s target is a LIVE
+        reference into the loader's cached parse (not a fresh copy), and expansion used to consume its own `zList`
+        directive outright — a block whose FIRST visit saw 0 rows (an empty History/My_Bookings on first paint)
+        would never re-expand on a later revisit, freezing empty forever even after a real insert. Fixed core-side
+        (zLoom `LoopOps`): the original directive is stashed (as a JSON STRING — a dict-valued stash gets misread
+        as one more phantom child block by any render path that recurses on a bare `isinstance(val, dict)` check)
+        so a revisit re-weaves against CURRENT rows, clearing any stale ones first. `zDemos/zDarkroom`'s History
+        is the worked example (an empty-at-boot list that grows after a `zDelta($Add)` → submit → `zDelta($Main)`
+        round trip) — no zolo authoring change needed, this was a framework gap, not a usage mistake
 
 dye: finish a value on its way to the page — the `|` pipe
     `%value | dye` — send through a step; chain freely (`%x | trim | title`), left-to-right
@@ -1507,11 +1546,16 @@ shuttle: one pattern across a whole list — `{% for %}`
 
 knot: a value COMPUTED on the spot — `{{ a+b }}` / ternary
     a `zKnot` ties `%` threads + literals into ONE value, declared as a step (no formula string, no eval)
-    ops — zAdd · zSub · zMul · zDiv (÷0 → empty) · zJoin (concat, optional `sep`) · zIf (ternary)
+    ops — zAdd · zSub · zMul · zDiv (÷0 → empty) · zRound (2-decimal money math) · zJoin (concat, optional `sep`) · zIf (ternary)
     operands — `%` threads, literals, or NESTED knots: `{zJoin: [Buy 2 for $, {zMul: [%item.price_usd, 2]}]}`
+    zRound — `{zRound: [<value>, <digits>]}` fixes float-precision drift (0.1+0.2 style) before it ever hits the page; wrap the outer arithmetic knot, not just the final display
+    money_gotcha — the render layer collapses an INTEGRAL float to a plain int (24.0 -> displays `$24`, not `$24.00`) — a `zRound` knot doesn't stop this, it only fixes precision on non-whole values; accept the inconsistency for MVP or format explicitly (`zJoin` + a padded-decimal dye) if exact 2dp everywhere matters
     ternary — a `zIf` CONDITION is a `zGate` predicate; zKnot only SELECTS then/else (so zAbove/zSet/zAll work inside)
     two forms — prose slots (`content`/`label`) slurp a value into text → write a knot as a `zKnot:` CHILD (result written into `content`, siblings like `_zClass` kept); non-prose slot uses the short VALUE form (`label: {zAdd: [%a, %b]}`)
     fail-safe — bad op / missing operand / non-number / ÷0 → empty, never a wrong value or crash
+    golden — `zDemos/zShop`'s cart/checkout: subtotal is a live `SUM(line_total)` aggregate (no group_by → a single
+        scalar, not a `.0.total` row), tax/shipping/total chain `zMul`/`zAdd` wrapped in `zRound` at both the Review
+        display AND the PlaceOrder insert (same computed value written and shown, never re-derived twice)
 
 var: a durable value set once and reused — `{% set %}`
     lives in the session — read `%var.<name>` (or bare `%name`), written by a `zVar:` event or the `shortcut` command; author/session scope, NOT a render computation
@@ -1545,6 +1589,9 @@ aggregate: many rows → one answer — `action: aggregate`
     function — count · count_distinct · sum · avg · min · max · median · stddev · variance · group_concat (string_agg); non-count takes `field:`
     group_by — `<field>` (one per group) · `[country, occupation]` (per combination) · `alias:` names the computed column
     filter   — `having: total > 1` (by aggregate) · `where: <expr>` (which rows count) · `distinct: true`
+    shape    — NO `group_by` → the whole reel resolves to a bare SCALAR (`%data.cart_subtotal`), never a `.0.<alias>`
+        row; add `group_by` and it flips to a LIST of `{<group_field>, <alias>}` rows like any other read — the
+        `alias:` key only matters once it's a row you're pulling a named field off of
 
 window: an answer per row, keep every row — `action: window`
     rank/offset — row_number · rank · dense_rank · percent_rank · cume_dist · ntile (+buckets: 4) · lag/lead (+field:, offset: 1)

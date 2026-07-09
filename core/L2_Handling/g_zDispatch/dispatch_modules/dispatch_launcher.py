@@ -371,7 +371,12 @@ class CommandLauncher(RoutingHandlers, WizardDataHandlers):
         # declarative event bindings (onChange/onClick/...). Event bindings attach
         # a handler to a sibling UI element and must NEVER be executed inline —
         # they are consumed by the zAPI scanner + Bifrost enrichment + client.
-        metadata_keys = {'_zClass', '_zStyle', '_zId', 'zScripts', 'zId'} | set(EVENT_BINDING_KEYS)
+        # __zListSource: zLoom LoopOps' stashed original zList directive (see
+        # expander_organizational.py's _METADATA_KEYS) — never a renderable node.
+        metadata_keys = (
+            {'_zClass', '_zStyle', '_zId', 'zScripts', 'zId', '__zListSource'}
+            | set(EVENT_BINDING_KEYS)
+        )
         content_keys = [k for k in zHorizontal.keys() if k not in metadata_keys]
         # zStride: remember a lone display directive BEFORE shorthand expansion.
         # The single-UI hoist (shorthand_expander early-return) collapses

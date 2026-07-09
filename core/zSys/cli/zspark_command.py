@@ -51,6 +51,10 @@ def handle_zspark_command(
         if migration_exit != 0:
             return migration_exit
 
+        requirements_exit = _run_requirements_check(zspark_config, zspark_file)
+        if requirements_exit != 0:
+            return requirements_exit
+
         zcli.run()
         return 0
 
@@ -83,6 +87,9 @@ def run_spark_with_config(
         migration_exit = _run_schema_migrations(zcli, zspark_file)
         if migration_exit != 0:
             return migration_exit
+        requirements_exit = _run_requirements_check(zspark_config, zspark_file)
+        if requirements_exit != 0:
+            return requirements_exit
         zcli.run()
         return 0
     except SystemExit as e:
@@ -220,6 +227,75 @@ def _print_drift_refusal(zspark_file: Any, drifted: list) -> None:
         "",
         "   (zRaven boots through this same gate — tests won't run on a drifted",
         "    schema either. Migrate first.)",
+        bar,
+        "",
+    ]
+    print("\n".join(lines))
+
+
+def _run_requirements_check(zspark_config: dict, zspark_file: Any) -> int:
+    """
+    Auto-detect and verify app-declared Python dependencies before start.
+
+    Behaviour (identical shape to _run_schema_migrations):
+      - zRequirements is a flat pip-spec list declared in the app's
+        zEnv.*.zolo (e.g. `zRequirements: [Pillow>=10.0]`).
+      - Boot NEVER installs. It only verifies every declared package is
+        already importable in the current interpreter. If anything is
+        missing, zOS refuses to launch and prints the exact command to fix
+        it — running with missing deps is undefined behavior.
+      - zRaven boots through this same function, so it inherits the exact
+        same refusal. The only writer is the explicit `z requirements`
+        command.
+      - Nothing declared: no-op (returns 0).
+    """
+    from zOS.L1_Foundation.a_zConfig.zConfig_modules.environment.config_requirements import (  # pylint: disable=import-outside-toplevel
+        read_declared_requirements,
+        find_missing_requirements,
+    )
+
+    # Same deployment-key precedence as WorkspaceResolver.load_dotenv (SSOT for
+    # "which zEnv.<deployment>.zolo layers on top of zEnv.base.zolo").
+    deployment = "development"
+    for key in ("zEnv", "zState", "deployment", "Deployment", "DEPLOYMENT"):
+        if zspark_config.get(key):
+            deployment = str(zspark_config[key]).lower()
+            break
+
+    specs = read_declared_requirements(zspark_file.parent, deployment)
+    if not specs:
+        return 0
+
+    missing = find_missing_requirements(specs)
+    if missing:
+        _print_requirements_refusal(zspark_file, missing)
+        return 1
+
+    return 0
+
+
+def _print_requirements_refusal(zspark_file: Any, missing: list) -> None:
+    """Graceful, actionable refusal — zOS will not launch with missing deps."""
+    bar = "═" * 64
+    lines = [
+        "",
+        bar,
+        "⛔  zOS refused to launch — missing zRequirements",
+        bar,
+        "   This app declares Python packages that aren't installed yet:",
+        "",
+    ]
+    for spec in missing:
+        lines.append(f"     • {spec}")
+    lines += [
+        "",
+        "   Declared dependencies are the source of truth — running without",
+        "   them is unsafe. Install the missing packages, then relaunch:",
+        "",
+        f"     z requirements {zspark_file.name}",
+        "",
+        "   (zRaven boots through this same gate — tests won't run with",
+        "    missing deps either. Install first.)",
         bar,
         "",
     ]

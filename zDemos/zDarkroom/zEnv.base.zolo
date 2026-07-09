@@ -1,0 +1,7 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+#> app-scoped plugin dependency (plugins/darkroom.py does `from PIL import ...`)
+#  — NOT a zOS core dependency, so it lives here, not pyproject.toml. zSpark
+#  refuses to boot until it's installed; `z requirements zSpark.zDarkroom.zolo`
+#  is the one explicit install command (see 01_zspark.md zRequirements) <#
+zRequirements: [Pillow>=10.0]

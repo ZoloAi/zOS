@@ -64,7 +64,14 @@ from ..dispatch_constants import EVENT_BINDING_KEYS, KEY_ZDELEGATE, MODE_BIFROST
 # bindings (onChange/onClick/...). Event bindings attach a handler to a sibling
 # UI element and are consumed declaratively (zAPI scan, Bifrost enrichment,
 # client) — they must NEVER be recursed into or executed during render.
-_METADATA_KEYS = {'_zClass', '_zStyle', '_zHTML', '_zId', 'zScripts', 'zId'} | set(EVENT_BINDING_KEYS)
+# __zListSource (zLoom LoopOps) is the SAME kind of metadata: a zList's own
+# original directive, stashed on its parent so a block revisited via zDelta
+# within the same process can re-expand against fresh data (the loader hands
+# out a LIVE cached reference, not a copy) — never itself a renderable node.
+_METADATA_KEYS = (
+    {'_zClass', '_zStyle', '_zHTML', '_zId', 'zScripts', 'zId', '__zListSource'}
+    | set(EVENT_BINDING_KEYS)
+)
 
 class OrganizationalHandler:
     """

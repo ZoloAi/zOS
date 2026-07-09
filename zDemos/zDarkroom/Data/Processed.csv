@@ -1,0 +1,4 @@
+id,title,operation,original_image,processed_image,original_width,original_height,processed_width,processed_height,original_kb,processed_kb,created_at
+1,Wool Beanie,sepia,@.static.originals.wool_beanie.jpg,@.static.processed.wool_beanie_sepia.jpg,800,533,800,533,64.5,64.2,2026-07-09 12:00:00
+2,Mountain Dawn,grayscale,@.static.originals.mountain_dawn.jpg,@.static.processed.mountain_dawn_grayscale.jpg,1600,1066,1600,1066,159.0,138.3,2026-07-09 12:00:00
+3,Urban Geometry,thumbnail,@.static.originals.urban_geometry.jpg,@.static.processed.urban_geometry_thumbnail.jpg,1600,1066,480,320,335.7,47.1,2026-07-09 12:00:00

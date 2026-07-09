@@ -1,0 +1,19 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+#> newest job first — the freshly processed row (with its own before/after)
+#  should be the first card a person sees back on History <#
+jobs:
+    zData:
+        action:   read
+        model:    @.models.zSchema.Processed
+        fields:   [id, title, operation, original_image, processed_image, original_width, original_height, processed_width, processed_height, original_kb, processed_kb]
+        order_by: id DESC
+
+#> single-row aggregate — job count for the History header <#
+job_count:
+    zData:
+        action:   aggregate
+        model:    @.models.zSchema.Processed
+        function: count
+        field:    id
+        alias:    total

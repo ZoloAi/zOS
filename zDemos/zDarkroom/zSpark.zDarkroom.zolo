@@ -1,0 +1,20 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     Darkroom
+    zMode:     zBifrost
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zDarkroom
+    zBlock:    Main
+    #> media needs zServer LISTENING from phase_CLI onward, not just Bifrost —
+    #  zImage's terminal open-gate has nothing to route to otherwise
+    #  (10_media.md server_contract) <#
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — photo processor, plugins doing real PIL transform work
+    tags: [zData, zSchema, zImage, zList, zDialog, zRequirements]
+    author: zAgents
