@@ -1,0 +1,39 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# The home file — its FIRST block ("Main") is what zSpark/the '/' route serve.
+# Login/Vault/Logout each live in their OWN file (zUI.Login/.Vault/.Logout)
+# so the router auto-discovers a REAL url per page (14_server.md "routing:
+# smart" — one file = one URL); zLink bounces (onSuccess/onDenied) resolve to
+# an actual navigate in Bifrost only when the target has its own route.
+
+zMeta:
+    zBrush: [zTeamVault]
+
+Main:
+    zH1:
+        label: Team Vault
+        color: PRIMARY
+        _zClass: zTeamVault-title
+
+    zMD:
+        content: Sign in to see the team's shared secrets. Two demo accounts ship seeded — admin and member.
+        _zClass: zTeamVault-intro
+
+    #> a numbered menu (not two loose buttons) so zPick drives it directly in
+    #  zCLI, same option keys click in Bifrost (03_navigation.md "menus") <#
+    ~Actions*: [SignIn, GoVault]
+
+    SignIn:
+        zBtn:
+            label:  Sign in
+            color:  primary
+            _zClass: zTeamVault-signin-btn
+            action: zLink(@.zViews.zUI.Login.Login)
+
+    #> reachable by anyone, guest included — proves the gate itself (an
+    #  unauthenticated click bounces to Login via Vault's own onDenied) <#
+    GoVault:
+        zBtn:
+            label:  Team Vault →
+            color:  secondary
+            _zClass: zTeamVault-govault-btn
+            action: zLink(@.zViews.zUI.Vault.Vault)

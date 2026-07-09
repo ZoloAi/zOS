@@ -487,11 +487,19 @@ def handle_zLogin_block(
     from zOS.L2_Handling.g_zDispatch import handle_zDispatch  # pylint: disable=import-outside-toplevel
     result = handle_zDispatch("zDialog", dialog, zos=zos, walker=walker, context={})
 
-    # FOLLOW-UP: dispatch onSuccess once the session is established.
+    # FOLLOW-UP: dispatch onSuccess once the session is established. Its
+    # result REPLACES the dialog's own return — a zLink onSuccess stages a
+    # trampoline navigate signal (zNavigation.navigate_or_recurse) that the
+    # sequential walker's key loop only honors when it's the value returned
+    # for THIS step; swallowing it here (returning the dialog's plain login
+    # result instead) breaks the chain and the walk falls through to the
+    # next sibling key (e.g. a "Back" button) instead of landing on target.
     if result:
         on_success = login_config.get("onSuccess")
         if on_success is not None:
-            _dispatch_on_success(on_success, zos, walker, logger)
+            nav_result = _dispatch_on_success(on_success, zos, walker, logger)
+            if nav_result is not None:
+                return nav_result
     return result
 
 

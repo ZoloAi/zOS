@@ -1,0 +1,5 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Default door for an unauthenticated zGate denial (15_rbac.md "denial") —
+# any authed:true gate without its own onDenied lands here.
+
+ZAUTH_LOGIN_ROUTE: @.zViews.zUI.Login.Login

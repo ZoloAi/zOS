@@ -1,0 +1,3 @@
+id,email,password,name,role
+1,admin@teamvault.io,$2b$12$ZsEC/pQ4PUXs0fwgr27hy.s.iIlsw0ct/HfVHuc8GBjAtqkwcVZf2,Ada Admin,zAdmin
+2,member@teamvault.io,$2b$12$ebMBbS/zk.eH5ROPDIQC2OoqJE.TLaFji5wJkdWoptdBo6mkH16gG,Mo Member,zMember

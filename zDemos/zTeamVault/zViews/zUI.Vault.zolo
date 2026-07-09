@@ -1,0 +1,37 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Own file → own auto-discovered route (/Vault) — the gated page itself.
+
+#> the gated view — authed:true turns away anyone without a live session,
+#  server-side, before this block ever renders (15_rbac.md "verb") <#
+Vault:
+    zGate:
+        authed: true
+    #> onDenied's zLink dispatches through the cross-file zLink handler — the
+    #  target needs its OWN route (zUI.Login's own file) for Bifrost to
+    #  actually navigate there instead of bouncing back to '/' <#
+    onDenied:
+        zLink: @.zViews.zUI.Login.Login
+
+    zH1:
+        label: Team Vault
+        color: PRIMARY
+        _zClass: zTeamVault-vault-title
+
+    zMD:
+        content: Shared secrets — every signed-in teammate can read these.
+        _zClass: zTeamVault-intro
+
+    #> zData alone auto-draws as a table — no zTable wrapper needed
+    #  (same "zTable draws, zData feeds" pattern as zContacts' Directory) <#
+    Items:
+        zData:
+            action:   read
+            model:    @.models.zSchema.Vault_Items
+            fields:   [title, secret, added_by]
+            order_by: created_at ASC
+
+    SignOut:
+        zBtn:
+            label:  Sign out
+            _zClass: zTeamVault-signout-btn
+            action: zLink(@.zViews.zUI.Logout.Logout)

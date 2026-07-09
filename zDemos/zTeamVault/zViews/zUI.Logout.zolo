@@ -1,0 +1,14 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Own file → own auto-discovered route (/Logout) — a dedicated STEP, not a
+# bare button action, mirrors zLogin's own shape: arriving here IS the event.
+
+Logout:
+    zGate:
+        authed: true
+
+    #> onSuccess mirrors zLogin's — same @.path requirement, same trampoline
+    #  navigate signal (15_rbac.md "logout") <#
+    zLogout:
+        zApp: zTeamVault
+        onSuccess:
+            zLink: @.zViews.zUI.zTeamVault.Main

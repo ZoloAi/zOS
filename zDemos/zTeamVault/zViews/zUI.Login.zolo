@@ -1,0 +1,26 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Own file → own auto-discovered route (/Login) — the target every onDenied /
+# ZAUTH_LOGIN_ROUTE bounce needs to actually navigate in Bifrost (14_server.md).
+
+Login:
+    zH1:
+        label: Sign in
+        _zClass: zTeamVault-login-title
+
+    #> zLogin auto-discovers the table + identity field from `model`, bcrypt-checks
+    #  LOCALLY against the seeded ledger (password never lands in the session),
+    #  then stamps session["zVisitor"] — the SAME tag Vault's zGate reads (15_rbac.md) <#
+    Form:
+        zLogin:
+            title:  Sign in to Team Vault
+            model:  @.models.zSchema.Users
+            fields: [email, password]
+            zAPI:   true
+            onSuccess:
+                zLink: @.zViews.zUI.Vault.Vault
+
+    Back:
+        zBtn:
+            label:  ← Back
+            _zClass: zTeamVault-back-btn
+            action: zLink(@.zViews.zUI.zTeamVault.Main)

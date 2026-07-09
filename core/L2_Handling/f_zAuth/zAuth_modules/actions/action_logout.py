@@ -191,12 +191,18 @@ def handle_zLogout_block(
     # AUTH: clear the app session (existing, mode-agnostic zAuth action).
     result = handle_zLogout(app_name=app_name, _zConv={}, _zContext={}, zos=zos)
 
-    # FOLLOW-UP: in CLI, dispatch onSuccess inline. In Bifrost the gate sender
-    # emits the navigate instruction (no inline render).
+    # FOLLOW-UP: in CLI, dispatch onSuccess inline — and PROPAGATE its result.
+    # Same trampoline contract as zLogin (action_login.py): a zLink onSuccess
+    # stages a navigate signal that the sequential walker only honors when
+    # it's the value returned for THIS step; swallowing it here falls through
+    # to the next sibling key instead of landing on the target block.
+    # In Bifrost the gate sender emits the navigate instruction (no inline render).
     if not _is_bifrost_mode(zos):
         on_success = logout_config.get("onSuccess")
         if on_success is not None:
-            _dispatch_on_success(on_success, zos, walker, logger)
+            nav_result = _dispatch_on_success(on_success, zos, walker, logger)
+            if nav_result is not None:
+                return nav_result
     return result
 
 

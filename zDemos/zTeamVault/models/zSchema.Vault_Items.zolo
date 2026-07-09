@@ -1,0 +1,33 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        Vault_Items
+    Schema_Name:       zSchema.Vault_Items
+    zMigration:        true
+    zMigrationVersion: v1.0.0
+
+Vault_Items:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    title:
+        type:     str
+        required: true
+        rules:
+            max_length: 120
+
+    secret:
+        type:     str
+        required: true
+
+    added_by:
+        type:     str
+        required: true
+
+    created_at:
+        type:    datetime
+        default: now

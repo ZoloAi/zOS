@@ -1,0 +1,43 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        Users
+    Schema_Name:       zSchema.Users
+    zMigration:        true
+    zMigrationVersion: v1.0.0
+
+Users:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    email:
+        type:     str
+        required: true
+        unique:   true
+        rules:
+            format: email
+
+    #> zLogin verifies locally against this bcrypt hash — plaintext never lands
+    #  in the session (15_rbac.md "automatic" — zHash: bcrypt scrambles on insert) <#
+    password:
+        type:     str
+        required: true
+        zHash:    bcrypt
+        rules:
+            min_length: 8
+
+    name:
+        type:     str
+        required: true
+
+    #> the identity question zGate/zRBAC reads — exact-match, no ranking
+    #  (15_rbac.md "roles": name them yourself, here zAdmin/zMember) <#
+    role:
+        type:    str
+        default: zMember
+        rules:
+            pattern: ^(zAdmin|zMember)$
