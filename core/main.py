@@ -37,17 +37,20 @@ def _auto_patch_if_needed() -> None:
     except Exception:  # pylint: disable=broad-except
         pass  # Sentinel unreadable — fall through to full check
 
-    # Slow path (first run only): full ABI check
+    # Slow path (first run only): does this platform/Python ABI have a
+    # zguard build at all? If so, there's nothing to auto-patch -- fetching
+    # (if needed) happens lazily in _ensure_zguard_ready() on every boot.
     try:
-        from zSys.cli.patch_command import _abi_ok, _bundled_so_dir, _BUNDLED_PYTHON_TAG  # pylint: disable=import-outside-toplevel
-        so_dir = _bundled_so_dir()
-        if not so_dir.exists() or _abi_ok():
+        from zSys.cli.zguard_provision import current_platform_tag, current_py_tag, is_supported  # pylint: disable=import-outside-toplevel
+        platform_tag = current_platform_tag()
+        py_tag = current_py_tag()
+        if is_supported(platform_tag, py_tag):
             return
-        # ABI mismatch — auto-patch
+        # No zguard build for this ABI/platform — auto-patch onto one we ship
         import subprocess  # pylint: disable=import-outside-toplevel
-        target_py = _BUNDLED_PYTHON_TAG.replace("cp", "")
-        python_spec = f"{target_py[0]}.{target_py[1:]}"
-        print(f"\n[zOS] Python ABI mismatch — auto-patching to Python {python_spec} via uv...")
+        python_spec = "3.12"
+        print(f"\n[zOS] No zguard build for {platform_tag or 'this platform'}/{py_tag} "
+              f"— auto-patching to Python {python_spec} via uv...")
         try:
             subprocess.run(["uv", "--version"], capture_output=True, check=True)
         except (FileNotFoundError, subprocess.CalledProcessError):
@@ -84,7 +87,22 @@ def _auto_patch_if_needed() -> None:
         pass  # Never block normal boot
 
 
+def _ensure_zguard_ready() -> None:
+    """
+    Make `import zguard` resolve for this process: dev source, a verified
+    fetch cache, or a fresh live-fetch, in that order (see
+    zguard_provision.py). Runs on every boot, including the sentinel fast
+    path above, since sys.path doesn't persist across processes.
+    """
+    try:
+        from zSys.cli.zguard_provision import ensure_zguard_importable  # pylint: disable=import-outside-toplevel
+        ensure_zguard_importable()
+    except Exception:  # pylint: disable=broad-except
+        pass  # zguard is optional at the zOS-core level -- shims degrade gracefully
+
+
 _auto_patch_if_needed()
+_ensure_zguard_ready()
 
 
 # zSys imports (system utilities, safe to import)

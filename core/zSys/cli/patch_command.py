@@ -2,9 +2,10 @@
 """
 z patch — environment self-healing command.
 
-1. Detects Python ABI mismatches between the running interpreter and the
-   bundled zguard .so binaries, then reinstalls via uv with the correct
-   Python version automatically.
+1. Ensures `import zguard` resolves: dev source (ZGUARD_DEV_PATH), a verified
+   fetch cache, or a fresh live-fetch from the public zOS repo (see
+   zguard_provision.py). Falls back to reinstalling via uv onto a Python
+   version zOS ships a zguard build for, if the running one has none at all.
 2. Ensures Playwright Chromium binaries are installed for zRaven browser tests.
 3. Updates AI agent context (z agents).
 
@@ -17,57 +18,27 @@ import sys
 import sysconfig
 from pathlib import Path
 
+from zSys.cli.zguard_provision import (
+    current_platform_tag,
+    current_py_tag,
+    ensure_zguard_importable,
+    is_supported,
+    zguard_dev_path,
+)
 
-# Python version the bundled .so files were compiled for.
-# Update this when you rebuild zguard binaries for a new Python version.
-_BUNDLED_PYTHON_TAG = "cp312"
+# Python version to reinstall onto when the running interpreter's ABI has no
+# zguard build at all (see zguard_provision.SUPPORTED_PY_TAGS).
+_FALLBACK_PYTHON_SPEC = "3.12"
 
 
 def _dev_mode() -> bool:
     """
-    True when this machine has the local zOS/zGuard/zLSP source checkouts
-    (i.e. a dev box, not an end-user install). In dev mode there are no
-    bundled .so binaries by design — z patch must never fall back to a
-    PyPI registry reinstall, only sync editable local source.
+    True when this machine has the local zOS/zLSP source checkouts (i.e. a
+    dev box, not an end-user install). zguard's dev-ness is independent —
+    gated by ZGUARD_DEV_PATH — since a matching prebuilt binary usually
+    exists even on a monorepo dev box; see zguard_provision.py.
     """
-    return all(Path(src).exists() for _, src in _DEV_PACKAGES)
-
-
-def _current_python_tag() -> str:
-    """e.g. 'cp312', 'cp314'"""
-    vi = sys.version_info
-    return f"cp{vi.major}{vi.minor}"
-
-
-def _bundled_so_dir() -> Path:
-    """
-    Location of the bundled zguard .so files.
-
-    zguard/ is always a sibling of the zOS package directory:
-      installed: site-packages/zOS/  →  site-packages/zguard/
-      editable:  zOS-OpenCore/core/  →  zOS-OpenCore/zguard/
-    """
-    try:
-        import zOS  # pylint: disable=import-outside-toplevel
-        # zOS.__file__ is None for editable (namespace-style) installs, so
-        # resolve via __path__ which is populated in both layouts:
-        #   installed: site-packages/zOS        → .parent = site-packages
-        #   editable:  zOS-OpenCore/core         → .parent = zOS-OpenCore
-        pkg_dir = Path(next(iter(zOS.__path__)))
-        return pkg_dir.parent / "zguard"
-    except (ImportError, StopIteration, TypeError):
-        return Path(__file__).parent.parent.parent / "zguard"
-
-
-def _abi_ok() -> bool:
-    """Return True if the running Python matches the bundled .so ABI."""
-    import sysconfig  # pylint: disable=import-outside-toplevel
-    so_dir = _bundled_so_dir()
-    if not so_dir.exists():
-        return False
-    # EXT_SUFFIX on macOS cp312: '.cpython-312-darwin.so'
-    ext_suffix = sysconfig.get_config_var("EXT_SUFFIX") or ""
-    return bool(ext_suffix) and any(so_dir.rglob(f"*{ext_suffix}"))
+    return all(Path(src).exists() for pkg, src in _DEV_PACKAGES if pkg != "zguard")
 
 
 def _uv_installed() -> bool:
@@ -91,18 +62,14 @@ def _install_uv():
     return True
 
 
-def _reinstall_via_uv():
-    """Reinstall zOS via uv with the pinned Python version."""
-    target_py = _BUNDLED_PYTHON_TAG.replace("cp", "")  # "312" → "3.12"
-    python_spec = f"3.{target_py[1:]}" if len(target_py) == 3 else f"{target_py[0]}.{target_py[1:]}"
-
-    repo_url = "zolo-os"
+def _reinstall_via_uv(python_spec: str = _FALLBACK_PYTHON_SPEC):
+    """Reinstall zOS via uv onto a Python version we ship a zguard build for."""
     print(f"\n[z patch] Reinstalling zOS with Python {python_spec} via uv...")
     result = subprocess.run([
         "uv", "tool", "install",
         "--python", python_spec,
         "--force",
-        repo_url,
+        "zolo-os",
     ])
     return result.returncode == 0
 
@@ -209,9 +176,11 @@ def _run_agents():
 _DEV_PACKAGES: list[tuple[str, str]] = [
     # (pip package name, source path relative to this file's repo root)
     ("zolo-os",  str(Path(__file__).resolve().parents[3])),           # zOS-OpenCore/
-    ("zguard",   str(Path(__file__).resolve().parents[3].parent / "zGuard")),
     ("zolo-lsp", str(Path(__file__).resolve().parents[3].parent / "zLSP")),
 ]
+_zguard_dev = zguard_dev_path()
+if _zguard_dev is not None:
+    _DEV_PACKAGES.append(("zguard", str(_zguard_dev)))
 
 
 def _clear_pyc_caches() -> None:
@@ -327,12 +296,12 @@ def handle_patch_command(verbose: bool = False, live: bool = False) -> int:
 
     Returns 0 on success, 1 on failure.
     """
-    current = _current_python_tag()
-    bundled = _BUNDLED_PYTHON_TAG
+    current_py = current_py_tag()
+    platform_tag = current_platform_tag()
 
     print(f"\n[z patch] Checking environment...")
-    print(f"  Running Python : {current}  ({sys.executable})")
-    print(f"  Bundled runtime: {bundled}")
+    print(f"  Running Python : {current_py}  ({sys.executable})")
+    print(f"  Platform       : {platform_tag or 'unrecognized'}")
 
     # Always clear pyc caches, purge stale .so, and sync editable installs first
     _clear_pyc_caches()
@@ -341,24 +310,30 @@ def handle_patch_command(verbose: bool = False, live: bool = False) -> int:
     _ensure_editable_in_tools_venv()
 
     if _dev_mode():
-        print(f"\n✓ Dev mode (local zOS/zGuard/zLSP source found) — skipping "
-              f"registry ABI check, editable source is source of truth.")
+        print(f"\n✓ Dev mode (local zOS/zLSP source found) — editable source is source of truth.")
+        if _zguard_dev is not None:
+            print(f"  zguard         : dev source ({_zguard_dev})")
         _check_and_fix_playwright()
         _run_agents()
         if live:
             _live_reload_running_servers()
         return 0
 
-    if _abi_ok():
-        print(f"\n✓ zOS runtime OK ({current} matches bundled {bundled}).")
-        _check_and_fix_playwright()
-        _run_agents()
-        if live:
-            _live_reload_running_servers()
-        return 0
+    if is_supported(platform_tag, current_py):
+        print(f"\n[z patch] Ensuring zguard binaries are current for {platform_tag}/{current_py}...")
+        if ensure_zguard_importable(verbose=True):
+            print(f"✓ zguard ready ({platform_tag}/{current_py}).")
+            _check_and_fix_playwright()
+            _run_agents()
+            if live:
+                _live_reload_running_servers()
+            return 0
+        print(f"\n⚠  Could not fetch zguard binaries (network unreachable?). "
+              f"Retry: z patch")
+        return 1
 
-    print(f"\n⚠  ABI mismatch: running {current}, bundled .so requires {bundled}.")
-    print(f"   z patch will reinstall zOS using uv with Python {bundled}.\n")
+    print(f"\n⚠  No zguard build for {platform_tag or 'this platform'}/{current_py}.")
+    print(f"   z patch will reinstall zOS using uv with Python {_FALLBACK_PYTHON_SPEC}.\n")
 
     if not _uv_installed():
         if not _install_uv():
@@ -368,12 +343,12 @@ def handle_patch_command(verbose: bool = False, live: bool = False) -> int:
         uv_bin = Path.home() / ".local" / "bin"
         os.environ["PATH"] = str(uv_bin) + ":" + os.environ.get("PATH", "")
 
-    if not _reinstall_via_uv():
+    if not _reinstall_via_uv(_FALLBACK_PYTHON_SPEC):
         print("\n[z patch] ERROR: reinstall failed. Try manually:")
-        print(f"  uv tool install --python {bundled.replace('cp', '3.')} zolo-os")
+        print(f"  uv tool install --python {_FALLBACK_PYTHON_SPEC} zolo-os")
         return 1
 
-    print(f"\n✓ zOS patched successfully via uv (Python {bundled}).")
+    print(f"\n✓ zOS patched successfully via uv (Python {_FALLBACK_PYTHON_SPEC}).")
     _check_and_fix_playwright()
     _run_agents()
     if live:
@@ -396,17 +371,22 @@ def handle_patch_command(verbose: bool = False, live: bool = False) -> int:
 def run_post_install_check():
     """
     Called from setup.py PostInstallCommand after pip install.
-    Silently checks ABI and advises if patch is needed.
-    Does NOT auto-reinstall (user must confirm via z patch).
+    Silently ensures zguard is importable (fetching if needed) and advises
+    if a patch is needed. Does NOT auto-reinstall (user must confirm via
+    z patch) when the running Python ABI has no zguard build at all.
     """
-    current = _current_python_tag()
-    bundled = _BUNDLED_PYTHON_TAG
+    current_py = current_py_tag()
+    platform_tag = current_platform_tag()
 
-    if _abi_ok():
-        print(f"\n✓ zOS {current} runtime ready.")
-        _check_and_fix_playwright()
-        _run_agents()
-        _show_version_banner()
+    if is_supported(platform_tag, current_py):
+        if ensure_zguard_importable():
+            print(f"\n✓ zOS {current_py} runtime ready ({platform_tag}).")
+            _check_and_fix_playwright()
+            _run_agents()
+            _show_version_banner()
+        else:
+            print(f"\n⚠  zguard binaries not yet fetched for {platform_tag}/{current_py} "
+                  f"(will retry automatically, or run: z patch)")
     else:
-        print(f"\n⚠  Python version mismatch: running {current}, bundled runtime requires {bundled}.")
-        print(f"   Run:  z patch   to automatically fix this.\n")
+        print(f"\n⚠  No zguard build for {platform_tag or 'this platform'}/{current_py}.")
+        print(f"   Run:  z patch   to reinstall onto a supported Python version.\n")
