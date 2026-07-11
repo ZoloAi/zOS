@@ -9,22 +9,19 @@ template and zWalker render paths (see page_route_handlers).
 """
 
 import html
-import os
 
 
-# Canonical immortal CDN base for the zBifrost client bundle. The version lives in
-# the npm `@1` channel (server-owned) — NOT in app HTML — so the app's <script> line
-# never moves. zbase.css is derived from this base, decoupled from the template:
-# the server owns the version, exactly like bifrost_core_url (zGuard bridge_connection).
-# DEV override (app policy, not zOS): the @1 alias trails a release by up to ~12h,
-# so an app serving the working tree declares ZBIFROST_CLIENT_BASE in its zEnv
-# (e.g. zCloud sets `/zbifrost` next to its source mount) — byte-truth == disk.
-BIFROST_CDN_BASE = 'https://fastly.jsdelivr.net/npm/@zolomedia/bifrost-client@1'
+# Client-URL policy SSOT moved to zSys/bifrost_client_pin.py, shared with the
+# sealed zGuard bridge (bridge_connection imports it for bifrost_core_url).
+# The bootstrap <script> and zbase.css keep riding the floating @1 alias; the
+# core is pinned via zguard_bin/BIFROST_CLIENT_PIN. BIFROST_CDN_BASE stays
+# re-exported here for existing importers.
+from zSys.bifrost_client_pin import BIFROST_CDN_BASE, bifrost_client_base
 
 
 def _bifrost_client_base() -> str:
     """Resolve at call time — zEnv loads into os.environ after import."""
-    return os.getenv('ZBIFROST_CLIENT_BASE') or BIFROST_CDN_BASE
+    return bifrost_client_base()
 
 
 def _build_styles_links(zVaFile_meta, logger=None, styles_folder=None, zbase_css_url=None, zcanvas_name=None):
