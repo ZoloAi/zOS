@@ -22,6 +22,9 @@ venv/
 # ── Caches — recreated by the tools themselves ──
 __pycache__/
 *.py[cod]
+# *.py[cod] above also matches *.pyd (Windows compiled extensions) via the
+# [cod] class -- these are real committed zguard binaries, not caches.
+!zguard_bin/**/*.pyd
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

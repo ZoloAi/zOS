@@ -18,8 +18,10 @@ recursive-include UI *.yaml
 # Include zOS utils documentation
 recursive-include zOS/utils *.md
 
-# Include zguard bundled binaries (closed-core runtime .so wheels)
-recursive-include zguard *.so *.pyd *.py
+# zguard_bin/ (closed-core compiled binaries) is git-tracked for `z patch`'s
+# live-fetch-from-GitHub at install time, but must NEVER ship in the sdist or
+# wheel — every platform's binaries would otherwise bloat every install.
+prune zguard_bin
 
 # Exclude compiled Python files and caches
 global-exclude __pycache__

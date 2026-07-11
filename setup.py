@@ -62,18 +62,12 @@ def _discover_packages():
         packages.append("zOS.zAgents")
         package_dir["zOS.zAgents"] = str(agents.relative_to(root))
 
-    # zguard/ — closed-core runtime binaries (bundled .so wheels, no source)
-    # In dev mode, the editable zGuard install shadows these via sys.path.
-    # In release/public mode, these bundled binaries are used directly.
-    zguard = root / "zguard"
-    if zguard.exists():
-        for init in sorted(zguard.rglob("__init__.py")):
-            pkg_path = init.parent
-            rel = pkg_path.relative_to(zguard)
-            parts = rel.parts
-            pkg_name = "zguard" if not parts else "zguard." + ".".join(parts)
-            packages.append(pkg_name)
-            package_dir[pkg_name] = str(pkg_path.relative_to(root))
+    # NOTE: zguard is never bundled here. zguard_bin/<platform-tag>/<py-tag>/*.so
+    # is a flat, git-tracked (not a Python package) binary store that `z patch`
+    # live-fetches the one matching file from at install/patch time — see
+    # core/zSys/cli/patch_command.py. It must never be discovered as a package
+    # or added to package_data, or every platform's binaries would ship in
+    # every wheel.
 
     return packages, package_dir
 
@@ -174,8 +168,6 @@ setup(
     packages=_packages,
     package_dir=_package_dir,
     package_data={
-        # Include bundled zguard binaries in the wheel
-        **{pkg: ["*.so", "*.pyd"] for pkg in _packages if pkg.startswith("zguard")},
         # Accessibility ships its built-in JSON data (emoji descriptions + icon codepoints)
         "zSys.accessibility": ["data/*.json"],
     },

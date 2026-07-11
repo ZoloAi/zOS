@@ -1,8 +1,0 @@
-# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
-
-companies:
-    zData:
-        action:   read
-        model:    @.models.zSchema.Companies
-        fields:   [id, name, industry, notes]
-        order_by: id ASC
