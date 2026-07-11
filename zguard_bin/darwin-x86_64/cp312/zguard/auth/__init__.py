@@ -24,6 +24,7 @@ Open core re-exports these via thin shims at their original f_zAuth paths, so al
 existing imports are unchanged and boot degrades gracefully when zGuard is absent.
 """
 
+from zguard import __version__  # single-sourced from zguard/__init__.py
 from .api_key_auth import (
     hash_token, generate_api_key,
     issue_api_key, verify_api_key, revoke_api_key, authenticate_api_key,

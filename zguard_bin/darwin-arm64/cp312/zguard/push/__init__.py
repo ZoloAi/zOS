@@ -11,6 +11,7 @@ and a thin dispatcher (`zSys.cli.push_command.handle_push_command`) that calls
 :func:`run_push`. Mirrors the zguard.bifrost / zguard.zengine boundary.
 """
 
+from zguard import __version__  # single-sourced from zguard/__init__.py
 from .project_resolver import (
     resolve_zproject, parse_zproject, ZProjectError, ResolvedProject,
 )
