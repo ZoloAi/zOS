@@ -59,7 +59,7 @@ gotcha: a panel's own same-file `zDelta` (a Refresh button, `action: zDelta($Pan
         (`_panel_zVaFile`) — the zList just rendered its raw `%item.*` template, unbound
     fix      — the server marks `is_dashboard_panel = True` whenever resolution actually
         FALLS BACK to the stamped panel file (not just when the click's own payload says
-        so) — first caught by `zDemos/zCRM`'s zDash capstone (Add-then-Refresh)
+        so) — first caught by `zDemos/zRM`'s zDash capstone (Add-then-Refresh)
 
 gotcha: a standalone (non-`%item`) `zBtn` with `action: {zModal: {...}}` — anywhere, not just in a
     zDash panel — silently swallowed its click in Bifrost
@@ -71,4 +71,4 @@ gotcha: a standalone (non-`%item`) `zBtn` with `action: {zModal: {...}}` — any
         buttons) was never affected — those render as plain content, not chunk-engine gates
     fix      — `zModal` joined the non-gating action set (zEngine `zstride._NAV_ACTION_KEYS`)
         — a standalone `zModal` button now needs NO `zDelta`-to-a-dialog-page workaround,
-        write it exactly like a per-row one (`zDemos/zCRM`'s panel-level Add Contact/Company/Deal)
+        write it exactly like a per-row one (`zDemos/zRM`'s panel-level Add Contact/Company/Deal)

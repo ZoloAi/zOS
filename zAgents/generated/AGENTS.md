@@ -17,6 +17,10 @@ laws:
     data: zData + zSchema only; !csv !pandas !sqlite3 !rawSQL
     plugins: args -> result only; !state !orchestration !UI; >~50LOC -> zEvents
     interactivity: existing zOS events/plugins only; !raw JS injection into the page
+    decouple: UI is a skin over logic, BY DEFAULT — visual shape (layout/grid/card) stays a zPattern
+        (reusable, `%<name>:` invoke, see 17_dynamic_content) SEPARATE from the interactive/data steps that
+        drive it (zWizard/zGate/zData); before hand-building bespoke render blocks, check whether the shape
+        repeats — if it does, it's a zPattern (+ zShuttle across a list), never copy-pasted blocks
     
 phase_planning:
     core: terminal is truth — if it works in CLI it works in GUI; solve the problem first, surface it second
@@ -866,7 +870,9 @@ zGate: a step that runs only when it earns its turn
     `zGate: <predicate>` beside a step's event — tested against the hat on arrival; false → step skipped WHOLE (nothing shows/lands)
     self-judging — the test reads the hat, so each step decides from what earlier steps gathered (no branches, no else)
     canonical — same `zGate:` a page uses to gate by WHO's asking (→ Advanced RBAC); on a step it reads the hat instead of the session
-    read    — `%zHat.Track` by name · `%zHat.0` by position · `%zHat.Details.0` into a bundle (by position)
+    read    — `%zHat.Track` by name · `%zHat.0` by position · `%zHat.Details.0` into a BUNDLE step (by position)
+        — that's step-position indexing only; a `zData action: read` step's ROWS can't be indexed this way
+        inside `zGate:` (see `zdata_step` → `read_gate`)
     predicate_language (a declared dict, read against the hat):
         yes/no  — filled `{%zHat.Track: zSet}` · empty/never-answered `{%zHat.Track: zNotSet}` (or `{zNull: true}`)
         equality— matches `{%zHat.Track: both}` · not-equal `{zNot: {%zHat.Track: talks}}`
@@ -913,6 +919,11 @@ zdata_step: a bare `zData` (no `_transaction`) as a step's own event — no fiel
         steps' answers via `zHat[Step]` in its `data:`/`where:`
     golden  — `zDemos/zShop`'s PlaceOrder (insert into Orders from the shipping/payment hat) + ClearCart
         (delete every CartItems row) run as the two steps right after the Place Order gate — zero plugins
+    read_gate — an `action: read` step files `True` into the hat (terminal-display mode), NOT the rows —
+        `zGate: {%zHat.Step: zSet}` after a bare read only means "the read ran", never "rows matched"; add
+        `silent: true` to the read so the hat holds the real row LIST (`[]`/`[{...}]`), then `zSet`/`zNotSet`
+        on the whole step correctly means "did any row match" — gating on a specific row/field (`.0.id`)
+        is NOT supported inside `zGate:`, read the value out via `zFunc` instead
 
 engine: what RUNS the steps
     you author the EVENT (named steps, zHat, zGate:, gates); the run model (zEngine/zWalker/zStride/zForce) → Advanced › zEngine
@@ -1492,7 +1503,7 @@ gotcha: a panel's own same-file `zDelta` (a Refresh button, `action: zDelta($Pan
         (`_panel_zVaFile`) — the zList just rendered its raw `%item.*` template, unbound
     fix      — the server marks `is_dashboard_panel = True` whenever resolution actually
         FALLS BACK to the stamped panel file (not just when the click's own payload says
-        so) — first caught by `zDemos/zCRM`'s zDash capstone (Add-then-Refresh)
+        so) — first caught by `zDemos/zRM`'s zDash capstone (Add-then-Refresh)
 
 gotcha: a standalone (non-`%item`) `zBtn` with `action: {zModal: {...}}` — anywhere, not just in a
     zDash panel — silently swallowed its click in Bifrost
@@ -1504,7 +1515,7 @@ gotcha: a standalone (non-`%item`) `zBtn` with `action: {zModal: {...}}` — any
         buttons) was never affected — those render as plain content, not chunk-engine gates
     fix      — `zModal` joined the non-gating action set (zEngine `zstride._NAV_ACTION_KEYS`)
         — a standalone `zModal` button now needs NO `zDelta`-to-a-dialog-page workaround,
-        write it exactly like a per-row one (`zDemos/zCRM`'s panel-level Add Contact/Company/Deal)
+        write it exactly like a per-row one (`zDemos/zRM`'s panel-level Add Contact/Company/Deal)
 
 ---
 
@@ -1862,7 +1873,7 @@ gotcha: a zList of snapshot bars (a per-row breakdown, not a wizard climb) — w
         time; N zList rows each calling it in a tight loop fight over that SAME terminal line (no
         newline is emitted until `current >= total`) — Bifrost has no such limit (one DOM node per
         row) so this ONLY surfaces dogfooding the zCLI face, easy to miss if a zProgress-in-a-zList
-        is only ever exercised in Bifrost (zCRM's Dashboard pipeline-by-stage breakdown, capstone)
+        is only ever exercised in Bifrost (zRM's Dashboard pipeline-by-stage breakdown, capstone)
     fix      — `zProgress: {label, current, total, color, static: true}` on the per-row block —
         forces a plain standalone line per call, no redraw escapes, one bar per row like zText would
 

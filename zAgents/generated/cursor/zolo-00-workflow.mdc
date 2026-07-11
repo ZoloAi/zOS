@@ -21,6 +21,10 @@ laws:
     data: zData + zSchema only; !csv !pandas !sqlite3 !rawSQL
     plugins: args -> result only; !state !orchestration !UI; >~50LOC -> zEvents
     interactivity: existing zOS events/plugins only; !raw JS injection into the page
+    decouple: UI is a skin over logic, BY DEFAULT — visual shape (layout/grid/card) stays a zPattern
+        (reusable, `%<name>:` invoke, see 17_dynamic_content) SEPARATE from the interactive/data steps that
+        drive it (zWizard/zGate/zData); before hand-building bespoke render blocks, check whether the shape
+        repeats — if it does, it's a zPattern (+ zShuttle across a list), never copy-pasted blocks
     
 phase_planning:
     core: terminal is truth — if it works in CLI it works in GUI; solve the problem first, surface it second

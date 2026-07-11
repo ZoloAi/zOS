@@ -1033,7 +1033,17 @@ class zLoader:
             cached = self.cache.get(cache_key, cache_type=CACHE_TYPE_SYSTEM, filepath=file_path)
             if cached is not None:
                 self.logger.debug("[zLoader.handle_absolute_path] Cache hit: %s", cache_key)
-                return cached
+                # SAME hazard `handle()` already guards against (see its own
+                # cache-hit branch above): callers of THIS entry point (zLoom's
+                # load_zloom_registry/_resolve_zloom_zpath, route/schema
+                # managers) get the raw registry dict back and some of them
+                # mutate a WHERE clause or block IN PLACE (e.g. QueryOps
+                # resolving %route.*/%session.* into a spool's `where`) —
+                # a bare `return cached` would let the FIRST request's
+                # resolved value freeze into the shared spool definition
+                # forever, corrupting every later request with different
+                # route/session state. Deep copy keeps the cache pristine.
+                return copy.deepcopy(cached)
         # zSchema files are not cached (expected behavior, no need to log)
 
         # Load raw file content

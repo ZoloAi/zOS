@@ -33,7 +33,9 @@ zGate: a step that runs only when it earns its turn
     `zGate: <predicate>` beside a step's event — tested against the hat on arrival; false → step skipped WHOLE (nothing shows/lands)
     self-judging — the test reads the hat, so each step decides from what earlier steps gathered (no branches, no else)
     canonical — same `zGate:` a page uses to gate by WHO's asking (→ Advanced RBAC); on a step it reads the hat instead of the session
-    read    — `%zHat.Track` by name · `%zHat.0` by position · `%zHat.Details.0` into a bundle (by position)
+    read    — `%zHat.Track` by name · `%zHat.0` by position · `%zHat.Details.0` into a BUNDLE step (by position)
+        — that's step-position indexing only; a `zData action: read` step's ROWS can't be indexed this way
+        inside `zGate:` (see `zdata_step` → `read_gate`)
     predicate_language (a declared dict, read against the hat):
         yes/no  — filled `{%zHat.Track: zSet}` · empty/never-answered `{%zHat.Track: zNotSet}` (or `{zNull: true}`)
         equality— matches `{%zHat.Track: both}` · not-equal `{zNot: {%zHat.Track: talks}}`
@@ -80,6 +82,11 @@ zdata_step: a bare `zData` (no `_transaction`) as a step's own event — no fiel
         steps' answers via `zHat[Step]` in its `data:`/`where:`
     golden  — `zDemos/zShop`'s PlaceOrder (insert into Orders from the shipping/payment hat) + ClearCart
         (delete every CartItems row) run as the two steps right after the Place Order gate — zero plugins
+    read_gate — an `action: read` step files `True` into the hat (terminal-display mode), NOT the rows —
+        `zGate: {%zHat.Step: zSet}` after a bare read only means "the read ran", never "rows matched"; add
+        `silent: true` to the read so the hat holds the real row LIST (`[]`/`[{...}]`), then `zSet`/`zNotSet`
+        on the whole step correctly means "did any row match" — gating on a specific row/field (`.0.id`)
+        is NOT supported inside `zGate:`, read the value out via `zFunc` instead
 
 engine: what RUNS the steps
     you author the EVENT (named steps, zHat, zGate:, gates); the run model (zEngine/zWalker/zStride/zForce) → Advanced › zEngine

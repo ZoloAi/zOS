@@ -171,19 +171,28 @@ class QueryOps:
         Interpolates ``where`` on BOTH the explicit ``zData`` form (aggregates put
         it at zData.where; reads at zData.options.where) so a ZLOOM aggregate honours
         %session/%var like the declarative form. Unwraps limit=1 lists to a dict.
+
+        Copies ``zdata``/``options`` before writing the interpolated ``where`` back —
+        ``query_def`` is a LIVE reference into the loader's cached parse (same class
+        of hazard loop_ops.py's ``_ZLIST_SOURCE_KEY`` stash works around), so mutating
+        it in place would bake THIS request's resolved ``%route.*``/``%session.*``
+        value into the shared template forever, silently freezing every later
+        request (with a different route/session) to the FIRST one's result.
         """
-        zdata = query_def["zData"]
+        zdata = dict(query_def["zData"])
         zdata["silent"] = True
 
         if isinstance(zdata.get("where"), dict):
             zdata["where"] = self._interpolate_session_values(zdata["where"])
         options = zdata.get("options")
         if isinstance(options, dict) and isinstance(options.get("where"), dict):
+            options = dict(options)
             options["where"] = self._interpolate_session_values(options["where"])
+            zdata["options"] = options
 
         result = self.zos.data.handle_request(zdata, context)
 
-        limit = query_def["zData"].get("options", {}).get("limit")
+        limit = zdata.get("options", {}).get("limit")
         if isinstance(result, list) and limit == 1 and len(result) > 0:
             final_result = result[0]
         else:

@@ -345,8 +345,8 @@ class PageRouteHandlersMixin:
             # rendering reads them via zos.zloom as %route.* (never zVars).
             # set_route_params is the ONE seam — it REPLACES the store per hop
             # (seat-or-clear) so no stale param survives. Keep BEFORE render/data.
+            rparams = route.get("_route_params")
             if zos and getattr(zos, "zloom", None):
-                rparams = route.get("_route_params")
                 zos.zloom.set_route_params(rparams)
                 if self.logger and isinstance(rparams, dict) and rparams:
                     self.logger.debug(
@@ -560,7 +560,20 @@ class PageRouteHandlersMixin:
                     "ssl_enabled": _ws.ssl_enabled if _ws else False,
                     "host": _ws_host,
                     "port": _ws.port if _ws else _WS_DEFAULT_PORT,
-                }},
+                },
+                # SSOT gap closer: %route.* is seated for THIS http request's
+                # own SSR gate/render (line ~349) but render_zvaf ships an
+                # EMPTY <zVaF></zVaF> shell — the real content paints over a
+                # separate WS execute_walker round-trip the client fires next,
+                # which had no way to know a dynamic segment (e.g. /s/%slug)
+                # ever existed. Riding routeParams along in the SAME zui-config
+                # blob zVaFile/zVaFolder/zBlock already travel in lets the
+                # client hand it straight back on execute_walker, so the WS
+                # side can re-seat %route.* before it resolves the SAME
+                # zMeta.zSpool the gate already read. Empty/None when the
+                # route has no dynamic segment (static routes stay `null`).
+                "routeParams": rparams if isinstance(rparams, dict) and rparams else None,
+                },
             )
 
             # Send HTML response with cache headers. _status_code lets styled

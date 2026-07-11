@@ -67,6 +67,13 @@ from zOS import Any, Dict, Optional
 # zPath grammar — Layer-0 SSOT for sigil/segment decomposition.
 from zSys import zpath
 
+# zVaFile type-prefix marker — filenames are authored as "zUI.<Name>" (two dot
+# segments); locating this marker inside a route's full zPath ref is what lets
+# a trailing segment AFTER the file be recognized as a distinct zBlock name
+# (binding_ops.py's `_ZVAFILE_PREFIXES` is the sibling constant for zLoom spool
+# refs — kept local here rather than shared, same precedent).
+_ZVAFILE_PREFIX = "zUI"
+
 # =============================================================================
 # MODULE CONSTANTS
 # =============================================================================
@@ -255,15 +262,31 @@ def parse_server_file(
             route_entry["zProxy"] = route_data["zProxy"]
 
         # Agnostic zPath normalization for the view ref: a FULL zPath
-        #   (@.<folder>.<zUI.File>) is split into folder/file/block so every
-        #   downstream consumer keeps its split form — same way `model:` paths
-        #   resolve. Filenames are two-part (<prefix>.<Name>), so the LAST two
-        #   segments are the file, the rest the folder, the tail the block.
+        #   (@.<folder>.<zUI.File>[.<Block>]) is split into folder/file/block so
+        #   every downstream consumer keeps its split form — same way `model:`
+        #   paths resolve. Filenames are two-part (<prefix>.<Name>); locate the
+        #   zVaFile type-prefix marker ("zUI") — everything BEFORE it is the
+        #   folder, it + the next segment ARE the file, anything AFTER is the
+        #   block (same "last segment = block" convention resolver_zlink.py's
+        #   extract_block_from_path uses everywhere else in zOS nav). A ref with
+        #   no trailing block segment (e.g. @.zViews.zUI.PublicProfile) falls
+        #   through to the SSOT derivation below (block defaults to the file's
+        #   own name). Falls back to the plain last-2-segments split when no
+        #   "zUI" marker is present at all (a non-standard folder convention).
         _vf = route_entry.get(KEY_ZVAFILE)
         if isinstance(_vf, str) and _vf.startswith(zpath.SIGIL_WORKSPACE):
             _parts = zpath.split(_vf)
             _segs = list(_parts.segments)
-            if len(_segs) >= 2:
+            _zui_idx = next((i for i, s in enumerate(_segs) if s == _ZVAFILE_PREFIX), None)
+            if _zui_idx is not None and _zui_idx + 1 < len(_segs):
+                route_entry[KEY_ZVAFILE] = ".".join(_segs[_zui_idx:_zui_idx + 2])
+                route_entry["zVaFolder"] = (
+                    zpath.join(_parts.symbol, *_segs[:_zui_idx]) if _segs[:_zui_idx] else _parts.symbol
+                )
+                _tail = _segs[_zui_idx + 2:]
+                if _tail:
+                    route_entry.setdefault(KEY_ZBLOCK, _tail[-1])
+            elif len(_segs) >= 2:
                 route_entry[KEY_ZVAFILE] = ".".join(_segs[-2:])
                 route_entry["zVaFolder"] = (
                     zpath.join(_parts.symbol, *_segs[:-2]) if len(_segs) > 2 else _parts.symbol

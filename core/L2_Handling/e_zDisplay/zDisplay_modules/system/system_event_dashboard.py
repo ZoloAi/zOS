@@ -237,29 +237,28 @@ class DashboardEvents:
     @staticmethod
     def _check_panel_rbac(panel_block: Any, _zos: Optional[Any]) -> bool:
         """
-        Panel-visibility gate for a panel's root-level zRBAC guard.
+        Panel-visibility gate for a panel's root-level zGate guard.
 
-        DUMB CALLER: hands the panel's zRBAC block to the SSOT
-        (zos.auth.check_zrbac) and returns the verdict — same decision the route
-        gate, render gate, and `if:` use. Enforced per panel during
-        _filter_accessible_panels so a guard like::
+        DUMB CALLER: hands the panel block to ``zos.zgate.check`` — the ONE
+        facade that extracts the authored gate (`zGate:`, or a legacy
+        `zRBAC:` block auto-lowered) and evaluates it through the SAME engine
+        every page/route/action_row gate uses (15_rbac.md "verb"). Enforced
+        per panel during _filter_accessible_panels so a guard like::
             Overview:
-                zRBAC:
-                    authenticated: true
+                zGate:
+                    role: [admin]
         is applied before the panel reaches the sidebar list.
 
         Fails open on errors so a broken auth stack never locks out all panels.
         """
-        zrbac = panel_block.get("zRBAC") if isinstance(panel_block, dict) else None
-        if not zrbac or not isinstance(zrbac, dict):
-            return True  # no guard → accessible to everyone
-
+        if not isinstance(panel_block, dict):
+            return True
         try:
-            auth = _zos.auth if _zos else None
-            if auth is None:
-                return True  # no auth module → fail open
-            granted, _reason = auth.check_zrbac(zrbac)
-            return granted
+            zgate = getattr(_zos, "zgate", None) if _zos else None
+            if zgate is None:
+                return True  # no gate engine → fail open
+            granted, _reason = zgate.check(panel_block)
+            return bool(granted)
         except Exception:  # pylint: disable=broad-except
             return True  # fail open — never block on unexpected errors
 

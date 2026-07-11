@@ -49,7 +49,7 @@ gotcha: a zList of snapshot bars (a per-row breakdown, not a wizard climb) — w
         time; N zList rows each calling it in a tight loop fight over that SAME terminal line (no
         newline is emitted until `current >= total`) — Bifrost has no such limit (one DOM node per
         row) so this ONLY surfaces dogfooding the zCLI face, easy to miss if a zProgress-in-a-zList
-        is only ever exercised in Bifrost (zCRM's Dashboard pipeline-by-stage breakdown, capstone)
+        is only ever exercised in Bifrost (zRM's Dashboard pipeline-by-stage breakdown, capstone)
     fix      — `zProgress: {label, current, total, color, static: true}` on the per-row block —
         forces a plain standalone line per call, no redraw escapes, one bar per row like zText would
 

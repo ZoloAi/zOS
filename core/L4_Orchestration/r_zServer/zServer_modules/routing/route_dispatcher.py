@@ -187,8 +187,9 @@ class RouteDispatcher(PageRouteHandlersMixin, EndpointRouteHandlersMixin):
                 # previous route's params can NEVER linger and re-render the old profile
                 # under a new URL (the old "stale page" edge is impossible by construction).
                 zos = getattr(self.router, 'zos', None)
+                _rparams = route.get('_route_params')
                 if zos and getattr(zos, 'zloom', None):
-                    zos.zloom.set_route_params(route.get('_route_params'))
+                    zos.zloom.set_route_params(_rparams)
 
                 # Explicit zWalker routes (e.g. '/') carry no zMeta; load it from the
                 # zVaFile so SPA navigation can inject per-page zBrush CSS (SSOT: same
@@ -202,6 +203,12 @@ class RouteDispatcher(PageRouteHandlersMixin, EndpointRouteHandlersMixin):
                     'zMeta':      zmeta or {},
                     'navbar':     _navbar,
                     'nav_html':   _nav_html,
+                    # SSOT parity with the full-page zui-config injection (see
+                    # page_route_handlers._handle_zwalker_route): SPA nav ALSO
+                    # needs to hand this back on the next execute_walker so the
+                    # WS-side render — not just this JSON response's OWN
+                    # set_route_params above — sees %route.* too.
+                    'routeParams': _rparams if isinstance(_rparams, dict) and _rparams else None,
                 }
                 body = json.dumps(payload).encode('utf-8')
                 self.handler.send_response(200)
