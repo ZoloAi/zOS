@@ -18,7 +18,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-IMAGE_ROOT = Path(__file__).resolve().parent.parent / "zguard"
+# Live layout: zguard_bin/<platform-tag>/<py-tag>/zguard/ (one image per ABI).
+ZGUARD_BIN = Path(__file__).resolve().parent.parent / "zguard_bin"
 
 # Source intermediates that must never ship in the public image.
 FORBIDDEN_SUFFIXES = (".c", ".pyx", ".pxd", ".pyi")
@@ -35,36 +36,45 @@ def _so_sibling(py_path: Path) -> bool:
                for p in py_path.parent.glob(f"{stem}.*.so"))
 
 
-def main() -> int:
-    if not IMAGE_ROOT.is_dir():
-        print(f"verify-image: no image at {IMAGE_ROOT} — nothing to check.")
-        return 0
-
-    orphans: list[Path] = []
-    intermediates: list[Path] = []
-
-    for path in IMAGE_ROOT.rglob("*"):
+def _check_image(image_root: Path) -> list[str]:
+    """Return leak descriptions for one <platform>/<py>/zguard image."""
+    leaks: list[str] = []
+    for path in image_root.rglob("*"):
         if "__pycache__" in path.parts or not path.is_file():
             continue
+        rel = path.relative_to(image_root.parent)
         if path.suffix in FORBIDDEN_SUFFIXES:
-            intermediates.append(path)
+            leaks.append(f"[cython source] {rel}")
         elif path.suffix == ".py" and path.name not in ALLOWED_SOURCE_NAMES:
             if not _so_sibling(path):
-                orphans.append(path)
+                leaks.append(f"[orphan source] {rel}  (no .so sibling)")
+    return leaks
 
-    leaks = orphans + intermediates
-    if not leaks:
-        print(f"verify-image: OK — {IMAGE_ROOT.name}/ is a pure binary image.")
+
+def main() -> int:
+    images = sorted(ZGUARD_BIN.glob("*/*/zguard"))
+    if not images:
+        print(f"verify-image: no images under {ZGUARD_BIN} — nothing to check.")
         return 0
 
-    print("verify-image: LEAK DETECTED — do NOT publish.\n")
-    for p in orphans:
-        print(f"  [orphan source] {p.relative_to(IMAGE_ROOT.parent)}  (no .so sibling)")
-    for p in intermediates:
-        print(f"  [cython source] {p.relative_to(IMAGE_ROOT.parent)}")
+    all_leaks: list[str] = []
+    for image in images:
+        leaks = _check_image(image)
+        tag = f"{image.parent.parent.name}/{image.parent.name}"
+        if leaks:
+            all_leaks.extend(f"{tag}: {leak}" for leak in leaks)
+        else:
+            print(f"verify-image: OK — {tag} is a pure binary image.")
+
+    if not all_leaks:
+        return 0
+
+    print("\nverify-image: LEAK DETECTED — do NOT publish.\n")
+    for leak in all_leaks:
+        print(f"  {leak}")
     print(
-        "\nFix: regenerate the image by copying the WHOLE build output\n"
-        "  zGuard/build/lib.*/zguard/  →  zOS-OpenCore/zguard/\n"
+        "\nFix: rebuild the images from CI wheels with\n"
+        "  python scripts/refresh_zguard_bin.py <wheel-folder>\n"
         "(do not hand-copy individual modules — that is how source leaks in)."
     )
     return 1
