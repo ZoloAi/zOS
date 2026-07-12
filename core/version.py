@@ -2,7 +2,7 @@
 # ───────────────────────────────────────────────────────────────
 """Version management for zOS package."""
 
-__version__ = "1.6.7"
+__version__ = "1.6.8"
 __version_info__ = (1, 6, 7)
 
 # Package metadata
