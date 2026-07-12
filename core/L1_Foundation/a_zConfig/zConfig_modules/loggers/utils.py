@@ -136,7 +136,9 @@ def get_caller_info(record: logging.LogRecord) -> str:
     Returns:
         str: Formatted caller name (subsystem.module or filename)
     """
-    pathname = record.pathname
+    # Normalize to forward slashes so the markers (and splits below) work on
+    # Windows backslash paths too.
+    pathname = record.pathname.replace('\\', '/')
 
     # For zOS subsystems, show hierarchical subsystem/module names
     if PATH_SUBSYSTEMS_MARKER in pathname:

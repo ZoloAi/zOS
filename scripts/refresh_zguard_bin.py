@@ -38,6 +38,7 @@ _PLATFORM_MAP = (
     (re.compile(r"manylinux[\w\d_]*_x86_64"), "linux-x86_64"),
     (re.compile(r"manylinux[\w\d_]*_aarch64"), "linux-aarch64"),
     (re.compile(r"win_amd64"), "win-amd64"),
+    (re.compile(r"win_arm64"), "win-arm64"),
 )
 
 # A universal2 macOS wheel serves both darwin folders.

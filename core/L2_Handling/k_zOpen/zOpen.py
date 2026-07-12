@@ -590,14 +590,21 @@ class zOpen:
 
         # Launch media player
         try:
-            full_command = [cmd] + args + [absolute_path]
-            self.logger.info(f"Launching {media_type_display} player: {' '.join(full_command)}")
+            from zOS.L1_Foundation.a_zConfig.zConfig_modules.machine.detectors.shared import OS_DEFAULT_HANDLER
+            if cmd == OS_DEFAULT_HANDLER:
+                # Windows: `start` is a cmd.exe builtin, not an executable —
+                # os.startfile is the real API for "open with default handler".
+                self.logger.info(f"Launching {media_type_display} via OS default handler: {absolute_path}")
+                os.startfile(absolute_path)  # pylint: disable=no-member
+            else:
+                full_command = [cmd] + args + [absolute_path]
+                self.logger.info(f"Launching {media_type_display} player: {' '.join(full_command)}")
 
-            subprocess.Popen(
-                full_command,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
+                subprocess.Popen(
+                    full_command,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
 
             self.logger.info(f"Successfully opened {media_type_display} in {player_name}")
             self.display.success(

@@ -2,7 +2,7 @@
 """Image viewer detection and launch commands."""
 
 from zOS import os, platform, subprocess, shutil, Optional
-from ..shared import SUBPROCESS_TIMEOUT_SEC, _log_info, _log_warning
+from ..shared import SUBPROCESS_TIMEOUT_SEC, OS_DEFAULT_HANDLER, _log_info, _log_warning
 
 # Image viewer constants
 IMAGE_VIEWER_MAPPING_MACOS = {
@@ -99,10 +99,11 @@ def _detect_linux_image_viewer(log_level: Optional[str] = None, is_production: b
     3. If GUI → scan PATH for common image viewers
     4. Fallback to eog (most common)
     """
-    # Check for GUI environment
-    if not os.getenv("DISPLAY"):
+    # Check for GUI environment (X11 or Wayland)
+    from ..shared import linux_gui_available
+    if not linux_gui_available():
         _log_warning(
-            "No GUI detected (DISPLAY not set). Image viewing unavailable in headless mode.",
+            "No GUI detected (DISPLAY/WAYLAND_DISPLAY not set). Image viewing unavailable in headless mode.",
             log_level, is_production
         )
         return "none"
@@ -214,8 +215,8 @@ def get_image_viewer_launch_command(viewer_name: str) -> tuple:
     # Windows: Use 'start' command for default handlers
     elif system == "Windows":
         if viewer_lower == "photos":
-            # Windows Photos app - use 'start' with empty first arg
-            return ("start", [""])
+            # Windows default handler — launcher translates to os.startfile()
+            return (OS_DEFAULT_HANDLER, [])
         elif viewer_lower == "paint" or viewer_lower == "mspaint":
             return ("mspaint", [])
         # Try direct command

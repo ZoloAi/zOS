@@ -135,13 +135,19 @@ def auto_detect_machine(log_level: Optional[str] = None, is_production: bool = F
         # Windows Store Python or other restricted environments
         libc_ver = ""
 
+    # Canonical OS/arch identity — one vocabulary across the whole codebase
+    from zSys.platform_identity import current_os, normalized_arch, zguard_platform_tag
+
     machine = {
         # Identity
         "os": platform.system(),                    # Linux, Darwin, Windows
+        "os_family": current_os(),                  # canonical: darwin, linux, windows
         "os_version": platform.release(),           # Kernel version
         "os_name": platform.platform(),             # Full OS name with version
         "hostname": socket.gethostname(),           # Machine name
-        "architecture": platform.machine(),         # x86_64, arm64, etc.
+        "architecture": platform.machine(),         # raw: x86_64, arm64, AMD64, aarch64...
+        "arch": normalized_arch(),                  # canonical: arm64, x86_64, i686
+        "platform_tag": zguard_platform_tag() or "unsupported",  # e.g. darwin-arm64
         "processor": platform.processor(),          # CPU type
         "python_version": platform.python_version(), # 3.12.0
         "python_impl": platform.python_implementation(), # CPython, PyPy, etc.

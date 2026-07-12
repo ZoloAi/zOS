@@ -253,24 +253,23 @@ class ZRaven(BaseStepRunner):
         except ImportError:
             raise RuntimeError("Browser engine not found. Run: playwright install chromium")
 
-        import pathlib as _pl, glob as _glob, platform as _platform, sys as _sys  # pylint: disable=import-outside-toplevel
+        import pathlib as _pl, glob as _glob  # pylint: disable=import-outside-toplevel
+        from zSys.platform_identity import playwright_slug  # pylint: disable=import-outside-toplevel
         env = _os.environ
         ep  = env.get("PLAYWRIGHT_BROWSERS_PATH", "")
-        if ep:
-            mach      = _platform.machine().lower()
-            plat_slug = (
-                "mac-arm64" if _sys.platform == "darwin" and mach in ("arm64", "aarch64")
-                else "mac-x64" if _sys.platform == "darwin"
-                else "linux-arm64" if mach in ("arm64", "aarch64")
-                else "linux-x64"
-            )
-            pattern  = f"{ep}/**/chrome-headless-shell-{plat_slug}/chrome-headless-shell"
+        plat_slug = playwright_slug()
+        if ep and plat_slug:
+            # Playwright names the shell binary chrome-headless-shell.exe on
+            # Windows; glob with a wildcard suffix so one pattern covers both.
+            pattern  = f"{ep}/**/chrome-headless-shell-{plat_slug}/chrome-headless-shell*"
             if not _glob.glob(pattern, recursive=True):
+                _home = _pl.Path.home()
                 for fallback in [
-                    _pl.Path.home() / "Library/Caches/ms-playwright",
-                    _pl.Path.home() / ".cache/ms-playwright",
+                    _home / "Library/Caches/ms-playwright",            # macOS
+                    _home / ".cache/ms-playwright",                    # Linux
+                    _home / "AppData/Local/ms-playwright",             # Windows
                 ]:
-                    if _glob.glob(f"{fallback}/**/chrome-headless-shell-{plat_slug}/chrome-headless-shell", recursive=True):
+                    if _glob.glob(f"{fallback}/**/chrome-headless-shell-{plat_slug}/chrome-headless-shell*", recursive=True):
                         env["PLAYWRIGHT_BROWSERS_PATH"] = str(fallback)
                         break
 

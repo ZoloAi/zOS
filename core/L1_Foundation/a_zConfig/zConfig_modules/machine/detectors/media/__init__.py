@@ -1,6 +1,8 @@
 # zOS/core/L1_Foundation/a_zConfig/zConfig_modules/helpers/detectors/media/__init__.py
 """Media application detection modules (image, video, audio)."""
 
+from ..shared import OS_DEFAULT_HANDLER
+
 from .image_viewer import (
     detect_image_viewer,
     get_image_viewer_launch_command,
@@ -32,6 +34,7 @@ from .audio_player import (
 )
 
 __all__ = [
+    'OS_DEFAULT_HANDLER',
     # Image viewer
     'detect_image_viewer',
     'get_image_viewer_launch_command',

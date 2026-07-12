@@ -23,11 +23,16 @@ falls back to reinstalling onto a Python version we do support.
 """
 
 import os
-import platform
 import sys
 import time
 from pathlib import Path
 from typing import Optional
+
+from zSys.platform_identity import (  # single source of truth for OS/arch identity
+    ZGUARD_PLATFORM_TAGS,
+    current_py_tag,
+    zguard_platform_tag,
+)
 
 RAW_BASE = "https://raw.githubusercontent.com/ZoloAi/zOS/main/zguard_bin"
 
@@ -38,30 +43,12 @@ RAW_BASE = "https://raw.githubusercontent.com/ZoloAi/zOS/main/zguard_bin"
 _RECHECK_INTERVAL_SECONDS = 24 * 60 * 60
 
 SUPPORTED_PY_TAGS = ("cp310", "cp311", "cp312")
-SUPPORTED_PLATFORM_TAGS = (
-    "darwin-arm64", "darwin-x86_64",
-    "linux-x86_64", "linux-aarch64",
-    "win-amd64",
-)
+SUPPORTED_PLATFORM_TAGS = ZGUARD_PLATFORM_TAGS
 
 
 def current_platform_tag() -> Optional[str]:
     """e.g. 'darwin-arm64', 'linux-x86_64', 'win-amd64' — or None if this OS/arch isn't one we build for."""
-    system = platform.system().lower()
-    machine = platform.machine().lower()
-    if system == "darwin":
-        return "darwin-arm64" if machine in ("arm64", "aarch64") else "darwin-x86_64"
-    if system == "linux":
-        return "linux-aarch64" if machine in ("aarch64", "arm64") else "linux-x86_64"
-    if system == "windows":
-        return "win-amd64" if machine in ("amd64", "x86_64") else None
-    return None
-
-
-def current_py_tag() -> str:
-    """e.g. 'cp312'."""
-    vi = sys.version_info
-    return f"cp{vi.major}{vi.minor}"
+    return zguard_platform_tag()
 
 
 def is_supported(platform_tag: Optional[str], py_tag: str) -> bool:

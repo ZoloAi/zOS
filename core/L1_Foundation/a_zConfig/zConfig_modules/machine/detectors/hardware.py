@@ -83,8 +83,10 @@ def detect_cpu_architecture() -> Dict[str, Any]:
             if result["cpu_physical"] is None:
                 result["cpu_physical"] = result["cpu_logical"]
 
-            # Apple Silicon: try to detect P-cores and E-cores
-            if platform.machine() == "arm64" and result["cpu_physical"]:
+            # Apple Silicon: try to detect P-cores and E-cores.
+            # Normalized arch — platform.machine() can report "aarch64" too.
+            from zSys.platform_identity import normalized_arch
+            if normalized_arch() == "arm64" and result["cpu_physical"]:
                 detected = False
                 try:
                     # Try to get performance level counts (macOS 12+)
@@ -254,40 +256,165 @@ def detect_gpu(system_memory_gb: Optional[int] = None) -> Dict[str, Any]:
                     result["gpu_compute"].append("ROCm")
 
         elif system == "Windows":
-            # Windows: use wmic
-            wmic_result = subprocess.run(
-                ["wmic", "path", "win32_VideoController", "get", "name,AdapterRAM"],
-                capture_output=True, text=True, check=False, timeout=3
-            )
-            if wmic_result.returncode == 0:
-                lines = [line.strip() for line in wmic_result.stdout.split('\n') if line.strip()]
-                if len(lines) > 1:  # Skip header
-                    result["gpu_available"] = True
-                    gpu_line = lines[1]
-                    parts = gpu_line.rsplit(None, 1)
-                    if len(parts) == 2:
-                        result["gpu_type"] = parts[0]
-                        try:
-                            ram_bytes = int(parts[1])
-                            result["gpu_memory_gb"] = ram_bytes // BYTES_PER_GB
-                        except ValueError:
-                            pass
+            # Windows: CIM via PowerShell (wmic was removed in Windows 11 24H2+);
+            # fall back to wmic for older systems.
+            gpu_name, gpu_ram_bytes = _detect_windows_gpu()
+            if gpu_name:
+                result["gpu_available"] = True
+                result["gpu_type"] = gpu_name
+                if gpu_ram_bytes:
+                    result["gpu_memory_gb"] = gpu_ram_bytes // BYTES_PER_GB
 
-                    # Detect vendor from name
-                    gpu_type = result["gpu_type"]
-                    if isinstance(gpu_type, str):  # pylint: disable=unsupported-membership-test
-                        if "NVIDIA" in gpu_type:
-                            result["gpu_vendor"] = "NVIDIA"
-                            result["gpu_compute"].append("CUDA")
-                        elif "AMD" in gpu_type or "Radeon" in gpu_type:
-                            result["gpu_vendor"] = "AMD"
-                        elif "Intel" in gpu_type:
-                            result["gpu_vendor"] = "Intel"
+                if "NVIDIA" in gpu_name:
+                    result["gpu_vendor"] = "NVIDIA"
+                    result["gpu_compute"].append("CUDA")
+                elif "AMD" in gpu_name or "Radeon" in gpu_name:
+                    result["gpu_vendor"] = "AMD"
+                elif "Intel" in gpu_name:
+                    result["gpu_vendor"] = "Intel"
 
     except Exception:
         pass  # Silent fail - GPU detection is optional
 
     return result
+
+
+def _detect_windows_gpu() -> tuple:
+    """(name, adapter_ram_bytes) of the first video controller, via CIM then wmic."""
+    # PowerShell CIM — present on every supported Windows; wmic is not (24H2+).
+    try:
+        ps_result = subprocess.run(
+            [
+                "powershell", "-NoProfile", "-NonInteractive", "-Command",
+                "(Get-CimInstance Win32_VideoController | "
+                "Select-Object -First 1 Name,AdapterRAM | "
+                "ForEach-Object { \"$($_.Name)|$($_.AdapterRAM)\" })",
+            ],
+            capture_output=True, text=True, check=False, timeout=10
+        )
+        if ps_result.returncode == 0 and "|" in ps_result.stdout:
+            name, _, ram = ps_result.stdout.strip().partition("|")
+            try:
+                return name.strip(), int(ram.strip())
+            except ValueError:
+                return name.strip(), None
+    except Exception:
+        pass
+
+    try:
+        wmic_result = subprocess.run(
+            ["wmic", "path", "win32_VideoController", "get", "name,AdapterRAM"],
+            capture_output=True, text=True, check=False, timeout=3
+        )
+        if wmic_result.returncode == 0:
+            lines = [line.strip() for line in wmic_result.stdout.split('\n') if line.strip()]
+            if len(lines) > 1:  # skip header
+                parts = lines[1].rsplit(None, 1)
+                if len(parts) == 2:
+                    try:
+                        return parts[0], int(parts[1])
+                    except ValueError:
+                        return parts[0], None
+                return lines[1], None
+    except Exception:
+        pass
+    return None, None
+
+
+def _socket_local_ip() -> Optional[str]:
+    """Local IP of the default-route interface via a no-traffic UDP connect.
+
+    Cross-platform and subprocess-free: connect() on a UDP socket only does a
+    route lookup — no packet is sent. Returns None when there is no route
+    (fully offline machine).
+    """
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(0.2)
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception:
+        return None
+
+
+def _detect_network_ip_cmd(result: Dict[str, Any]) -> None:
+    """Linux: fill interfaces/primary/ip/mac from iproute2's `ip` command."""
+    ip_result = subprocess.run(
+        ["ip", "-o", "addr", "show", "up"],
+        capture_output=True, text=True, check=False, timeout=3
+    )
+    if ip_result.returncode != 0:
+        return
+    # One line per address: "2: eth0    inet 10.0.0.5/24 brd ... scope global ..."
+    for line in ip_result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) < 4 or parts[2] != "inet":
+            continue
+        iface = parts[1].split("@")[0]  # veth pairs report eth0@if12
+        if iface.startswith("lo"):
+            continue
+        if iface not in result["network_interfaces"]:
+            result["network_interfaces"].append(iface)
+        if result["network_primary"] is None:
+            result["network_primary"] = iface
+            result["network_ip_local"] = parts[3].split("/")[0]
+            # MAC for the chosen interface
+            mac_result = subprocess.run(
+                ["ip", "-o", "link", "show", iface],
+                capture_output=True, text=True, check=False, timeout=3
+            )
+            if mac_result.returncode == 0 and "link/ether" in mac_result.stdout:
+                tokens = mac_result.stdout.split()
+                result["network_mac_address"] = tokens[tokens.index("link/ether") + 1]
+
+
+def _detect_network_windows(result: Dict[str, Any]) -> None:
+    """Windows: fill interfaces/primary/ip/mac/gateway by parsing `ipconfig /all`."""
+    ipconfig_result = subprocess.run(
+        ["ipconfig", "/all"],
+        capture_output=True, text=True, check=False, timeout=5
+    )
+    if ipconfig_result.returncode != 0:
+        return
+
+    current_iface = None
+    current_ip = None
+    current_mac = None
+    current_gateway = None
+
+    def _flush():
+        if not current_iface:
+            return
+        result["network_interfaces"].append(current_iface)
+        if result["network_primary"] is None and current_ip:
+            result["network_primary"] = current_iface
+            result["network_ip_local"] = current_ip
+            result["network_mac_address"] = current_mac
+            if current_gateway:
+                result["network_gateway"] = current_gateway
+
+    for raw in ipconfig_result.stdout.splitlines():
+        line = raw.rstrip()
+        # Adapter headers are unindented: "Ethernet adapter Ethernet:"
+        if line and not line[0].isspace() and line.endswith(":") and "adapter" in line.lower():
+            _flush()
+            current_iface = line.rstrip(":").split("adapter", 1)[-1].strip()
+            current_ip = current_mac = current_gateway = None
+            continue
+        stripped = line.strip()
+        if ":" not in stripped or current_iface is None:
+            continue
+        key, _, value = stripped.partition(":")
+        key = key.strip(". ").lower()
+        value = value.strip().replace("(Preferred)", "").strip()
+        if key.startswith("ipv4 address") and value:
+            current_ip = value
+        elif key == "physical address" and value:
+            current_mac = value.replace("-", ":").lower()
+        elif key == "default gateway" and value and "." in value:
+            current_gateway = value
+    _flush()
 
 
 def detect_network() -> Dict[str, Any]:
@@ -317,8 +444,12 @@ def detect_network() -> Dict[str, Any]:
 
     # Platform-specific detection (primary method - more reliable than psutil)
     try:
-        if system in ("Linux", "Darwin"):
-            # Use ifconfig for macOS/Linux
+        if system == "Linux":
+            # Modern distros ship `ip` (iproute2); ifconfig is often absent.
+            _detect_network_ip_cmd(result)
+
+        if system in ("Linux", "Darwin") and result["network_primary"] is None:
+            # macOS primary path; Linux fallback when `ip` is unavailable.
             ifconfig_result = subprocess.run(
                 ["ifconfig"],
                 capture_output=True, text=True, check=False, timeout=3
@@ -353,8 +484,9 @@ def detect_network() -> Dict[str, Any]:
                         if "UP" in line and "RUNNING" in line:
                             current_status = "up"
 
-                    # Parse interface details (indented lines)
-                    elif current_iface and line.startswith('\t'):
+                    # Parse interface details (indented lines — macOS ifconfig
+                    # uses tabs, Linux net-tools uses spaces)
+                    elif current_iface and line and line[0].isspace():
                         line = line.strip()
                         # IPv4 address
                         if line.startswith("inet ") and not line.startswith("inet6"):
@@ -376,24 +508,35 @@ def detect_network() -> Dict[str, Any]:
                         result["network_mac_address"] = current_mac
 
         elif system == "Windows":
-            # Use ipconfig for Windows
-            ipconfig_result = subprocess.run(
-                ["ipconfig", "/all"],
-                capture_output=True, text=True, check=False, timeout=3
-            )
-            if ipconfig_result.returncode == 0:
-                # Simplified Windows parsing
-                # Full implementation would need more robust parsing
-                result["network_interfaces"].append("Ethernet")
-                result["network_primary"] = "Ethernet"
+            _detect_network_windows(result)
 
     except Exception:
         pass  # Silent fail
 
+    # Last resort on every OS: route-lookup socket trick (subprocess-free).
+    if result["network_ip_local"] is None:
+        ip = _socket_local_ip()
+        if ip:
+            result["network_ip_local"] = ip
+            if result["network_primary"] is None:
+                result["network_primary"] = "default"
+
     # Detect default gateway (router IP)
     try:
-        if system in ("Darwin", "Linux"):
-            # Try netstat first (most reliable on macOS)
+        if system == "Linux" and result["network_gateway"] is None:
+            # `ip route` — netstat needs the deprecated net-tools package
+            route_result = subprocess.run(
+                ["ip", "route", "show", "default"],
+                capture_output=True, text=True, check=False, timeout=3
+            )
+            if route_result.returncode == 0:
+                # "default via 192.168.1.1 dev eth0 ..."
+                parts = route_result.stdout.split()
+                if "via" in parts:
+                    result["network_gateway"] = parts[parts.index("via") + 1]
+
+        if system in ("Darwin", "Linux") and result["network_gateway"] is None:
+            # macOS primary path; Linux fallback for net-tools-only systems
             netstat_result = subprocess.run(
                 ["netstat", "-rn"],
                 capture_output=True, text=True, check=False, timeout=3
@@ -411,7 +554,7 @@ def detect_network() -> Dict[str, Any]:
                                 result["network_gateway"] = gateway
                                 break
 
-        elif system == "Windows":
+        elif system == "Windows" and result["network_gateway"] is None:
             # Use route print for Windows
             route_result = subprocess.run(
                 ["route", "print", "0.0.0.0"],

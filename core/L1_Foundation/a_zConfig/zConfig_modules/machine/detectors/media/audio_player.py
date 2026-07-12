@@ -2,7 +2,7 @@
 """Audio player detection and launch commands."""
 
 from zOS import os, platform, subprocess, shutil, Optional
-from ..shared import SUBPROCESS_TIMEOUT_SEC, _log_info, _log_warning
+from ..shared import SUBPROCESS_TIMEOUT_SEC, OS_DEFAULT_HANDLER, _log_info, _log_warning
 
 # Audio player constants
 AUDIO_PLAYER_MAPPING_MACOS = {
@@ -95,10 +95,11 @@ def _detect_linux_audio_player(log_level: Optional[str] = None, is_production: b
     3. If GUI → scan PATH for common audio players
     4. Fallback to vlc (most common)
     """
-    # Check for GUI environment
-    if not os.getenv("DISPLAY"):
+    # Check for GUI environment (X11 or Wayland)
+    from ..shared import linux_gui_available
+    if not linux_gui_available():
         _log_warning(
-            "No GUI detected (DISPLAY not set). Audio playback unavailable in headless mode.",
+            "No GUI detected (DISPLAY/WAYLAND_DISPLAY not set). Audio playback unavailable in headless mode.",
             log_level, is_production
         )
         return "none"
@@ -208,8 +209,8 @@ def get_audio_player_launch_command(player_name: str) -> tuple:
     # Windows: Use 'start' command for default handlers
     elif system == "Windows":
         if player_lower == "music":
-            # Windows Groove Music app - use 'start' with empty first arg
-            return ("start", [""])
+            # Windows default handler — launcher translates to os.startfile()
+            return (OS_DEFAULT_HANDLER, [])
         elif player_lower == "windows media player" or player_lower == "wmplayer":
             return ("wmplayer", [])
         # Try direct command

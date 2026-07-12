@@ -19,8 +19,17 @@ KB_PER_MB = 1024
 MB_PER_GB = 1024
 BYTES_PER_GB = 1024 ** 3
 
+# Sentinel launch command meaning "hand the file to the OS default handler".
+# Windows-only today: `start` is a cmd.exe builtin (unlaunchable via Popen
+# without shell=True), so launchers must translate this to os.startfile().
+OS_DEFAULT_HANDLER = "__os_default__"
+
 # Default values
-DEFAULT_SHELL = "/bin/sh"
+# When $SHELL is unset: cmd.exe on Windows (via %COMSPEC%), /bin/sh elsewhere.
+DEFAULT_SHELL = (
+    os.environ.get("COMSPEC", r"C:\Windows\System32\cmd.exe")
+    if os.name == "nt" else "/bin/sh"
+)
 DEFAULT_TIMEZONE = "system"
 DEFAULT_TIME_FORMAT = "HH:MM:SS"
 DEFAULT_DATE_FORMAT = "ddmmyyyy"
@@ -51,6 +60,11 @@ def _log_config(message: str, verbose: bool = False) -> None:
     """
     if verbose:
         logger.debug("%s %s", LOG_PREFIX, message)
+
+def linux_gui_available() -> bool:
+    """True when a graphical session is reachable (X11 or Wayland)."""
+    return bool(os.getenv("DISPLAY") or os.getenv("WAYLAND_DISPLAY"))
+
 
 def _safe_getcwd() -> str:
     """Get current directory, falling back to home if deleted."""
