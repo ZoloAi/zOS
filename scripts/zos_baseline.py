@@ -17,6 +17,13 @@ Two install modes:
   (default)         pip install zolo-os from PyPI — post-publish confirmation.
   --wheel PATH      install a local wheel — pre-publish release-candidate gate.
 
+ALPHA SCOPE (2026-07): this machine only — darwin-arm64 / cp312. The zolo-os
+wheel is pure Python (builds in seconds); the compiled zGuard image is
+provisioned from zguard_bin/, which intentionally carries ONLY this platform
+until the alpha ships. No cross-platform wheel matrix, no CI binary builds
+in the loop. Widen zguard_bin (via zGuard CI + scripts/refresh_zguard_bin.py)
+only when the alpha is out the door.
+
 Deployment posture:
   --deployment production   (default) skips zEnv.development.zolo overlays,
                             which carry machine-specific dev mounts.
@@ -200,8 +207,9 @@ def run_suite(demo_dir: Path, spark: str, raven: str, env: dict,
     z = "z"  # venv bin is first on PATH in env
 
     # z requirements: installs app-scoped zRequirements (e.g. zDarkroom → Pillow).
-    # Best-effort — a demo without zRequirements is a fast no-op.
-    run([z, "requirements", spark], cwd=demo_dir, env=env, timeout=300)
+    # It confirms interactively ([y/N]) — feed it a yes. A demo without
+    # zRequirements is a fast no-op.
+    run([z, "requirements", spark], cwd=demo_dir, env=env, timeout=300, input="y\n")
 
     # Stale-result protection: the JSON below is the authoritative outcome,
     # so make sure we never read a previous run's file.
