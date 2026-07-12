@@ -1,0 +1,55 @@
+name: zOS baseline (linux-x86_64)
+
+# The native-x86_64 rung of the cross-platform gate. Local coverage:
+#   - this Mac (darwin-arm64): scripts/zos_baseline.py
+#   - Linux arm64:             scripts/docker_baseline.sh (native-speed container)
+#   - Linux x86_64:            THIS workflow — Chromium cannot run under QEMU
+#                              user emulation, so emulated local runs can't
+#                              exercise browser suites; a native runner can.
+#
+# Installs the wheel built from the checked-out source (so pushes gate on the
+# code they carry) and runs every zRaven suite of every committed demo.
+# zguard binaries provision themselves from zguard_bin/ on raw GitHub.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "core/**"
+      - "zDemos/**"
+      - "zguard_bin/**"
+      - "pyproject.toml"
+      - "setup.py"
+
+concurrency:
+  group: baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build zolo-os wheel from this checkout
+        run: |
+          python -m pip install --quiet build
+          python -m build --wheel
+
+      - name: Run baseline matrix
+        run: |
+          python scripts/zos_baseline.py --wheel dist/zolo_os-*.whl --keep
+
+      - name: Upload run artifacts (report + logs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-run
+          path: ~/zos-baseline-runs/**/baseline_report.json
+          if-no-files-found: ignore

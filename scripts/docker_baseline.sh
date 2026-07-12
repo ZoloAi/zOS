@@ -5,11 +5,16 @@
 # a random-user Linux box, on either metal, without leaving this machine.
 #
 #   scripts/docker_baseline.sh                          # linux/arm64 (native on Apple Silicon)
-#   scripts/docker_baseline.sh linux/amd64              # x86_64 via emulation (slower)
 #   scripts/docker_baseline.sh linux/arm64 --demos zHello,zTaskList
 #
 # Everything after the platform argument is passed through to zos_baseline.py.
 # Reports land in ~/zos-baseline-runs/docker-<arch>/ on the host.
+#
+# linux/amd64 CAVEAT: emulated x86_64 containers boot zOS fine (zguard
+# linux-x86_64 binaries import, WS-only suites pass) but Chromium CRASHES
+# under QEMU user emulation — every browser suite fails at Open_App. Native
+# x86_64 coverage lives in .github/workflows/baseline.yml (ubuntu runner)
+# instead. Use linux/amd64 here only for boot/provisioning smoke checks.
 #
 # PREREQUISITE: zguard_bin/ on GitHub main must carry linux-aarch64 / linux-x86_64
 # cp312 binaries (zGuard CI wheels → scripts/refresh_zguard_bin.py → push),
