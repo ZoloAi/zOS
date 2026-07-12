@@ -1,7 +1,9 @@
 # zOS
 
-> **Pre-Alpha — v1.5.8**
-> zOS is ~90% stable and actively used in production internally. The API is functional and the architecture is settled, but rough edges remain. The `Documentation/` guides are technically accurate against the core design; some details may lag behind the latest source. Live, up-to-date docs are coming with the official alpha release via zCloud (zolo.media). Use at your own risk and expect breaking changes before v2.0.
+> **Alpha — v1.6**
+> zOS is stable and actively used in production internally. The API is functional and the architecture is settled, but rough edges remain. The `Documentation/` guides are technically accurate against the core design; some details may lag behind the latest source. Live, up-to-date docs are coming with the official alpha release via zCloud (zolo.media). Expect breaking changes before v2.0.
+>
+> Every release is gated on the full demo test matrix passing on **macOS, Linux, and Windows — arm64 and x86_64**.
 
 ---
 
@@ -15,19 +17,33 @@ Write once, adapt to any context: **user role**, **deployment environment**, **d
 
 ## Quick Start
 
+**One-line install** (isolated venv at `~/.zolo`, CLI on your PATH):
+
 ```bash
-# Install from this repo (PyPI release not yet available)
-pip install git+https://github.com/ZoloAi/zOS.git
-
-# Or clone and install locally
-git clone https://github.com/ZoloAi/zOS.git
-pip install ./zOS
-
-# Start an app
-z zApp
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/ZoloAi/zOS/main/install.sh | bash
 ```
 
-> **⚠️ PyPI warning:** A public `zolo` package exists on PyPI that is **unrelated** to this project and will cause conflicts. Install from this repo only.
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/ZoloAi/zOS/main/install.ps1 | iex
+```
+
+**Or plain pip** (Python 3.10–3.12):
+
+```bash
+pip install zolo-os
+```
+
+**Then run a demo:**
+
+```bash
+git clone https://github.com/ZoloAi/zOS.git
+cd zOS/zDemos/zHello
+z zSpark.zhello.zolo
+```
+
+> **⚠️ PyPI warning:** the package is [`zolo-os`](https://pypi.org/project/zolo-os/). An unrelated public `zolo` package exists on PyPI and will cause conflicts — don't install it.
 
 ---
 
@@ -38,7 +54,8 @@ It introduces the core concepts of **zOS** and smoothly leads into the layer-by-
 
 ### Requirements
 
-- **Python 3.9+**
+- **CPython 3.10 – 3.12** (the range the zGuard trust binaries ship for)
+- **macOS / Linux / Windows**, arm64 or x86_64
 
 > Need help installing requirements on **Windows** or **macOS**?  
 > See [**zInstall Guide**](Documentation/zInstall_GUIDE.md) for detailed instructions.
@@ -47,14 +64,13 @@ It introduces the core concepts of **zOS** and smoothly leads into the layer-by-
 
 ## Installation Options
 
-All installs are from this repo until the official alpha PyPI release.
-
 | Variant | Use Case | Install Command |
 |---------|----------|-----------------|
-| **Basic** | SQLite only | `pip install git+https://github.com/ZoloAi/zOS.git` |
-| **CSV** | + CSV/Pandas | `pip install "zOS[csv] @ git+https://github.com/ZoloAi/zOS.git"` |
-| **PostgreSQL** | + PostgreSQL | `pip install "zOS[postgresql] @ git+https://github.com/ZoloAi/zOS.git"` |
-| **Full** | All backends | `pip install "zOS[all] @ git+https://github.com/ZoloAi/zOS.git"` |
+| **Basic** | CSV + SQLite backends | `pip install zolo-os` |
+| **PostgreSQL** | + PostgreSQL backend | `pip install "zolo-os[postgresql]"` |
+| **Webview** | + native desktop window mode | `pip install "zolo-os[webview]"` |
+| **Monitoring** | + Prometheus metrics | `pip install "zolo-os[monitoring]"` |
+| **Full** | everything above | `pip install "zolo-os[all]"` |
 
 > See [**zInstall Guide**](Documentation/zInstall_GUIDE.md) for editable install and troubleshooting.
 

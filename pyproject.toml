@@ -11,7 +11,9 @@ authors = [
 ]
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.9"
+# Ceiling matters as much as the floor: zGuard ships binaries for cp310-cp312
+# only, so a 3.13 install would boot-fail at provisioning. Enforce at pip time.
+requires-python = ">=3.10,<3.13"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
