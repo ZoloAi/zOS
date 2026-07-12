@@ -1,0 +1,20 @@
+{
+  "id": {
+    "type": "int"
+  },
+  "name": {
+    "type": "str"
+  },
+  "email": {
+    "type": "str"
+  },
+  "phone": {
+    "type": "str"
+  },
+  "company_id": {
+    "type": "int"
+  },
+  "created_at": {
+    "type": "datetime"
+  }
+}

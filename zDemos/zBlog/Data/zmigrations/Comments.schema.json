@@ -1,0 +1,17 @@
+{
+  "id": {
+    "type": "int"
+  },
+  "post_id": {
+    "type": "int"
+  },
+  "author": {
+    "type": "str"
+  },
+  "content": {
+    "type": "str"
+  },
+  "created_at": {
+    "type": "datetime"
+  }
+}

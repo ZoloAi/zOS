@@ -62,6 +62,10 @@ def render_zvaf(templates_dir: str, template_name: str, context: dict, logger=No
     """
     from jinja2 import FileSystemLoader
 
+    # Custom templates get the same client-base SSOT the built-in chrome uses:
+    # write `{{ bifrost_base }}/bifrost_client.js` — never hardcode a mount path.
+    context = {**context, "bifrost_base": _bifrost_client_base()}
+
     env = Environment(loader=FileSystemLoader(templates_dir))
     try:
         template = env.get_template(template_name)

@@ -1,0 +1,14 @@
+{
+  "id": {
+    "type": "int"
+  },
+  "name": {
+    "type": "str"
+  },
+  "industry": {
+    "type": "str"
+  },
+  "notes": {
+    "type": "str"
+  }
+}

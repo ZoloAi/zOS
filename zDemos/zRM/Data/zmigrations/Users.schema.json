@@ -1,0 +1,32 @@
+{
+  "id": {
+    "type": "int"
+  },
+  "email": {
+    "type": "str"
+  },
+  "password": {
+    "type": "str"
+  },
+  "name": {
+    "type": "str"
+  },
+  "avatar": {
+    "type": "str"
+  },
+  "email_verified": {
+    "type": "bool"
+  },
+  "verification_token": {
+    "type": "str"
+  },
+  "token_expires_at": {
+    "type": "datetime"
+  },
+  "reset_token": {
+    "type": "str"
+  },
+  "reset_token_expires_at": {
+    "type": "datetime"
+  }
+}

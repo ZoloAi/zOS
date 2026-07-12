@@ -1,0 +1,17 @@
+{
+  "id": {
+    "type": "int"
+  },
+  "provider_id": {
+    "type": "int"
+  },
+  "date": {
+    "type": "date"
+  },
+  "start_time": {
+    "type": "time"
+  },
+  "end_time": {
+    "type": "time"
+  }
+}

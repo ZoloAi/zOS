@@ -54,5 +54,9 @@ zDemos/*/zRaven/zShots/
 zDemos/*/zRaven/output/
 zDemos/*/zVersions/
 zDemos/*/logs/
-zDemos/*/Data/zmigrations/
+# migration ARTIFACTS stay ignored, but the applied-schema snapshots
+# (*.schema.json) must ship — the drift gate refuses to boot a clone
+# whose Data/ has no recorded schema state (baseline run 2026-07-12).
+zDemos/*/Data/zmigrations/*.csv.backup
+zDemos/*/Data/zmigrations/*.zMigration.csv
 zDemos/*/zEnv.development.zolo

@@ -1,0 +1,14 @@
+{
+  "id": {
+    "type": "int"
+  },
+  "slot_id": {
+    "type": "int"
+  },
+  "customer_name": {
+    "type": "str"
+  },
+  "created_at": {
+    "type": "datetime"
+  }
+}

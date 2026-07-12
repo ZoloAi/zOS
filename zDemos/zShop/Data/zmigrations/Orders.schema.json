@@ -1,0 +1,35 @@
+{
+  "id": {
+    "type": "int"
+  },
+  "customer_name": {
+    "type": "str"
+  },
+  "address": {
+    "type": "str"
+  },
+  "city": {
+    "type": "str"
+  },
+  "zip_code": {
+    "type": "str"
+  },
+  "email": {
+    "type": "str"
+  },
+  "subtotal": {
+    "type": "float"
+  },
+  "tax": {
+    "type": "float"
+  },
+  "shipping_fee": {
+    "type": "float"
+  },
+  "total": {
+    "type": "float"
+  },
+  "placed_at": {
+    "type": "datetime"
+  }
+}

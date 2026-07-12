@@ -1,0 +1,14 @@
+{
+  "id": {
+    "type": "int"
+  },
+  "product_id": {
+    "type": "int"
+  },
+  "line_total": {
+    "type": "float"
+  },
+  "added_at": {
+    "type": "datetime"
+  }
+}

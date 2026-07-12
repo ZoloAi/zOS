@@ -1,0 +1,17 @@
+{
+  "id": {
+    "type": "int"
+  },
+  "title": {
+    "type": "str"
+  },
+  "secret": {
+    "type": "str"
+  },
+  "added_by": {
+    "type": "str"
+  },
+  "created_at": {
+    "type": "datetime"
+  }
+}

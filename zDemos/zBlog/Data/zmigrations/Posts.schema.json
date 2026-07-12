@@ -1,0 +1,17 @@
+{
+  "id": {
+    "type": "int"
+  },
+  "title": {
+    "type": "str"
+  },
+  "author": {
+    "type": "str"
+  },
+  "content": {
+    "type": "str"
+  },
+  "created_at": {
+    "type": "datetime"
+  }
+}
