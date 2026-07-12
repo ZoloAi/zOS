@@ -21,6 +21,8 @@ Why a zForce FALLBACK lives here:
   because it has no public fallback.
 """
 
+
+__version__ = "1.0.0"
 try:
     from zguard.zengine import (  # noqa: F401
         zEngine,

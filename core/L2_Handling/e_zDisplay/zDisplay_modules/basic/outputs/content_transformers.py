@@ -104,7 +104,7 @@ class ContentTransformers:
             # pictographs to [description] and correctly consumes trailing
             # variation-selectors / ZWJ clusters (so '❤️' → '[red heart]', not
             # '[red heart]️'). One regex, one policy, shared with the stream gate.
-            from ......zSys.accessibility import emoji_safe  # pylint: disable=relative-beyond-top-level
+            from zSys.accessibility import emoji_safe
             return emoji_safe(text)
         except Exception as e:
             # Fallback: return text unchanged if emoji system fails

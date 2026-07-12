@@ -1,6 +1,8 @@
 # zOS/core/L1_Foundation/a_zConfig/zConfig.py
 """Cross-platform configuration management with hierarchical loading and secret support."""
 
+
+__version__ = "1.0.0"
 from zOS import sys, Any, Dict, Optional, Union
 from zSys.Utils import (  # pylint: disable=import-error,wrong-import-order
     print_ready_message,

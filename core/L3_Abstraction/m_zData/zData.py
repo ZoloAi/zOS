@@ -37,6 +37,8 @@ Usage:
     zdata.handle_request(request, context)
 """
 
+
+__version__ = "1.0.0"
 from zOS import Any, Dict, List, Optional
 
 from .zData_modules.shared.data_keys import SCHEMA_KEY_META

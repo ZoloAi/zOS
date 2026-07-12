@@ -163,8 +163,10 @@ class PostInstallCommand(install):
 _packages, _package_dir = _discover_packages()
 
 setup(
-    name="zOS",
-    version="1.6.7",
+    # name/version are NOT passed here — pyproject.toml's [project] table is the
+    # SSOT for both (static, non-dynamic fields there always win over setup.py's
+    # setup() kwargs; duplicating them here was dead code that risked drifting
+    # out of sync, e.g. a version bump in one file but not the other).
     packages=_packages,
     package_dir=_package_dir,
     package_data={

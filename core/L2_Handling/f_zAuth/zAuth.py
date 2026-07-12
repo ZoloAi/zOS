@@ -41,6 +41,8 @@ THREAD SAFETY: NOT thread-safe. Each thread needs own zOS instance.
                Multi-app auth within single session is fully supported.
 """
 
+
+__version__ = "1.0.0"
 from zOS import Any, Optional, Dict
 from zOS.L1_Foundation.a_zConfig.zConfig_modules.config_constants import SESSION_KEY_ZVISITOR
 

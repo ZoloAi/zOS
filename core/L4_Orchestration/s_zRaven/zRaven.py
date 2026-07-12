@@ -13,7 +13,10 @@ Layer: 4r — comes after zServer (4q), depends on both zWalker and zBifrost
        being ready before tests can connect.
 """
 
+
 from __future__ import annotations
+
+__version__ = "1.0.0"
 
 from typing import TYPE_CHECKING, Any
 

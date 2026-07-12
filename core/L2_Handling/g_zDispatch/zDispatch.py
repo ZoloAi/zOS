@@ -80,6 +80,8 @@ Constants:
     and reduce the risk of typos.
 """
 
+
+__version__ = "1.0.0"
 from zOS import Any, Optional, Dict
 from zOS.L1_Foundation.a_zConfig.zConfig_modules import SESSION_KEY_ZMODE, ZMODE_ZBIFROST
 

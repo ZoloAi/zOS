@@ -136,6 +136,8 @@ Version History
 - v1.5.3: Original implementation (file loading, caching, zParser delegation)
 """
 
+
+__version__ = "1.0.0"
 import copy
 
 from zOS import Any, Dict, Optional

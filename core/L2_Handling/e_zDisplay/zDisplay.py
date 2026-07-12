@@ -21,6 +21,8 @@ All operations route through handle() with event dictionaries.
 See display_constants.py for full event list.
 """
 
+
+__version__ = "1.0.0"
 from zOS import Any, Dict, Optional, Callable
 from zSys.formatting.colors import Colors
 from ...L1_Foundation.a_zConfig.zConfig_modules import SESSION_KEY_ZMODE  # pylint: disable=relative-beyond-top-level

@@ -99,6 +99,8 @@ See Also:
     - zBifrost (Layer 2): WebSocket orchestration for Terminal↔Web
 """
 
+
+__version__ = "1.0.0"
 from zOS import Any, Dict, Optional
 from zSys.Utils import print_ready_message, validate_zos_instance
 from .zComm_modules import ServiceManager, HTTPClient, NetworkUtils, WebSocketServer

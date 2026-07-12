@@ -116,6 +116,8 @@ Version History:
 Author: zOS Development Team
 """
 
+
+__version__ = "1.0.0"
 from zOS import os, urlparse, Any, subprocess
 from zOS.L1_Foundation.a_zConfig.zConfig_modules.config_constants import (
     SESSION_KEY_ZMACHINE,

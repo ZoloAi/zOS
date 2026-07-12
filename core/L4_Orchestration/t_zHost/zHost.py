@@ -11,6 +11,8 @@ physical relocation of that engine out of the SDK is the first task of the
 zHost build phase (see memos/Development/ZHOST_EXTRACTION.notes.md).
 """
 
+
+__version__ = "1.0.0"
 from .zHost_modules.frontdoor import FrontDoorMixin
 from .zHost_modules.instances import InstancesMixin
 

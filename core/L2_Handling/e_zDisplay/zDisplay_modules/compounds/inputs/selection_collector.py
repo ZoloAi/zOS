@@ -372,7 +372,7 @@ class SelectionCollector:
     def _render_icon_for_terminal(self, icon_name: str) -> str:
         """Render icon as ANSI-safe text for terminal mode."""
         try:
-            from ......zSys.accessibility import get_icon_mapper, get_emoji_descriptions
+            from zSys.accessibility import get_icon_mapper, get_emoji_descriptions
             emoji = get_icon_mapper().render_for_mode(icon_name, mode=MODE_ZCLI)
             safe = get_emoji_descriptions().format_for_terminal(emoji)
             # Strip outer brackets — the prompt template adds its own []

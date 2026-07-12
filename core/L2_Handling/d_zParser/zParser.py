@@ -129,6 +129,8 @@ See Also:
     - zDispatch: Uses parser for plugin resolution
 """
 
+
+__version__ = "1.0.0"
 from zOS import Any, Dict, List, Optional, Tuple, Union
 
 # Import from parser_modules aggregator (Week 6.8.8)

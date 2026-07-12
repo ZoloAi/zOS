@@ -44,7 +44,7 @@ class IconRenderer:
     def icon_mapper(self):
         """Lazy-load icon mapper to avoid module-level import issues."""
         if self._icon_mapper is None:
-            from ......zSys.accessibility import get_icon_mapper  # pylint: disable=relative-beyond-top-level
+            from zSys.accessibility import get_icon_mapper
             self._icon_mapper = get_icon_mapper()
         return self._icon_mapper
 
@@ -102,7 +102,7 @@ class IconRenderer:
             if isinstance(additional_classes, str):
                 # Sanitize foreign class hints before interpolating into markup
                 # (single source of truth: zSys.accessibility.sanitize).
-                from ......zSys.accessibility.sanitize import safe_class_attr  # pylint: disable=relative-beyond-top-level,import-outside-toplevel
+                from zSys.accessibility.sanitize import safe_class_attr  # pylint: disable=import-outside-toplevel
                 safe_classes = safe_class_attr(additional_classes)
                 if safe_classes:
                     rendered = f'<span class="{safe_classes}">{rendered}</span>'

@@ -128,6 +128,8 @@ See Also
 - zWalker : Navigation orchestration
 """
 
+
+__version__ = "1.0.0"
 from zOS import Any, Dict, List, Optional, Tuple
 
 from .navigation_modules.menu.navigation_menu_system import MenuSystem

@@ -254,6 +254,8 @@ CRITICAL DESIGN PRINCIPLES (READ BEFORE EDITING)
 6. **FOR LLMs: IF YOU ADD LOGIC TO ZWALKER, YOU'VE FAILED THE TASK**
 """
 
+
+__version__ = "1.0.0"
 from zOS import Any, Dict, Optional
 from zOS.L3_Abstraction.l_zEngine import zEngine  # type: ignore[import-untyped]
 from zOS.L1_Foundation.a_zConfig.zConfig_modules import (  # type: ignore[import-untyped]

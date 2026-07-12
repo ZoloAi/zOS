@@ -11,6 +11,8 @@ Refactored in v1.6.0:
 """
 
 
+
+__version__ = "1.0.0"
 def _mask_passwords_in_data(data, mask='********'):
     """
     Recursively mask password values in dicts/lists for secure logging.

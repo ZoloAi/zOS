@@ -24,6 +24,8 @@ Usage:
     >>> shell.show_help()  # Display help
 """
 
+
+__version__ = "1.0.0"
 from zOS import Any
 from .shell_modules.shell_runner import ShellRunner, launch_shell as launch_shell_func
 from .shell_modules.shell_executor import CommandExecutor

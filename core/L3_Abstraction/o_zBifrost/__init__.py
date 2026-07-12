@@ -8,6 +8,8 @@ This file re-exports the public API so all existing zOS imports remain unchanged
 Public users (no zGuard): a clear ZGuardRequired error is raised on first use.
 """
 
+
+__version__ = "1.0.0"
 try:
     from zguard.bifrost import zBifrost  # noqa: F401
     _ZGUARD_AVAILABLE = True

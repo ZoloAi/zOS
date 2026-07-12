@@ -134,6 +134,8 @@ Version History
 - v1.4.0: Initial implementation
 """
 
+
+__version__ = "1.0.0"
 from zOS import Any, Dict, Optional
 from zOS.L1_Foundation.a_zConfig.zConfig_modules.config_constants import SESSION_KEY_ZMODE
 from .dialog_modules import create_dialog_context, handle_submit

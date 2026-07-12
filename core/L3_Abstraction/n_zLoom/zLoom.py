@@ -29,6 +29,8 @@ zAuth gates) and L4 (zServer routes) call into ``zos.zloom`` via the runtime
 import-time layer inversion.
 """
 
+
+__version__ = "1.0.0"
 from zOS import Any
 
 from .zLoom_modules.value_ops import ValueOps
