@@ -44,8 +44,24 @@ done
 say "→ python: $PY ($("$PY" -V 2>&1))"
 
 # ── 3. venv ───────────────────────────────────────────────────────────────────
+# Debian/Ubuntu ship python3 WITHOUT ensurepip — venv creation fails until the
+# python3.X-venv apt package is installed. Cloud/default users usually have
+# passwordless sudo (sudo -n); use it, otherwise print the exact command.
+ensure_venv_support() {
+    "$PY" -c 'import ensurepip' 2>/dev/null && return 0
+    PYMM="$("$PY" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+    if command -v apt-get >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+        say "→ installing python${PYMM}-venv (apt)"
+        sudo apt-get update -qq && sudo apt-get install -y -qq "python${PYMM}-venv" >/dev/null
+    else
+        fail "python venv support is missing. Run:  sudo apt install python${PYMM}-venv  — then re-run this installer."
+    fi
+}
+
 if [ ! -x "$VENV/bin/pip" ]; then
+    ensure_venv_support
     say "→ creating venv: $VENV"
+    rm -rf "$VENV"          # clear any half-created venv from a failed attempt
     "$PY" -m venv "$VENV"
 else
     say "→ reusing venv: $VENV"
