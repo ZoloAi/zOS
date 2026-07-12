@@ -1,0 +1,177 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# zRavenVersion: v1.0.0
+# Source: zUI.zRM.zolo + routes/zServer.routes.zolo (/app/%slug)
+# Hand-extended — dev flow (13_testing.md dev_spark) for Stage 2 of the
+# hosting phase: a hosting_mode=app Site is a REAL front_door (22_hosting.md
+# zProxy) — publishing it and opening /app/%slug wakes a SEPARATE zOS
+# instance (zDemos/zHello, chosen as the simplest possible target) as a
+# child process and 302-hands the visitor off to it. Same draft-gate shape
+# as Stage 1's /s/%slug (zRaven.site_page.zolo) — an unpublished app-mode
+# site 404s identically, proven by the SAME visibility_field/value on the
+# route as Stage 1's spool where clause.
+
+Tests:
+    Open_App:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    Sign_In_Ada:
+        zClick:
+            selector: .zRM-signin-btn
+        zWait:
+            selector: .zRM-login-title
+            state: visible
+            timeout: 8000
+
+    Submit_Login_Ada:
+        zFill:
+            email:    ada@zrm.io
+            password: blog1234
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    # ── Create an app-mode site — points straight at zHello's own zSpark ────
+    Open_New_Site:
+        zClick:
+            selector: "[data-zkey='NewSite'] button"
+        zWait:
+            selector: "[name='title']"
+            state: visible
+            timeout: 8000
+
+    #> zConv.cover resolves to the literal placeholder string (truthy, so
+    #  add_site's `if cover:` tries to _save_upload it) unless the field is
+    #  actually touched once — same "always zUpload, even when the cover
+    #  art itself isn't the point" shape zRaven.site_page.zolo already
+    #  proved <#
+    Upload_New_App_Site_Cover:
+        zUpload:
+            selector: "[name='cover']"
+            path: upload_bank/new_avatar.jpg
+
+    #> the REAL front_door.push shape (22_hosting.md) — a tar.gz with an
+    #  app/ prefix slice (zDemos/zHello's own zSpark+zViews, repacked as a
+    #  fixture), unpacked by add_site via the SAME LocalBundleStore the
+    #  (currently uncalled) `zolo push` pipeline ships — not a hardcoded
+    #  dev-machine filesystem path <#
+    Upload_New_App_Site_Bundle:
+        zUpload:
+            selector: "[name='app_bundle']"
+            path: upload_bank/hello_bundle.tar.gz
+
+    Fill_New_App_Site_Form:
+        zFill:
+            title:        Hello, Hosted
+            slug:         hello-hosted
+            tagline:      A whole other zOS app, woken on demand.
+            hosting_mode: app
+        zWait:
+            selector: .zSignal-success
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Back_To_Feed_From_New_Site:
+        zClick:
+            selector: "[data-zkey='Back'] button"
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    Assert_New_App_Site_Starts_Draft:
+        zAssert:
+            dom:
+                selector: ".zRM-site:has-text('Hello, Hosted') .zRM-site-meta"
+                contains: draft
+
+    # ── Draft gate — an unpublished app-mode site's front_door 404s exactly
+    #    like Stage 1's own /s/%slug draft case (same visibility gate shape,
+    #    just on a different field/value pair declared on the route) ────────
+    Open_Unpublished_App_Route:
+        zOpen: /app/hello-hosted
+        zShot:
+            full_page: true
+
+    Assert_Unpublished_App_404s:
+        zAssert:
+            dom:
+                selector: body
+                contains: 404
+
+    Back_To_Feed_After_404:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    # ── Publish it — same Edit zModal Stage 1 already proved, status flips
+    #    draft -> published ────────────────────────────────────────────────
+    Open_Edit_For_App_Site:
+        zClick:
+            selector: ".zRM-site:has-text('Hello, Hosted') .zRM-edit-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
+
+    Fill_Publish_Status:
+        zFill:
+            status: published
+        zShot:
+            full_page: true
+
+    Close_Edit_Dialog:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+
+    Reload_After_Publish:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    Assert_App_Site_Now_Published:
+        zAssert:
+            dom:
+                selector: ".zRM-site:has-text('Hello, Hosted') .zRM-site-meta"
+                contains: published
+
+    # ── The REAL front_door — /app/%slug wakes zHello as a child process
+    #    and 302-hands the visitor off to its own host:port. No session
+    #    carried over, no shared WS — a genuinely separate zOS instance ────
+    Open_Published_App_Route:
+        zOpen: /app/hello-hosted
+        zWait:
+            selector: h1
+            state: visible
+            timeout: 25000
+        zShot:
+            full_page: true
+
+    Assert_Woken_App_Is_zHello:
+        zAssert:
+            dom:
+                selector: h1
+                contains: Hello World
+
+    Assert_Woken_App_Body_Text:
+        zAssert:
+            dom:
+                selector: body
+                contains: A minimal zOS app.
+
+    Done:
+        zMarker: done

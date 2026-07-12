@@ -1,0 +1,3 @@
+id,title,slug,owner_id,tagline,cover_image,status,created_at,body,hosting_mode,spark_path
+1,Ada Portfolio,ada-portfolio,1,A small portfolio site built on zRM.,@.static.covers.default.png,published,2026-07-09 09:00:00,"# Welcome to Ada Portfolio. This is my little corner of the web, hosted on zRM. ## What I do. I build things and write about them here.",internal,""""""
+2,Grace Notes,grace-notes,2,Personal notes site — still a work in progress.,@.static.covers.default.png,draft,2026-07-09 09:05:00,,internal,""""""

@@ -1,0 +1,205 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# zRavenVersion: v1.0.0
+# Source: zUI.Register.zolo + zUI.Profile.zolo + zUI.Verify.zolo
+# Hand-extended — dev flow (13_testing.md dev_spark) for the token+expiry+
+# single-use email-verification grammar: register (unverified) → Profile's
+# nag banner → resend (new token overwrites old) → confirm in-place →
+# banner gone → a fresh navigation to the /Verify/%token route itself
+# (Frank's seeded fixture) proves the zLoom param-route grammar renders for
+# real too. Fresh process every --run, so Dana is the ONLY identity that
+# ever touches Profile here — sidesteps the pre-existing, unrelated
+# session-stash bug the canonical zRaven.zRM.zolo's header notes separately.
+
+Tests:
+
+    # ── Bifrost: land straight on Register (dev spark skips the nav hop) ────
+    Open_App:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-title
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Fill_Register_Form:
+        zFill:
+            name:     Dana
+            email:    dana@zrm.io
+            password: dana12345
+        zShot:
+            full_page: true
+
+    Click_Sign_In_From_Register:
+        zClick:
+            selector: "[data-zkey='SignInLink'] button"
+        zWait:
+            selector: .zRM-login-title
+            state: visible
+            timeout: 8000
+
+    Fill_Login_Dana:
+        zFill:
+            email:    dana@zrm.io
+            password: dana12345
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    Assert_Signed_In_As_Dana:
+        #> proves register_user's manual zos.auth.hash_password call worked
+        #  — the plugin-driven insert bypasses zHash's normal auto-fire, so
+        #  this is the real regression guard for that gap <#
+        zAssert:
+            dom:
+                selector: .zRM-authbar-user
+                contains: Dana
+
+    # ── The nag banner — a brand new account starts unverified ──────────────
+    Open_Profile:
+        zClick:
+            selector: ".zRM-profile-btn"
+        zWait:
+            selector: .zRM-verify-banner
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Verify_Banner_Message:
+        zAssert:
+            dom:
+                selector: .zRM-verify-message
+                contains: isn't verified
+
+
+    #> resend BEFORE verifying — a second token overwrites the first
+    #  (register_user's own token still sits unused underneath); banner
+    #  stays up either way since nothing got confirmed yet <#
+    Click_Resend_Link:
+        zClick:
+            selector: ".zRM-resend-btn"
+        zShot:
+            full_page: true
+
+    #> resend is a bare click action, not a navigation — the rendered
+    #  "Verify Now" href was built from %data at the PAGE's last render, so
+    #  it still points at the token resend just overwrote. Reload to pick
+    #  up the fresh one before following it (same reload-before-recheck
+    #  shape the canonical raven already leans on elsewhere) <#
+    #> the Bifrost client replays its last known SPA route on a hard reload
+    #  rather than the literal URL requested — it lands back on /Profile
+    #  itself (a happy accident here, exactly where this flow needs to be) <#
+    Reload_After_Resend:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-verify-banner
+            state: visible
+            timeout: 8000
+
+    Assert_Banner_Still_Present_After_Resend:
+        zAssert:
+            dom:
+                selector: .zRM-verify-banner
+                contains: isn't verified
+
+    #> confirm IN PLACE — %data.currentUser.0.verification_token is already
+    #  on this page, no navigation needed. Matches ResendBtn's own &.plugin
+    #  action shape; the return string auto-renders as a .zSignal-success
+    #  card (12_zfunc.md "signals": a plain return -> zSignal, success by
+    #  default) — no custom result block required <#
+    Click_Verify_Now:
+        zClick:
+            selector: ".zRM-verify-btn"
+        zWait:
+            selector: .zSignal-success
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Verify_Success_Signal:
+        zAssert:
+            dom:
+                selector: .zSignal-success
+                contains: verified
+
+    #> the click mutated the row but this page's %data stash is from the
+    #  PRE-click render — same reload-to-see-fresh-%data shape used after
+    #  Resend above <#
+    Reload_After_Verify:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-profile-avatar
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Verify_Banner_Gone:
+        #> confirm_email cleared verification_token to "" on success — a
+        #  banner re-render now reads email_verified: true, gone for good <#
+        zAssert:
+            dom:
+                selector: .zRM-verify-banner
+                count: 0
+
+    #> the /Verify/%token route's POSITIVE case — a fresh navigation (not
+    #  the in-place Profile-button call above) to a MATCHING token row.
+    #  Frank is a fixture seeded straight into Data/Users.csv (fixed token,
+    #  expiry far in the future) purely so this path has a known-good token
+    #  to navigate to independent of Dana's dynamically-generated one.
+    #  confirm_email's SUCCESS return renders as a transient .zSignal-success
+    #  toast (12_zfunc.md "signals") that can auto-dismiss before a fixed
+    #  zWait catches it — asserting on the title + absence of any error text
+    #  is the stable regression guard here; the toast itself is already
+    #  proven above via Assert_Verify_Success_Signal's in-place call <#
+    Open_Seeded_Verify_Link:
+        zOpen:
+            type:  zLoom
+            zLoom: @.zLoom.spools.zUI.Verify.verify
+            params:
+                token: seeded-test-token-abc123
+        zWait:
+            selector: .zRM-signin-btn
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    #> proves the zVaFile-splitting core fix (vafile_server.py) — before it,
+    #  this exact navigation rendered a totally blank page, no title, no
+    #  button, nothing. A real title now means the folder/file/block split
+    #  resolved correctly and the client actually hydrated real content <#
+    Assert_Seeded_Verify_Title_Renders:
+        zAssert:
+            dom:
+                selector: .zRM-title
+                contains: Verify your email
+
+    Assert_Seeded_Verify_No_Error:
+        zAssert:
+            dom:
+                selector: body
+                not_contains: no longer valid
+
+    # ── Invalid token — a hand-tampered link 404s via the spool's own
+    #    "matches nothing" guard, no special-case code needed ──────────────
+    Open_Invalid_Token_Link:
+        zOpen:
+            type:  zLoom
+            zLoom: @.zLoom.spools.zUI.Verify.verify
+            params:
+                token: not-a-real-token
+        zShot:
+            full_page: true
+
+    Assert_Invalid_Token_404:
+        zAssert:
+            dom:
+                selector: body
+                contains: 404
+
+    Done:
+        zMarker: done

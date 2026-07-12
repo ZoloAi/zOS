@@ -1,0 +1,8 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zProject:
+    slug:       zhello
+    name:       zHello
+    spark:      zSpark.zhello.zolo
+    version:    1.0.0
+    visibility: public

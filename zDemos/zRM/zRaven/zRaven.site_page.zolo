@@ -1,0 +1,164 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# zRavenVersion: v1.0.0
+# Source: zUI.zRM.zolo + zUI.SitePage.zolo
+# Hand-extended — dev flow (13_testing.md dev_spark) for Stage 1 of the
+# hosting phase: create a site (draft by construction) → publish it via
+# Edit → its /s/%slug front_door renders for real, no session at all →
+# Grace's SEEDED draft fixture (grace-notes, Data/Sites.csv) proves the
+# same route 404s for anyone while status stays draft — the gate lives in
+# the spool's own where clause, not a page-level check.
+
+Tests:
+    Open_App:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    Sign_In_Ada:
+        zClick:
+            selector: .zRM-signin-btn
+        zWait:
+            selector: .zRM-login-title
+            state: visible
+            timeout: 8000
+
+    Submit_Login_Ada:
+        zFill:
+            email:    ada@zrm.io
+            password: blog1234
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    # ── Create a site — draft by construction (add_site's own default) ──────
+    Open_New_Site:
+        zClick:
+            selector: "[data-zkey='NewSite'] button"
+        zWait:
+            selector: "[name='title']"
+            state: visible
+            timeout: 8000
+
+    Upload_New_Site_Cover:
+        zUpload:
+            selector: "[name='cover']"
+            path: upload_bank/new_avatar.jpg
+
+    Fill_New_Site_Form:
+        zFill:
+            title:   Terminal Diaries
+            slug:    terminal-diaries
+            tagline: Field notes from building zOS golden apps.
+            body:    Proving the public route actually renders real content, not just a feed card.
+        zWait:
+            selector: .zSignal-success
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Back_To_Feed_From_New_Site:
+        zClick:
+            selector: "[data-zkey='Back'] button"
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    Assert_New_Site_Starts_Draft:
+        zAssert:
+            dom:
+                selector: ".zRM-site:has-text('Terminal Diaries') .zRM-site-meta"
+                contains: draft
+
+    # ── Publish it — same Edit zModal, status flips draft -> published ──────
+    Open_Edit_For_New_Site:
+        zClick:
+            selector: ".zRM-site:has-text('Terminal Diaries') .zRM-edit-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
+
+    Fill_Publish_Status:
+        zFill:
+            status: published
+        zShot:
+            full_page: true
+
+    Close_Edit_Dialog:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+
+    Reload_After_Publish:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    Assert_Site_Now_Published:
+        zAssert:
+            dom:
+                selector: ".zRM-site:has-text('Terminal Diaries') .zRM-site-meta"
+                contains: published
+
+    # ── The /s/%slug front_door itself — a fresh navigation, no session
+    #    carried over is even relevant since the page has no zGate at all ──
+    Open_Published_Site_Page:
+        zOpen:
+            type:  zLoom
+            zLoom: @.zLoom.spools.zUI.SitePage.sitePage
+            params:
+                slug: terminal-diaries
+        zWait:
+            selector: .zRM-title
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Site_Page_Title:
+        zAssert:
+            dom:
+                selector: .zRM-title
+                contains: Terminal Diaries
+
+    Assert_Site_Page_Tagline_Rendered:
+        zAssert:
+            dom:
+                selector: .zRM-sitepage-tagline
+                contains: Field notes from building zOS golden apps.
+
+    Assert_Site_Page_Body_Rendered:
+        zAssert:
+            dom:
+                selector: .zRM-sitepage-body
+                contains: Proving the public route actually renders real content
+
+    # ── Draft gate — Grace's SEEDED fixture (Data/Sites.csv), status stays
+    #    draft, never touched by this flow — deterministic negative case ────
+    Open_Draft_Site_Page:
+        zOpen:
+            type:  zLoom
+            zLoom: @.zLoom.spools.zUI.SitePage.sitePage
+            params:
+                slug: grace-notes
+        zShot:
+            full_page: true
+
+    Assert_Draft_Site_404s:
+        zAssert:
+            dom:
+                selector: body
+                contains: 404
+
+    Done:
+        zMarker: done

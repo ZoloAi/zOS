@@ -1,0 +1,77 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        Users
+    Schema_Name:       zSchema.Users
+    zMigration:        true
+    zMigrationVersion: v1.1.0
+
+Users:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    email:
+        type:     str
+        required: true
+        unique:   true
+        rules:
+            format: email
+
+    #> zLogin verifies locally against this bcrypt hash — plaintext never lands
+    #  in the session (15_rbac.md "automatic"); the SAME zHash fires on a plain
+    #  zData insert too, so Register (07_forms.md zDialog + zData) needs no
+    #  plugin to hash a new password <#
+    password:
+        type:     str
+        required: true
+        zHash:    bcrypt
+        rules:
+            min_length: 8
+
+    name:
+        type:     str
+        required: true
+
+    #> profile picture — a zPath, same shape as zGallery's Photos.image; the
+    #  default ships every seeded/registered user a servable avatar from day
+    #  one, so Feed/Profile never render a broken image before the first
+    #  upload (06_inputs.md files + zGallery's plugins/gallery.py pairing) <#
+    avatar:
+        type:    str
+        default: @.static.avatars.default.png
+
+    #> account exists the moment Register submits — email_verified is a
+    #  SEPARATE, later-flipped flag, not a login gate (15_rbac.md's own
+    #  golden zBlog register never had one) — you can sign in unverified,
+    #  Profile just keeps nagging until the token gets consumed <#
+    email_verified:
+        type:    bool
+        default: false
+
+    #> single-use by construction — confirm_email clears this back to "" on
+    #  success, so a stale/replayed link's zLoom lookup (Sites.zolo-shaped
+    #  spool `where: verification_token = %route.token`) matches ZERO rows
+    #  the second time, no separate "already used" flag needed <#
+    verification_token:
+        type:    str
+        default: ""
+
+    token_expires_at:
+        type:    datetime
+        required: false
+
+    #> forgot-password — SAME single-use token+expiry shape as
+    #  verification_token/token_expires_at above, just a second independent
+    #  pair (a live reset request must never invalidate an unrelated pending
+    #  email-verify link, and vice versa) <#
+    reset_token:
+        type:    str
+        default: ""
+
+    reset_token_expires_at:
+        type:    datetime
+        required: false

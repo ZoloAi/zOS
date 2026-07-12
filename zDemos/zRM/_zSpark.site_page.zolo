@@ -1,0 +1,18 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#> dev/flow spark — NOT a first-class app entry point. Jumps zRaven straight
+#  to the home feed (zBlock: Main, zVaFile: zUI.zRM), skipping nothing else
+#  since this flow's OWN first real step is signing in — isolating the new
+#  /s/%slug front_door (Stage 1 of the hosting phase) from the full
+#  canonical journey (13_testing.md dev_spark), same shape as
+#  _zSpark.dashboard.zolo's own dev flow. <#
+
+zSpark:
+    title:     zRM — Site Page (dev flow)
+    zMode:     zBifrost
+    zLog:      DEBUG
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zRM
+    zBlock:    Main
+    zServer:
+        enabled: true

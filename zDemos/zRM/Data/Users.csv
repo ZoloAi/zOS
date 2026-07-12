@@ -1,0 +1,5 @@
+id,email,password,name,avatar,email_verified,verification_token,token_expires_at,reset_token,reset_token_expires_at
+1,ada@zrm.io,$2b$12$L7zPsaq2IefjwZYu2z40ZuWGFgbEaJg3JWbE7/ccu9nuJDJVEEZAC,Ada,@.static.avatars.default.png,True,,,8fXM8BZD_LAHfsnrkgwjazo_v0QzW0rY,2026-07-11 19:01:21
+2,grace@zrm.io,$2b$12$JTDzhdFA7kFyDx250IUjS.yQjZfThpthIi.O46yn2dMatQ/YRIiyq,Grace,@.static.avatars.default.png,True,,,,
+3,gal.video.prod@gmail.com,$2b$12$C8O0Y5maLWZBrvKVR69u6upETwIjZ9xDD68/36b1IcLtWfxp2Av3.,Gal Nachshon,@.static.avatars.default.png,True,,,,
+4,frank@zrm.io,$2b$12$L7zPsaq2IefjwZYu2z40ZuWGFgbEaJg3JWbE7/ccu9nuJDJVEEZAC,Frank,@.static.avatars.default.png,False,seeded-test-token-abc123,2030-01-01 00:00:00,seeded-reset-token-xyz789,2030-01-01 00:00:00

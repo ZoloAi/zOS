@@ -1,0 +1,11 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Own file → own auto-discovered route (/Logout) — mirrors zTeamVault's Logout.
+
+Logout:
+    zGate:
+        authed: true
+
+    zLogout:
+        zApp: zRM
+        onSuccess:
+            zLink: @.zViews.zUI.zRM.Main

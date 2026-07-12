@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Replaces the Posts spool — same auto_join shape (18_data_advanced.md
+# "auto"), newest-first, now reading Sites instead.
+
+#> newest-first — a fresh site reads back on top next render, no push/poll
+#  auto_join follows Sites.owner_id -> Users.id so the feed shows the real
+#  owner name, not a free-text field; joined keys come back table-qualified
+#  ("Sites.title", "Users.name") <#
+sites:
+    zData:
+        action:    read
+        model:     @.models.zSchema.Sites
+        table:     Sites
+        tables:    [Sites, Users]
+        auto_join: true
+        fields:    [Sites.id, Sites.title, Sites.slug, Sites.tagline, Sites.body, Sites.cover_image, Sites.status, Sites.created_at, Sites.owner_id, Users.name]
+        order_by:  Sites.created_at DESC

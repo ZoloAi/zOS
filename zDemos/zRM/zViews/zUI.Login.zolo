@@ -1,0 +1,51 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Own file → own auto-discovered route (/Login) — same shape as zTeamVault's
+# Login (15_rbac.md "golden"): zLogin auto-discovers table + identity field
+# from `model`, bcrypt-checks LOCALLY, then stamps session["zVisitor"].
+#
+# Own file = own root = own zMeta — zBrush does NOT carry over from
+# zUI.zRM.zolo just because it's the same app (caught the hard way on the
+# earlier zCRM->zRM pass: a missing zBrush here meant the whole page was
+# unstyled and it wasn't obvious from a DOM-only zAssert).
+
+zMeta:
+    zBrush: [zrm]
+
+Login:
+    zGate:
+        authed: false
+    onDenied:
+        zLink: @.zViews.zUI.zRM.Main
+
+    zH1:
+        label: Sign in
+        _zClass: zRM-login-title
+
+    Form:
+        zLogin:
+            title:  Sign in to zRM
+            model:  @.models.zSchema.Users
+            fields: [email, password]
+            zAPI:   true
+            onSuccess:
+                zLink: @.zViews.zUI.zRM.Main
+
+    RegisterLink:
+        zBtn:
+            label:  Need an account? Register
+            color:  secondary
+            _zClass: zRM-register-link
+            action: zLink(@.zViews.zUI.Register.Register)
+
+    ForgotPasswordLink:
+        zBtn:
+            label:  Forgot password?
+            color:  secondary
+            _zClass: zRM-forgot-link
+            action: zLink(@.zViews.zUI.ForgotPassword.ForgotPassword)
+
+    Back:
+        zBtn:
+            label:  ← Back
+            _zClass: zRM-back-btn
+            action: zLink(@.zViews.zUI.zRM.Main)

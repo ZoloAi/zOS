@@ -1,0 +1,28 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Feeds the /s/%slug zLoom route (14_server.md "param") — Stage 1 of the
+# hosting phase (zVersions/commits/zRM/c5's own next_step): a slug matching
+# ZERO rows 404s automatically (never created, wrong slug, hand-tampered),
+# same "matches nothing" shape as Verify/ResetPassword's own token lookups.
+#
+# status: published is baked STRAIGHT into the where clause, not a
+# post-render check — a draft site's slug simply matches nothing here, so
+# it 404s for a stranger exactly like a bad slug would (no separate
+# "forbidden" branch needed, same reasoning as those token gates). Owner-
+# preview-your-own-draft is a real gap this leaves open — not solved here.
+#
+# Single-table (no auto_join) — the feed's own "sites" spool proved
+# auto_join for an unfiltered read, but never paired with a where clause;
+# keeping this one plain avoids stacking two unproven things at once.
+
+sitePage:
+    zData:
+        action: read
+        model:  @.models.zSchema.Sites
+        table:  Sites
+        where:
+            slug:         %route.slug
+            status:       published
+            #> Stage 2 split: an app-mode row's "page" is another zOS
+            #  instance (see /app/%slug's zProxy route) — this internal
+            #  markdown route never renders it, same 404-as-not-found <#
+            hosting_mode: internal

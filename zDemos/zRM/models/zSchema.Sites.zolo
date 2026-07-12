@@ -1,0 +1,103 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Replaces Posts — the blog phase (zTeamVault+zBlog foundation, zVersions/
+# commits/zRM/c1) proved accounts + owned-row CRUD; a "post" becomes a
+# "site" for zRM's real MVP (Wix-style hosting dashboard for the golden-apps
+# portfolio). Same shape, same ownership gate, same feed pattern — only the
+# fields change: title stays, content -> tagline, +slug +cover_image
+# +status (draft/published, the front_door lifecycle from 22_hosting.md,
+# simplified to data instead of a real wake/sleep driver for this segment).
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        Sites
+    Schema_Name:       zSchema.Sites
+    zMigration:        true
+    zMigrationVersion: v1.2.0
+
+Sites:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    title:
+        type:     str
+        required: true
+        rules:
+            max_length: 140
+
+    #> the front_door slug (22_hosting.md) — a real registry would resolve
+    #  THIS via a zProxy route; this segment just displays it as the site's
+    #  own handle, unique so two owners can never collide on one <#
+    slug:
+        type:     str
+        required: true
+        unique:   true
+        rules:
+            max_length: 60
+
+    #> relational identity link (08_data_crud.md "relationships") — a site
+    #  belongs to the signed-in Users row that made it; cascade means a
+    #  deleted account takes its own sites with it <#
+    owner_id:
+        type:         int
+        required:     true
+        foreign_key:  Users.id
+        on_delete:    cascade
+
+    tagline:
+        type:    str
+        default: ""
+        rules:
+            max_length: 200
+
+    #> a zPath, same shape as Users.avatar — every new site ships a
+    #  servable placeholder cover from day one, same reasoning as
+    #  zBlog's avatar default (06_inputs.md files pairing) <#
+    cover_image:
+        type:    str
+        default: @.static.covers.default.png
+
+    #> the site's actual page content — Stage 1 of the hosting phase
+    #  (zVersions/commits/zRM/c5's own next_step note): single record =
+    #  single public page, rendered at /s/%slug. Markdown, same "long text,
+    #  simple formatting" reasoning as zBlog's own post body <#
+    body:
+        type:    str
+        default: ""
+
+    #> draft = owner-only concern, published = visible to anyone at
+    #  /s/%slug with no session at all — the front_door lifecycle
+    #  (22_hosting.md "deploy: stage -> commit"), simplified to a plain
+    #  data column for this segment. Previously displayed-only metadata
+    #  (the feed showed BOTH regardless); Stage 1 makes it a REAL gate <#
+    status:
+        type:    str
+        default: draft
+        rules:
+            pattern: ^(draft|published)$
+
+    #> Stage 2 of the hosting phase — internal = this row's own `body`
+    #  markdown is the page (Stage 1, unchanged); app = the slug is a REAL
+    #  front door (22_hosting.md zProxy) that wakes another zOS instance
+    #  and hands the visitor off to it. Two modes, two routes: /s/%slug
+    #  stays internal-only; /app/%slug is the zProxy front door <#
+    hosting_mode:
+        type:    str
+        default: internal
+        rules:
+            pattern: ^(internal|app)$
+
+    #> the zProxy registry's spark_field (22_hosting.md "front door") —
+    #  a StoredBundle.zspark_path (core/zos_plugin/bundle_store.py), i.e.
+    #  a folder/zSpark pair RELATIVE to zRM's own workspace root, produced
+    #  by unpacking the New Site dialog's app_bundle upload (add_site
+    #  zFunc). Unused (empty) for hosting_mode=internal rows <#
+    spark_path:
+        type:    str
+        default: ""
+
+    created_at:
+        type:    datetime
+        default: now

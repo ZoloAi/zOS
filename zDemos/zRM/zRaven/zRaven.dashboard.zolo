@@ -1,0 +1,230 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# zRavenVersion: v1.0.0
+# Source: zUI.Profile.zolo (zDash shell) + panels/zUI.Account.zolo +
+# panels/zUI.MySites.zolo
+# Hand-extended — dev flow (13_testing.md dev_spark) for the Profile-as-
+# dashboard segment: sign in as Ada (already owns "Ada Portfolio" from seed
+# data) → open the dashboard → Account panel shows first → switch to MySites
+# → her own site shows (and ONLY hers) → add (zDelta page) → edit-link out to
+# the Feed → delete (direct zFunc). A zModal's onSubmit doesn't bind inside a
+# dash panel (found building this segment) — Add and Delete route around it;
+# Edit defers to the Feed's own proven Edit until that gap has a real fix.
+
+Tests:
+    Open_App:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    Fill_Login_Ada:
+        zClick:
+            selector: .zRM-signin-btn
+        zWait:
+            selector: .zRM-login-title
+            state: visible
+            timeout: 8000
+
+    Submit_Login_Ada:
+        zFill:
+            email:    ada@zrm.io
+            password: blog1234
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    Open_Dashboard:
+        zClick:
+            selector: .zRM-profile-btn
+        zWait:
+            selector: .zDash-container
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    #> Account is `default:` in the zDash block — first panel shown, no
+    #  click needed (16_dashboards.md "default: which opens first") <#
+    Assert_Account_Panel_Default:
+        zAssert:
+            dom:
+                selector: .zRM-title
+                contains: Account
+
+    Assert_Account_Info_Shows_Ada:
+        zAssert:
+            dom:
+                selector: .zRM-profile-info
+                contains: Ada
+
+    Click_MySites_Tab:
+        zClick:
+            selector: "[data-panel='MySites']"
+        zWait:
+            selector: .zRM-site
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    #> ownership scoping — Ada's OWN "Ada Portfolio" shows, Grace's "Grace
+    #  Notes" (a different owner_id, seeded in Data/Sites.csv) never does <#
+    Assert_MySites_Shows_Own_Site:
+        zAssert:
+            dom:
+                selector: .zRM-site-title
+                contains: Ada Portfolio
+
+    Assert_MySites_Hides_Others_Site:
+        zAssert:
+            dom:
+                selector: .zRM-mysites-panel
+                not_contains: Grace Notes
+
+    #> a standalone zModal's onSubmit doesn't bind inside a lazy-loaded zDash
+    #  panel (filed above the MySites block) — New Site is a same-file
+    #  zDelta to a sibling page-level zDialog instead, same shape Main's old
+    #  Add_Site used <#
+    Add_Site_From_Dashboard:
+        zClick:
+            selector: .zRM-newsite-btn
+        zWait:
+            selector: "[name='title']"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    #> cover uploaded BEFORE the text fields — a zFill's Enter keypress on
+    #  the LAST field it touches submits the whole surrounding form (plain
+    #  HTML behavior); the file field must already be attached by the time
+    #  Fill_New_Site_From_Dashboard's own Enter fires or add_site's
+    #  zConv.cover arrives unresolved and onSubmit binds single-use (found
+    #  the hard way — a separate Submit click afterward doesn't get a
+    #  second try). Reuses the SAME fixture avatar upload already leans on
+    #  (upload_bank/new_avatar.jpg) <#
+    Upload_New_Site_Cover:
+        zUpload:
+            selector: "[name='cover']"
+            path: upload_bank/new_avatar.jpg
+        zShot:
+            full_page: true
+
+    Fill_New_Site_From_Dashboard:
+        zFill:
+            title:   Dashboard Test Site
+            slug:    dashboard-test-site
+            tagline: Added from the MySites panel, not the old standalone page.
+        zWait:
+            selector: .zSignal-success
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Back_To_MySites_From_Add:
+        zClick:
+            selector: .zRM-back-to-mysites-btn
+        zWait:
+            selector: .zRM-site
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_New_Site_In_MySites:
+        zAssert:
+            dom:
+                selector: .zRM-site-title
+                contains: Dashboard Test Site
+
+    Assert_New_Site_Cover_Changed:
+        zAssert:
+            dom:
+                selector: ".zRM-site:has-text('Dashboard Test Site') .zRM-site-cover"
+                property: src
+                not_contains: default.png
+
+    #> multi-field Edit needs a real form, and a zModal onSubmit doesn't bind
+    #  inside a dash panel (see the NewSite note above) — this row's "View &
+    #  Edit on Feed" link points at the public Feed instead, where the SAME
+    #  row's Edit already works (proven, canonical zRaven.zRM.zolo) <#
+    Click_Edit_On_Feed_Link:
+        zClick:
+            selector: ".zRM-site:has-text('Dashboard Test Site') .zRM-edit-btn"
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Landed_On_Feed:
+        zAssert:
+            dom:
+                selector: .zRM-site-title
+                contains: Dashboard Test Site
+
+    Return_To_Dashboard_From_Feed:
+        zClick:
+            selector: .zRM-profile-btn
+        zWait:
+            selector: .zDash-container
+            state: visible
+            timeout: 8000
+
+    Return_To_MySites_From_Feed:
+        zClick:
+            selector: "[data-panel='MySites']"
+        zWait:
+            selector: .zRM-site
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Delete_Site_From_Dashboard:
+        zClick:
+            selector: ".zRM-site:has-text('Dashboard Test Site') .zRM-delete-btn"
+        zWait:
+            selector: .zSignal-success
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Reload_After_Delete:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    Reopen_Dashboard_After_Delete:
+        zClick:
+            selector: .zRM-profile-btn
+        zWait:
+            selector: .zDash-container
+            state: visible
+            timeout: 8000
+
+    Reopen_MySites_After_Delete:
+        zClick:
+            selector: "[data-panel='MySites']"
+        zWait:
+            selector: .zRM-mysites-panel
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Deleted_Site_Gone:
+        zAssert:
+            dom:
+                selector: .zRM-mysites-panel
+                not_contains: Dashboard Test Site
+
+    Done:
+        zMarker: done

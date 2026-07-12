@@ -1,0 +1,14 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Feeds the /Verify/%token zLoom route (14_server.md "param") — a bare
+# existence check. A token matching ZERO rows (never issued, already
+# consumed, or hand-tampered) 404s automatically; zRM's own confirm_email
+# zFunc still re-checks expiry itself, since a stale-but-unconsumed token
+# DOES still match a row here.
+
+verify:
+    zData:
+        action: read
+        model:  @.models.zSchema.Users
+        table:  Users
+        where:
+            verification_token: %route.token

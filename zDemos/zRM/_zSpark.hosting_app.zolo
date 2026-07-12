@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#> dev/flow spark — isolates Stage 2 of the hosting phase (the REAL
+#  front_door: /app/%slug's zProxy route wakes another zOS instance and
+#  hands the visitor off to it) from the full canonical journey, same
+#  "jump straight to the feed" shape as _zSpark.site_page.zolo's own dev
+#  flow (13_testing.md dev_spark). <#
+
+zSpark:
+    title:     zRM — Hosting: App Mode (dev flow)
+    zMode:     zBifrost
+    zLog:      DEBUG
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zRM
+    zBlock:    Main
+    zServer:
+        enabled: true

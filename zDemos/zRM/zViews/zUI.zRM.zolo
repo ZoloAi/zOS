@@ -1,0 +1,212 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Replaces zUI.zblog.zolo — same feed/AuthBar/ownership shape proven in
+# Phase 1 (zVersions/commits/zRM/c1), now showing Sites instead of Posts.
+# Comments/Activity are gone — commenting on a hosted site never made
+# sense for this app's real identity (16_dashboards.md-style pivot, same
+# reasoning as the earlier zCRM->zRM rename).
+
+zMeta:
+    zBrush: [zrm]
+    zSpool: [sites]
+
+#> the feed IS the home screen — every site, everyone's, newest first;
+#  auto_join'd to Users for the real owner name (15_rbac.md Users, no
+#  free-text owner) <#
+Main:
+    zH1:
+        label: zRM
+        color: PRIMARY
+        _zClass: zRM-title
+
+    zMD:
+        content: A hosting dashboard for the golden-apps portfolio — every site below is someone's, newest lands on top.
+        _zClass: zRM-intro
+
+    #> guest sees Sign in/Register; signed-in sees who they are + Profile/Sign
+    #  out — two per-block gates reading the SAME session tag zLogin writes/
+    #  zLogout clears (15_rbac.md "where: four homes") <#
+    AuthBar:
+        _zClass: zRM-authbar
+
+        GuestLinks:
+            zGate:
+                authed: false
+            _zClass: zRM-authbar-guest
+
+            SignInLink:
+                zBtn:
+                    label:  Sign in
+                    color:  primary
+                    _zClass: zRM-signin-btn
+                    action: zLink(@.zViews.zUI.Login.Login)
+
+            RegisterLink:
+                zBtn:
+                    label:  Register
+                    color:  secondary
+                    _zClass: zRM-register-btn
+                    action: zLink(@.zViews.zUI.Register.Register)
+
+        UserLinks:
+            zGate:
+                authed: true
+            _zClass: zRM-authbar-user
+
+            Welcome:
+                zText:
+                    content: Signed in as %auth.username
+                    _zClass: zRM-welcome
+
+            ProfileLink:
+                zBtn:
+                    label:  Profile
+                    color:  secondary
+                    _zClass: zRM-profile-btn
+                    action: zLink(@.zViews.zUI.Profile.Profile)
+
+            SignOutLink:
+                zBtn:
+                    label:  Sign out
+                    color:  secondary
+                    _zClass: zRM-signout-btn
+                    action: zLink(@.zViews.zUI.Logout.Logout)
+
+    Feed:
+        _zClass: zRM-feed
+
+        List:
+            zList:
+                source: %data.sites
+                each:
+                    Site:
+                        _zClass: zRM-site
+
+                        Header:
+                            _zClass: zRM-site-header
+
+                            Cover:
+                                zImage:
+                                    src:      %item.Sites.cover_image
+                                    alt_text: %item.Sites.title
+                                    _zClass: zRM-site-cover
+
+                            Title:
+                                zText:
+                                    content: %item.Sites.title
+                                    _zClass: zRM-site-title
+
+                        Meta:
+                            zText:
+                                content: by %item.Users.name · %item.Sites.status · %item.Sites.created_at
+                                _zClass: zRM-site-meta
+
+                        Tagline:
+                            zText:
+                                content: %item.Sites.tagline
+                                _zClass: zRM-site-tagline
+
+                        #> owner-only row — a per-row ownership check, NOT a role
+                        #  (15_rbac.md "compares two LIVE tokens"); enforcement doesn't
+                        #  stop at hiding the buttons though — both onSubmit blocks
+                        #  below repeat the SAME check in their own where: <#
+                        OwnerActions:
+                            zGate:
+                                %item.Sites.owner_id: %session.zVisitor.id
+                            _zClass: zRM-site-owner-actions
+
+                            Edit:
+                                zBtn:
+                                    label:  bi-pencil
+                                    color:  secondary
+                                    _zClass: zRM-edit-btn
+                                    action:
+                                        zModal:
+                                            zDialog:
+                                                title:  Edit Site
+                                                #> hosting_mode/spark_path are deliberately NOT editable here — set
+                                                #  once at creation (Add_Site), same "immutable after the fact"
+                                                #  reasoning as the front_door slug itself; flipping a live site
+                                                #  between internal/app is a bigger operation than this lightweight
+                                                #  Edit form, not needed for this segment <#
+                                                fields: [
+                                                    {zConv: title,   type: text,     default: %item.Sites.title,   required: true},
+                                                    {zConv: slug,    type: text,     default: %item.Sites.slug,    required: true},
+                                                    {zConv: tagline, type: text,     default: %item.Sites.tagline},
+                                                    {zConv: body,    type: textarea, label: Body (markdown), default: %item.Sites.body},
+                                                    {zConv: status,  type: select,   label: Status, options: [draft, published], default: %item.Sites.status},
+                                                ]
+                                                onSubmit:
+                                                    zData:
+                                                        action: update
+                                                        model:  @.models.zSchema.Sites
+                                                        fields: [title, slug, tagline, body, status]
+                                                        values: [zConv.title, zConv.slug, zConv.tagline, zConv.body, zConv.status]
+                                                        where:  id = %item.Sites.id zAND owner_id = %session.zVisitor.id
+
+                            Delete:
+                                zBtn:
+                                    label:  bi-trash
+                                    color:  danger
+                                    _zClass: zRM-delete-btn
+                                    action:
+                                        zModal:
+                                            zDialog:
+                                                title:  Delete this site?
+                                                fields: []
+                                                onSubmit:
+                                                    zData:
+                                                        action: delete
+                                                        model:  @.models.zSchema.Sites
+                                                        where:  id = %item.Sites.id zAND owner_id = %session.zVisitor.id
+
+    #> visible to everyone — clicking while signed out bounces to Login via
+    #  Add_Site's own gate (same "reachable by anyone, proves the gate
+    #  itself" shape zTeamVault's GoVault uses, 15_rbac.md "proven") <#
+    NewSite:
+        zBtn:
+            label:  bi-plus-lg + New Site
+            color:  primary
+            _zClass: zRM-newsite-btn
+            action: zDelta($Add_Site)
+
+#> signed-in only — a site needs a real owner_id, so creating one without a
+#  session makes no sense (15_rbac.md "verb", page home) <#
+Add_Site:
+    zGate:
+        authed: true
+    onDenied:
+        zLink: @.zViews.zUI.Login.Login
+
+    zH1:
+        label: New Site
+        color: PRIMARY
+        _zClass: zRM-title
+
+    #> cover: type: file needs a plugin-driven insert (add_site), not a
+    #  plain declarative zData block — same "file field can't ride a
+    #  zData:{action: insert} block" gap Users.avatar already worked
+    #  around via update_avatar (06_inputs.md files pairing). Optional —
+    #  skip the picker and the schema's own default cover still applies <#
+    zDialog:
+        title:  New Site
+        model:  @.models.zSchema.Sites
+        fields: [
+            title,
+            slug,
+            tagline,
+            {zConv: cover, type: file, label: Cover image, placeholder: @.upload_bank.filename},
+            {zConv: body, type: textarea, label: Body (markdown)},
+            {zConv: hosting_mode, type: select, label: Hosting mode, options: [internal, app], default: internal},
+            {zConv: app_bundle, type: file, label: App bundle .tar.gz (hosting_mode=app only), placeholder: @.upload_bank.filename},
+        ]
+        onSubmit:
+            #> the identity payoff — no free-text owner field on the form at
+            #  all; the row's owner IS whoever is signed in right now
+            #  (15_rbac.md "%session.*" ambient) <#
+            zFunc: &.zrm.add_site(zConv.title, zConv.slug, zConv.tagline, %session.zVisitor.id, zConv.cover, zConv.body, zConv.hosting_mode, zConv.app_bundle)
+
+    Back:
+        zBtn:
+            label:  ← Back to Feed
+            _zClass: zRM-back-btn
+            action: zDelta($Main)

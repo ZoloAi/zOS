@@ -1,0 +1,41 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Own file → own auto-discovered route (/Register) — self-service signup.
+# onSubmit is a zFunc, not a bare zData insert, so registration can also
+# stamp a verification_token + expiry (12_zfunc.md `data` injection still
+# rides the SAME zData facade, so zHash: bcrypt on Users.password still
+# fires — no plugin-side hashing needed).
+
+zMeta:
+    zBrush: [zrm]
+
+Register:
+    #> already signed in? nothing to register for — bounce home <#
+    zGate:
+        authed: false
+    onDenied:
+        zLink: @.zViews.zUI.zRM.Main
+
+    zH1:
+        label: Create an account
+        color: PRIMARY
+        _zClass: zRM-title
+
+    zDialog:
+        title:  Register
+        model:  @.models.zSchema.Users
+        fields: [name, email, password]
+        onSubmit:
+            zFunc: &.zrm.register_user(zConv.name, zConv.email, zConv.password)
+
+    SignInLink:
+        zBtn:
+            label:  Already have an account? Sign in
+            color:  secondary
+            _zClass: zRM-signin-link
+            action: zLink(@.zViews.zUI.Login.Login)
+
+    Back:
+        zBtn:
+            label:  ← Back to Feed
+            _zClass: zRM-back-btn
+            action: zLink(@.zViews.zUI.zRM.Main)

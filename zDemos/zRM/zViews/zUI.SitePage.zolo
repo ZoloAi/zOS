@@ -1,0 +1,50 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Own file → own auto-discovered route ANCHOR (routes/zServer.routes.zolo
+# maps /s/%slug here as a zLoom param route, 14_server.md "param") — the
+# real front_door (22_hosting.md), Stage 1: a single content record
+# rendered as one public page, no session required at all.
+#
+# No zGate — reachable signed-in OR signed-out (a stranger following a
+# published link never has one); the spool's OWN where clause already did
+# the ONLY gating this page needs (status: published), same "reachable by
+# anyone, proves the gate" shape as the rest of zRM's public routes.
+
+zMeta:
+    zBrush: [zrm]
+    zSpool: [sitePage]
+
+SitePage:
+    Cover:
+        zImage:
+            src:      %data.sitePage.0.cover_image
+            alt_text: %data.sitePage.0.title
+            _zClass: zRM-sitepage-cover
+
+    zH1:
+        label: %data.sitePage.0.title
+        color: PRIMARY
+        _zClass: zRM-title
+
+    Meta:
+        zText:
+            content: published %data.sitePage.0.created_at
+            _zClass: zRM-sitepage-meta
+
+    Tagline:
+        zText:
+            content: %data.sitePage.0.tagline
+            _zClass: zRM-sitepage-tagline
+
+    #> zMD's own content field doesn't get %data.* interpolation (a gap —
+    #  zText's DOES, proven by Tagline right above); zText here trades
+    #  real markdown rendering for correctness until that gap is fixed <#
+    Body:
+        zText:
+            content: %data.sitePage.0.body
+            _zClass: zRM-sitepage-body
+
+    Back:
+        zBtn:
+            label:  ← Back to zRM
+            _zClass: zRM-back-btn
+            action: zLink(@.zViews.zUI.zRM.Main)

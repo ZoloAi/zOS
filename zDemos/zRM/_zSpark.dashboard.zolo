@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#> dev/flow spark — NOT a first-class app entry point. Jumps zRaven straight
+#  to the home feed already logged in via zRaven's own Login step (no dev
+#  spark shortcut for auth exists yet), isolating the NEW MySites panel flow
+#  (add/edit/delete a site from inside the dashboard) from the full 50-step
+#  canonical journey (13_testing.md dev_spark) <#
+
+zSpark:
+    title:     zRM — Dashboard (dev flow)
+    zMode:     zBifrost
+    zLog:      DEBUG
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zRM
+    zBlock:    Main
+    zServer:
+        enabled: true

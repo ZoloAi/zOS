@@ -1,0 +1,218 @@
+/* zrm.css — loaded via zMeta.zBrush: [zrm] -> /styles/zrm.css
+   Teaching goal: a card feed (zList/%item of cover+title+meta+tagline)
+   for a hosting dashboard — this file only skins the feed/card surface. */
+
+:root {
+    --zr-bg: #f7f6f3;
+    --zr-ink: #24211c;
+    --zr-muted: #8a8377;
+    --zr-line: rgba(36, 33, 28, 0.1);
+    --zr-accent: #b5541f;
+}
+
+body {
+    background: var(--zr-bg);
+}
+
+#zVaF-content {
+    max-width: 720px;
+    margin: 48px auto;
+    padding: 0 16px;
+}
+
+.zRM-title {
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.zRM-intro {
+    text-align: center;
+    color: var(--zr-muted);
+    margin-bottom: 28px;
+}
+
+.zRM-authbar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    font-size: 0.85rem;
+}
+
+.zRM-authbar-guest,
+.zRM-authbar-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.zRM-welcome {
+    color: var(--zr-muted);
+}
+
+.zRM-signin-btn,
+.zRM-register-btn,
+.zRM-profile-btn,
+.zRM-signout-btn {
+    padding: 4px 14px;
+    font-size: 0.78rem;
+    border-radius: 8px;
+}
+
+.zRM-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.zRM-site {
+    background: #fff;
+    border: 1px solid var(--zr-line);
+    border-radius: 14px;
+    padding: 20px 22px;
+    box-shadow: 0 8px 24px rgba(36, 33, 28, 0.06);
+}
+
+.zRM-site-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.zRM-site-cover {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.zRM-site-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--zr-ink);
+    display: block;
+}
+
+.zRM-site-meta {
+    font-size: 0.8rem;
+    color: var(--zr-muted);
+    display: block;
+    margin-bottom: 10px;
+}
+
+.zRM-site-tagline {
+    font-size: 0.95rem;
+    color: var(--zr-ink);
+    display: block;
+    line-height: 1.5;
+    margin-bottom: 14px;
+}
+
+.zRM-site-owner-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.zRM-edit-btn,
+.zRM-delete-btn {
+    padding: 4px 12px;
+    font-size: 0.78rem;
+    border-radius: 8px;
+    opacity: 0.85;
+}
+
+.zRM-edit-btn:hover,
+.zRM-delete-btn:hover {
+    opacity: 1;
+}
+
+.zRM-profile-avatar {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+    margin: 0 auto 14px;
+}
+
+.zRM-profile-info {
+    text-align: center;
+    color: var(--zr-muted);
+    margin-bottom: 18px;
+    display: block;
+}
+
+.zRM-avatar-btn {
+    display: block;
+    margin: 0 auto 20px;
+    padding: 8px 20px;
+    border-radius: 10px;
+}
+
+.zRM-newsite-btn {
+    display: block;
+    width: 100%;
+    max-width: 280px;
+    margin: 20px auto 0;
+    padding: 12px 0;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.zRM-verify-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: #fff7e6;
+    border: 1px solid #f0c674;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin: 0 auto 20px;
+    max-width: 420px;
+}
+
+.zRM-verify-message {
+    font-size: 0.85rem;
+    color: var(--zr-ink);
+}
+
+.zRM-verify-btn,
+.zRM-resend-btn {
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+
+.zRM-verify-result {
+    max-width: 420px;
+    margin: 0 auto 20px;
+}
+
+.zRM-login-title {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.zRM-signin-link,
+.zRM-register-link {
+    display: block;
+    margin: 14px auto;
+    text-align: center;
+}
+
+@media (max-width: 640px) {
+    #zVaF-content {
+        margin: 24px auto;
+    }
+
+    .zRM-site {
+        padding: 16px 18px;
+    }
+}

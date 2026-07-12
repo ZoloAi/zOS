@@ -1,0 +1,120 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Account panel — identity, avatar, email verification, password security.
+# Moved out of the old flat zUI.Profile.zolo (zVersions/commits/zRM/c4) when
+# Profile became a zDash shell; same content, now one panel among others.
+
+Account:
+    zMeta:
+        title:       Account
+        icon:        bi-person-circle
+        description: Your profile, avatar, and account security
+        zSpool:      [currentUser]
+
+    zGate:
+        authed: true
+    onDenied:
+        zLink: @.zViews.zUI.Login.Login
+
+    zH2:
+        label: Account
+        color: PRIMARY
+        _zClass: zRM-title
+
+    Avatar:
+        zImage:
+            src:      %data.currentUser.0.avatar
+            alt_text: %data.currentUser.0.name
+            _zClass: zRM-profile-avatar
+
+    Info:
+        zText:
+            content: %data.currentUser.0.name · %data.currentUser.0.email
+            _zClass: zRM-profile-info
+
+    #> the nag lives HERE, not on login — 15_rbac.md's own golden zBlog
+    #  register never blocked sign-in on a flag, so this account can log in
+    #  unverified; the banner is what actually pushes the token forward <#
+    VerifyBanner:
+        zGate:
+            %data.currentUser.0.email_verified: false
+        _zClass: zRM-verify-banner
+
+        Message:
+            zText:
+                content: Your email isn't verified yet.
+                _zClass: zRM-verify-message
+
+        #> zLink() only resolves @.zPath / $delta / #anchor / http(s) targets
+        #  (resolver_zlink.py classify_href) — a raw "/Verify/<token>" string
+        #  falls through to the delta default and goes nowhere. The token is
+        #  ALREADY on this page as %data, so skip navigation entirely and
+        #  confirm in place, same &.plugin action shape as ResendBtn below —
+        #  the return renders as an auto zSignal card (12_zfunc.md "signals") <#
+        VerifyLink:
+            zBtn:
+                label:  Verify Now
+                color:  primary
+                _zClass: zRM-verify-btn
+                action: &.zrm.confirm_email(%data.currentUser.0.verification_token)
+
+        ResendBtn:
+            zBtn:
+                label:  bi-arrow-clockwise Resend link
+                color:  secondary
+                _zClass: zRM-resend-btn
+                action: &.zrm.resend_verification(%session.zVisitor.id)
+
+    EditAvatar:
+        zBtn:
+            label:  bi-camera Change Avatar
+            color:  primary
+            _zClass: zRM-avatar-btn
+            action: zDelta($Edit_Avatar)
+
+    #> the same token+expiry+single-use grammar as email verification, one
+    #  field away from a "forgot password" flow — reuses the account's OWN
+    #  already-resolved email so there's nothing to retype (the public
+    #  /ForgotPassword page below is the same plugin call for a signed-out
+    #  visitor who doesn't have this page to click from) <#
+    Security:
+        _zClass: zRM-security
+
+        SecurityLabel:
+            zText:
+                content: Password
+                _zClass: zRM-security-label
+
+        ResetPasswordBtn:
+            zBtn:
+                label:  bi-key Send Password Reset Link
+                color:  secondary
+                _zClass: zRM-reset-btn
+                action: &.zrm.request_password_reset(%data.currentUser.0.email)
+
+    Back:
+        zBtn:
+            label:  ← Back to Feed
+            _zClass: zRM-back-btn
+            action: zLink(@.zViews.zUI.zRM.Main)
+
+#> a file input rides its OWN page (zDelta hop), not a zModal overlay — no
+#  precedent anywhere in zOS for a file field inside a zModal <#
+Edit_Avatar:
+    zH1:
+        label: Change Avatar
+        color: PRIMARY
+        _zClass: zRM-title
+
+    zDialog:
+        title:  New Avatar
+        fields: [
+            {zConv: avatar, type: file, label: Avatar, placeholder: @.upload_bank.filename},
+        ]
+        onSubmit:
+            zFunc: &.zrm.update_avatar(%session.zVisitor.id, zConv.avatar)
+
+    BackToProfile:
+        zBtn:
+            label:  ← Back to Profile
+            _zClass: zRM-back-btn
+            action: zLink(@.zViews.zUI.Profile.Profile)

@@ -1,0 +1,19 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     zRM
+    zMode:     zBifrost
+    zLog:      DEBUG
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zRM
+    zBlock:    Main
+    #> media (avatar/cover uploads) needs a real HTTP contract from phase_CLI
+    #  onward, not just Bifrost later (10_media.md server_contract) <#
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — Reach Management (zRM), Wix-style MVP hosting dashboard for the zOS golden-apps portfolio. Phase 2 pivots Posts to Sites (slug/tagline/cover_image/status) on the Phase 1 accounts foundation (signup/login/logout/avatar, owned-row CRUD).
+    tags: [zData, zSchema, foreign_key, zDialog, zModal, zGate, zLogin, zLogout, zImage, auto_join]
+    author: zAgents

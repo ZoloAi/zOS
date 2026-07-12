@@ -1,0 +1,27 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#> dev/flow spark — NOT a first-class app entry point. Jumps zRaven straight
+#  to Register (zBlock: Register, zVaFile: zUI.Register), skipping the
+#  Main→Register nav hop, so the verify-email flow doesn't pay the full
+#  50-step canonical journey's nav tax every --run (13_testing.md dev_spark).
+#
+#  ALSO sidesteps a real core gap found running this flow inside the
+#  canonical raven: session["_current_block_data"] (the %data.* stash a
+#  zSpool resolves into) is never invalidated across zLogout/zLogin, so a
+#  SECOND identity visiting Profile in the SAME long-lived zOS process can
+#  still render the FIRST identity's stashed row. A dedicated dev spark
+#  boots its OWN fresh process per --run — Charlie is the only person who
+#  EVER visits Profile in this process's lifetime, so the stash starts
+#  empty and the pre-existing bug never triggers. The bug itself is real
+#  and worth a core fix (zLoom binding_ops.py `prepare_block_render` /
+#  zGuard's Bifrost SPA nav seam) — reported separately, not patched here. <#
+
+zSpark:
+    title:     zRM — Verify Email (dev flow)
+    zMode:     zBifrost
+    zLog:      DEBUG
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.Register
+    zBlock:    Register
+    zServer:
+        enabled: true

@@ -1,0 +1,140 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# MySites panel — "what I'm managing", the foundation the Sites/hosting
+# phase builds on top of. Same card/Edit/Delete shape as the public Feed
+# (zViews/zUI.zRM.zolo), scoped to just this owner's rows via the mySites
+# spool — no per-row ownership zGate needed here (every row already IS this
+# owner's by construction, unlike the public Feed which shows everyone's).
+
+MySites:
+    zMeta:
+        title:       My Sites
+        icon:        bi-globe
+        description: Manage the sites you own
+        zSpool:      [mySites]
+
+    zGate:
+        authed: true
+    onDenied:
+        zLink: @.zViews.zUI.Login.Login
+
+    _zClass: zRM-mysites-panel
+
+    zH2:
+        label: My Sites
+        color: PRIMARY
+        _zClass: zRM-title
+
+    #> a standalone (non-%item) zModal's onSubmit silently fails to bind
+    #  ("Form configuration error: No onSubmit action specified") when the
+    #  button lives inside a lazy-loaded zDash panel specifically — the
+    #  per-row Edit/Delete zModals below are unaffected (%item-scoped
+    #  binding is a different resolution path). A same-file zDelta to a
+    #  sibling block sidesteps it entirely — proven already by this exact
+    #  panel's own Account/Edit_Avatar sibling-block-zDelta <#
+    NewSite:
+        zBtn:
+            label:  bi-plus-lg New Site
+            color:  primary
+            _zClass: zRM-newsite-btn
+            action: zDelta($Add_Site)
+
+    List:
+        zList:
+            source: %data.mySites
+            each:
+                Site:
+                    _zClass: zRM-site
+
+                    Header:
+                        _zClass: zRM-site-header
+
+                        Cover:
+                            zImage:
+                                src:      %item.cover_image
+                                alt_text: %item.title
+                                _zClass: zRM-site-cover
+
+                        Title:
+                            zText:
+                                content: %item.title
+                                _zClass: zRM-site-title
+
+                    Meta:
+                        zText:
+                            content: %item.status · %item.created_at
+                            _zClass: zRM-site-meta
+
+                    Tagline:
+                        zText:
+                            content: %item.tagline
+                            _zClass: zRM-site-tagline
+
+                    Actions:
+                        _zClass: zRM-site-owner-actions
+
+                        #> a multi-field Edit needs a real form, and a zModal's
+                        #  onSubmit doesn't bind inside a dash panel (found while
+                        #  building this exact panel — see the NewSite note above)
+                        #  — the public Feed's OWN Edit for this same row already
+                        #  works (proven, canonical zRaven), so point there rather
+                        #  than half-ship a broken in-dashboard edit form <#
+                        EditOnFeed:
+                            zBtn:
+                                label:  bi-pencil View & Edit on Feed
+                                color:  secondary
+                                _zClass: zRM-edit-btn
+                                action: zLink(@.zViews.zUI.zRM.Main)
+
+                        #> a bare %item-scoped zFunc call, no zModal/zDialog —
+                        #  sidesteps the same dash-panel submit gap entirely <#
+                        Delete:
+                            zBtn:
+                                label:  bi-trash
+                                color:  danger
+                                _zClass: zRM-delete-btn
+                                action: &.zrm.delete_site(%item.id, %session.zVisitor.id)
+
+    Back:
+        zBtn:
+            label:  ← Back to Feed
+            _zClass: zRM-back-btn
+            action: zLink(@.zViews.zUI.zRM.Main)
+
+#> a same-file sibling block, reached via NewSite's zDelta above — a full
+#  page-level zDialog (its block's DIRECT event key, 07_forms.md
+#  !page_dialog_key), same proven shape as the old standalone Main/Add_Site
+#  this replaces for the dashboard context <#
+Add_Site:
+    zH1:
+        label: New Site
+        color: PRIMARY
+        _zClass: zRM-title
+
+    #> cover: type: file — same plugin-driven add_site insert Main's OWN
+    #  Add_Site now uses (zViews/zUI.zRM.zolo), optional so skipping it
+    #  still lands the schema's own default cover <#
+    zDialog:
+        title:  New Site
+        model:  @.models.zSchema.Sites
+        fields: [
+            title,
+            slug,
+            tagline,
+            {zConv: body, type: textarea, label: Body (markdown)},
+            {zConv: cover, type: file, label: Cover image, placeholder: @.upload_bank.filename},
+            {zConv: hosting_mode, type: select, label: Hosting mode, options: [internal, app], default: internal},
+            {zConv: app_bundle, type: file, label: App bundle .tar.gz (hosting_mode=app only), placeholder: @.upload_bank.filename},
+        ]
+        onSubmit:
+            #> arg order MUST match plugins/zrm.py's add_site(title, slug,
+            #  tagline, owner_id, cover, body, hosting_mode, app_bundle) —
+            #  a prior version of this exact call had body/owner_id/cover
+            #  transposed relative to that signature, a latent bug this
+            #  segment's touch caught and fixed <#
+            zFunc: &.zrm.add_site(zConv.title, zConv.slug, zConv.tagline, %session.zVisitor.id, zConv.cover, zConv.body, zConv.hosting_mode, zConv.app_bundle)
+
+    BackToMySites:
+        zBtn:
+            label:  ← Back to My Sites
+            _zClass: zRM-back-to-mysites-btn
+            action: zDelta($MySites)

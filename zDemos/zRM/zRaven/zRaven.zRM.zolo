@@ -1,0 +1,467 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# zRavenVersion: v1.1.0
+# Source: zUI.zRM.zolo + zUI.Login/.Register/.Logout/.Profile.zolo
+# Hand-authored — no golden app yet combines zLogin + zGate ownership +
+# auto_join display + zMedia upload in one Bifrost flow, so this IS the
+# reference pattern (15_rbac.md, 08_data_crud.md, 06_inputs.md).
+# Phase 1 (zTeamVault+zBlog accounts foundation) proved this shape on Posts,
+# zVersions/commits/zRM/c1. This active file is Phase 2: same shape, Sites
+# instead of Posts — comments/activity dropped, +slug +status.
+
+Tests:
+
+    # ── Bifrost: open page, guest view — feed is public, no session yet ─────
+    Open_App:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Feed_Order:
+        #> order_by: Sites.created_at DESC on the auto_join'd sites reel —
+        #  "Grace Notes" (09:05) was seeded AFTER "Ada Portfolio" (09:00),
+        #  so it must render FIRST if newest-first still holds after the join <#
+        zAssert:
+            dom:
+                selector: ".zRM-site:first-child .zRM-site-title"
+                contains: Grace Notes
+
+    Assert_Feed_Owner_Joined:
+        #> the identity payoff — Users.name arrives via auto_join, not a
+        #  free-text field, so the top site must show the REAL owner <#
+        zAssert:
+            dom:
+                selector: ".zRM-site:first-child .zRM-site-meta"
+                contains: Grace
+
+    Assert_Guest_Links_Visible:
+        zAssert:
+            dom:
+                selector: .zRM-authbar-guest
+                contains: Sign in
+
+    Assert_No_Owner_Actions_As_Guest:
+        #> ownership gate defaults CLOSED — a signed-out visitor has no
+        #  session id to match ANY site's owner_id, so zero Edit/Delete
+        #  rows should render anywhere on the page <#
+        zAssert:
+            dom:
+                selector: .zRM-site-owner-actions
+                count: 0
+
+    # ── New Site while signed out — the gate bounces to Login (15_rbac.md,
+    #    same "reachable by anyone, proves the gate" shape as zTeamVault) ───
+    Click_New_Site_As_Guest:
+        zClick:
+            selector: "[data-zkey='NewSite'] button"
+        zWait:
+            selector: .zRM-login-title
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Bounced_To_Login:
+        zAssert:
+            dom:
+                selector: body
+                contains: Sign in
+
+    # ── Sign in as the seeded owner of "Ada Portfolio" ────────────────────
+    Fill_Login_Ada:
+        zFill:
+            email:    ada@zrm.io
+            password: blog1234
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Signed_In_As_Ada:
+        zAssert:
+            dom:
+                selector: .zRM-authbar-user
+                contains: Ada
+
+    Assert_Owner_Actions_On_Own_Site:
+        #> Ada's OWN site ("Ada Portfolio") shows Edit/Delete now that the
+        #  live session id matches its owner_id <#
+        zAssert:
+            dom:
+                selector: ".zRM-site:has-text('Ada Portfolio') .zRM-delete-btn"
+                count: 1
+
+    Assert_No_Owner_Actions_On_Others_Site:
+        #> Grace's site stays off-limits even though Ada is signed in —
+        #  ownership, not just "any authed user" <#
+        zAssert:
+            dom:
+                selector: ".zRM-site:has-text('Grace Notes') .zRM-site-owner-actions"
+                count: 0
+
+    # ── Edit her own site — zModal + zDialog pre-filled from %item.Sites.* ──
+    Open_Edit_Dialog:
+        zClick:
+            selector: ".zRM-site:has-text('Ada Portfolio') .zRM-edit-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Fill_Edit_Site_Form:
+        zFill:
+            title:   Ada Portfolio (edited)
+            tagline: Now with a live edit proving ownership.
+        zShot:
+            full_page: true
+
+    Close_Edit_Dialog:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Reload_After_Edit:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Edit_Persisted:
+        zAssert:
+            dom:
+                selector: .zRM-feed
+                contains: Ada Portfolio (edited)
+
+    # ── Delete her own (edited) site — confirm dialog, fields: [] ───────────
+    Open_Delete_Dialog:
+        zClick:
+            selector: ".zRM-site:has-text('Ada Portfolio (edited)') .zRM-delete-btn"
+        zWait:
+            selector: .zModal-overlay
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Confirm_Delete:
+        zClick:
+            selector: ".zModal-overlay button[type='submit']"
+        zShot:
+            full_page: true
+
+    Close_Delete_Dialog:
+        zClick:
+            selector: .zModal-close
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Reload_After_Delete:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Row_Deleted:
+        zAssert:
+            dom:
+                selector: .zRM-feed
+                not_contains: Ada Portfolio
+
+    Assert_Row_Count:
+        zAssert:
+            dom:
+                selector: .zRM-site
+                count: 1
+
+    # ── New Site, signed in as Ada — no owner FIELD on the form at all;
+    #    owner_id comes straight off the live session (15_rbac.md) ─────────
+    Open_New_Site:
+        zClick:
+            selector: "[data-zkey='NewSite'] button"
+        zWait:
+            selector: "[name='title']"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    #> cover uploaded BEFORE the text fields, not after — a zFill's Enter
+    #  keypress on the LAST field it touches submits the whole surrounding
+    #  form (plain HTML behavior, not test-framework-specific), so the file
+    #  field must already be attached by the time Fill_New_Site_Form's own
+    #  Enter fires or add_site's zConv.cover arrives unresolved (found the
+    #  hard way — a SECOND click afterward doesn't get a second try either,
+    #  onSubmit binds single-use per dialog instance) <#
+    Upload_New_Site_Cover:
+        zUpload:
+            selector: "[name='cover']"
+            path: upload_bank/new_avatar.jpg
+        zShot:
+            full_page: true
+
+    Fill_New_Site_Form:
+        zFill:
+            title:   Zolo Ships CLI First
+            slug:    zolo-ships-cli-first
+            tagline: Terminal is truth — the browser is the coat, not the proof.
+        zWait:
+            selector: .zSignal-success
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Back_To_Feed_From_New_Site:
+        zClick:
+            selector: "[data-zkey='Back'] button"
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_New_Site_On_Top:
+        zAssert:
+            dom:
+                selector: ".zRM-site:first-child .zRM-site-title"
+                contains: Zolo Ships CLI First
+
+    Assert_New_Site_Owner_From_Session:
+        zAssert:
+            dom:
+                selector: ".zRM-site:first-child .zRM-site-meta"
+                contains: Ada
+
+    Assert_New_Site_Cover_Uploaded:
+        zAssert:
+            dom:
+                selector: ".zRM-site:first-child .zRM-site-cover"
+                property: src
+                not_contains: default.png
+
+    Assert_New_Site_Defaults_To_Draft:
+        #> status has no field on the New Site form — every fresh site opens
+        #  as a draft until the owner flips it via Edit (schema default,
+        #  not a form choice) <#
+        zAssert:
+            dom:
+                selector: ".zRM-site:first-child .zRM-site-meta"
+                contains: draft
+
+    # ── Profile — own info + avatar upload (zGallery's plugin pairing) ──────
+    #> ProfileLink lives inside AuthBar > UserLinks, itself zGate-wrapped
+    #  (authed: true) — data-zkey isn't reliable for a block nested under a
+    #  page-level gate (same class of gap as zList's per-row keys), so this
+    #  targets the _zClass instead, same as OwnerActions' Edit/Delete below <#
+    Open_Profile:
+        zClick:
+            selector: ".zRM-profile-btn"
+        zWait:
+            selector: .zRM-profile-avatar
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Profile_Info:
+        zAssert:
+            dom:
+                selector: .zRM-profile-info
+                contains: Ada
+
+    Open_Avatar_Dialog:
+        zClick:
+            selector: ".zRM-avatar-btn"
+        zWait:
+            selector: "[name='avatar']"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Upload_New_Avatar:
+        zUpload:
+            selector: "[name='avatar']"
+            path: upload_bank/new_avatar.jpg
+        zShot:
+            full_page: true
+
+    Submit_Avatar:
+        zClick:
+            selector: "button[type='submit']"
+        zShot:
+            full_page: true
+
+    Close_Avatar_Dialog:
+        zClick:
+            selector: ".zRM-back-btn"
+        zWait:
+            selector: .zRM-profile-avatar
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Reload_Profile_After_Avatar:
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+
+    Open_Profile_After_Avatar:
+        zClick:
+            selector: ".zRM-profile-btn"
+        zWait:
+            selector: .zRM-profile-avatar
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Avatar_Changed:
+        zAssert:
+            dom:
+                selector: .zRM-profile-avatar
+                property: src
+                not_contains: default.png
+
+    Back_To_Feed_From_Profile:
+        zClick:
+            selector: "[data-zkey='Back'] button"
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    # ── Sign out — session clears, guest view returns ───────────────────────
+    Sign_Out:
+        zClick:
+            selector: ".zRM-signout-btn"
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Guest_Again:
+        zAssert:
+            dom:
+                selector: .zRM-authbar-guest
+                contains: Sign in
+
+    # ── Register a brand-new account — self-service signup, the pattern
+    #    zTeamVault never exercised (it only ever seeded users) ─────────────
+    Click_Register:
+        zClick:
+            selector: ".zRM-register-btn"
+        zWait:
+            selector: "[name='name']"
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Fill_Register_Form:
+        zFill:
+            name:     Charlie
+            email:    charlie@zrm.io
+            password: charlie123
+        zShot:
+            full_page: true
+
+    Click_Sign_In_From_Register:
+        zClick:
+            selector: "[data-zkey='SignInLink'] button"
+        zWait:
+            selector: .zRM-login-title
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Fill_Login_Charlie:
+        zFill:
+            email:    charlie@zrm.io
+            password: charlie123
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Assert_Signed_In_As_Charlie:
+        #> proves registration truly wrote a working bcrypt hash — a fresh
+        #  account just self-registered above LOGS IN, not just seeded ones <#
+        zAssert:
+            dom:
+                selector: .zRM-authbar-user
+                contains: Charlie
+
+    #> the verify-email flow (register→banner→resend→confirm→gone) is
+    #  covered separately by `_zSpark.verify_email.zolo` + its own
+    #  `zRaven/zRaven.verify_email.zolo` — see that dev spark's header for
+    #  why: revisiting Profile as a SECOND identity inside this same
+    #  50-step canonical run hits a pre-existing, unrelated core gap
+    #  (session's %data stash never invalidates across zLogout/zLogin) <#
+
+    # ── Shippable at all three viewports ─────────────────────────────────────
+    Shot_Desktop:
+        zViewport: desktop
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Shot_Tablet:
+        zViewport: tablet
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Shot_Mobile:
+        zViewport: mobile
+        zOpen: zSpark
+        zWait:
+            selector: .zRM-feed
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Done:
+        zMarker: done

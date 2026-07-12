@@ -1,0 +1,15 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# The MySites panel's own spool — same Sites table as the public Feed
+# (zLoom/spools/zUI.zRM.zolo's `sites`), but scoped to just this owner's rows
+# so the dashboard shows "what I'm managing", not everyone's. No Users join
+# needed — every row here is already known to belong to %session.zVisitor.
+
+mySites:
+    zData:
+        action:   read
+        model:    @.models.zSchema.Sites
+        table:    Sites
+        fields:   [id, title, slug, tagline, cover_image, status, created_at]
+        where:
+            owner_id: %session.zVisitor.id
+        order_by: created_at DESC

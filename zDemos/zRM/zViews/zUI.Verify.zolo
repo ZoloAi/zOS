@@ -1,0 +1,37 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Own file → own auto-discovered route ANCHOR (routes/zServer.routes.zolo
+# maps /Verify/%token here as a zLoom param route, 14_server.md "param").
+# No zGate — reachable signed-in OR signed-out (whichever browser holds
+# the emailed link), same "reachable by anyone, proves the gate" shape as
+# the rest of zRM's auth pages, just with nothing TO gate here.
+
+zMeta:
+    zBrush: [zrm]
+    zSpool: [verify]
+
+VerifyToken:
+    zH1:
+        label: Verify your email
+        color: PRIMARY
+        _zClass: zRM-title
+
+    #> the zLoom route's OWN spool already 404'd on a token matching zero
+    #  rows — reaching this block at all means the row exists; confirm_email
+    #  re-checks expiry and does the actual write, its return renders
+    #  in-place as a .zSignal card (04_signals.md "on load") <#
+    Result:
+        #> %route.token is request-scoped (fed by zServer's initial HTTP
+        #  dispatch) and unresolved by the time the websocket hydration pass
+        #  actually renders this block's content — %data.verify.0.* is the
+        #  SAME row via the block's OWN zSpool declaration (session-persisted
+        #  _current_block_data stash, same mechanism Profile's %data.currentUser
+        #  already relies on), so read the token back through that instead <#
+        zFunc: &.zrm.confirm_email(%data.verify.0.verification_token)
+        _zClass: zRM-verify-result
+
+    SignInLink:
+        zBtn:
+            label:  Go to Sign in
+            color:  primary
+            _zClass: zRM-signin-btn
+            action: zLink(@.zViews.zUI.Login.Login)

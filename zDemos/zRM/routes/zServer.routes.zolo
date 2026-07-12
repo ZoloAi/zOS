@@ -1,0 +1,64 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zMeta:
+    default_route: /
+    zNavBar: false
+
+routes:
+    /:
+        type: zSpark
+
+    #> the emailed link's destination — %token CAPTURES the path segment,
+    #  read back inside the spool/page as %route.token (14_server.md
+    #  "param"); the spool's own read decides match vs 404 <#
+    #
+    #> CORE FIX (was a gap, now fixed) — first-ever exercise of a zLoom param
+    #  route naming a BLOCK that differs from its file's own stem anywhere in
+    #  the golden-apps portfolio. vafile_server.py's route-ref splitter used a
+    #  naive "last 2 segments are always the file" rule, which mis-split a
+    #  4-segment ref like this one's zUI: @.zViews.zUI.Verify.VerifyToken into
+    #  zVaFile="Verify.VerifyToken" / zVaFolder="@.zViews.zUI" (both wrong) —
+    #  the client's websocket hydration step then requested a file that
+    #  doesn't exist and silently rendered nothing. Fixed by locating the
+    #  "zUI" type-prefix marker segment itself (same convention
+    #  resolver_zlink.py's extract_block_from_path already uses everywhere
+    #  else in zOS nav) instead of counting segments from the end — see
+    #  vafile_server.py's zVaFile-normalization block. Both branches now
+    #  zRaven-proven: zRaven.verify_email.zolo's Open_Seeded_Verify_Link
+    #  (matching row → real content) and Open_Invalid_Token_Link (0 rows →
+    #  styled 404) <#
+    /Verify/%token:
+        type:  zLoom
+        zLoom: @.zLoom.spools.zUI.Verify.verify
+        zUI:   @.zViews.zUI.Verify.VerifyToken
+
+    #> forgot-password's emailed-link destination — SAME param-route shape
+    #  as /Verify/%token above, just against reset_token instead of
+    #  verification_token <#
+    /ResetPassword/%token:
+        type:  zLoom
+        zLoom: @.zLoom.spools.zUI.ResetPassword.resetLookup
+        zUI:   @.zViews.zUI.ResetPassword.ResetToken
+
+    #> the real front_door (22_hosting.md) — Stage 1 of the hosting phase:
+    #  a published site's public page, gated straight in the spool's own
+    #  where clause (status: published, hosting_mode: internal — an
+    #  app-mode row lives at /app/%slug instead, see below) <#
+    /s/%slug:
+        type:  zLoom
+        zLoom: @.zLoom.spools.zUI.SitePage.sitePage
+        zUI:   @.zViews.zUI.SitePage.SitePage
+
+    #> Stage 2 of the hosting phase — the REAL front_door (22_hosting.md
+    #  zProxy): Sites doubles as the registry zServer reads generically.
+    #  spark_field/key/visibility_* are declared here on the route, not
+    #  baked into zServer — Sites just happens to already have the right
+    #  columns (slug, spark_path, status) from Stage 1 <#
+    /app/%slug:
+        type: zProxy
+        zProxy:
+            table:             Sites
+            key:               slug
+            spark_field:       spark_path
+            visibility_field:  status
+            visibility_value:  published

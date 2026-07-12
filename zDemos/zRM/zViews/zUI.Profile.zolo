@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# Own file → own auto-discovered route (/Profile) — the account dashboard,
+# assembling identity/security into Account and the owner's own hosted sites
+# into MySites (16_dashboards.md zDash: point it at a folder of pages you
+# already wrote). A real "manage my stuff" foundation for the Sites/hosting
+# phase still to come — was a single flat page (zVersions/commits/zRM/c4),
+# split here the same way zConsole assembles its own panels.
+
+zMeta:
+    zBrush: [zrm]
+
+Profile:
+    zDash:
+        type:    sidebar
+        folder:  @.zViews.panels
+        sidebar: [Account, MySites]
+        default: Account
