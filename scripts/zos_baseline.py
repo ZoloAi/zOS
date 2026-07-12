@@ -172,7 +172,17 @@ def build_venv(run_dir: Path, wheel: Path | None, pin: str | None) -> Path:
 
     log("→ ensuring Playwright Chromium (shared browser cache)")
     py = bin_dir / ("python.exe" if IS_WINDOWS else "python")
-    r = run([str(py), "-m", "playwright", "install", "chromium"])
+    install_cmd = [str(py), "-m", "playwright", "install", "chromium"]
+    if sys.platform.startswith("linux"):
+        # Bare Linux boxes lack Chromium's shared libs (libatk, libnss, ...);
+        # CI images and the Docker harness pre-bake them, which hid this from
+        # every environment before the first bare EC2 run. --with-deps
+        # apt-installs them (Playwright sudo-wraps itself when not root).
+        r = run(install_cmd + ["--with-deps"])
+        if r.returncode == 0:
+            return venv_dir
+        log("   --with-deps failed (no sudo?) — falling back to browser-only install")
+    r = run(install_cmd)
     if r.returncode != 0:
         log(f"   WARNING: playwright install failed: {r.stderr.strip()[:200]}")
     return venv_dir
