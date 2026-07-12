@@ -259,8 +259,11 @@ def _handle_run(boot_logger, spark_path: Path, ui_ver, raven_ver, verbose: bool)
         # ── Restore Data/ after run ───────────────────────────────────────────
         if _data_isolated:
             try:
-                teardown_test_data(str(workspace))
-                print(f"  → data restored (post-run): {workspace}/Data/", flush=True)
+                if teardown_test_data(str(workspace)):
+                    print(f"  → data restored (post-run): {workspace}/Data/", flush=True)
+                else:
+                    print(f"  ⚠ data restore FAILED — {workspace}/Data._zraven_bak/ still "
+                          f"holds the original (locked file?)", flush=True)
             except Exception:  # pylint: disable=broad-except
                 pass
 

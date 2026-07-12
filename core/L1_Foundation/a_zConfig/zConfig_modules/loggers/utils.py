@@ -20,6 +20,25 @@ from .constants import (
 from zOS import Colors
 
 
+class _SharedRotatingFileHandler(RotatingFileHandler):
+    """RotatingFileHandler that tolerates a co-writer holding the file.
+
+    The framework log path is global and several zOS processes write to it at
+    once (z raven parent + the app it boots). On Windows os.rename of an open
+    file fails, so rollover raises PermissionError and logging spews a
+    traceback per record. Skipping THIS rotation attempt (and reopening the
+    stream doRollover may have closed) keeps logging healthy; the next process
+    to hit the size cap alone will rotate successfully.
+    """
+
+    def doRollover(self):
+        try:
+            super().doRollover()
+        except OSError:
+            if self.stream is None or self.stream.closed:
+                self.stream = self._open()
+
+
 def make_rotating_file_handler(path) -> RotatingFileHandler:
     """
     Build the ONE file handler every zOS logger writes through (SSOT).
@@ -31,7 +50,7 @@ def make_rotating_file_handler(path) -> RotatingFileHandler:
     LOG_FILE_MAX_BYTES it rotates (.1, .2, .3…) and the oldest backup is
     dropped — no manual cleanup, no scheduled job, safe for a global path.
     """
-    return RotatingFileHandler(
+    return _SharedRotatingFileHandler(
         str(path),
         maxBytes=LOG_FILE_MAX_BYTES,
         backupCount=LOG_FILE_BACKUP_COUNT,

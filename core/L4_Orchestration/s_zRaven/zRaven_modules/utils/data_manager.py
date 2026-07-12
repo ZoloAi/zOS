@@ -58,18 +58,27 @@ def prepare_test_data(app_dir: str) -> bool:
 def teardown_test_data(app_dir: str) -> bool:
     """Discard the test copy of Data/ and restore the original.
     Returns True if restoration succeeded.
+
+    Retries with backoff: on Windows the just-stopped server's file handles can
+    outlive process exit by a beat, making rmtree leave locked files behind —
+    ignore_errors=True would then let the rename fail and SILENTLY hand the next
+    suite polluted data (zRM's feed-order assert caught exactly this).
     """
+    import time  # pylint: disable=import-outside-toplevel
+
     data_dir = Path(app_dir) / "Data"
     bak_dir  = Path(app_dir) / f"Data{_BAK_SUFFIX}"
     if not bak_dir.exists():
         return False
-    try:
-        if data_dir.exists():
-            shutil.rmtree(data_dir, ignore_errors=True)
-        bak_dir.rename(data_dir)
-        return True
-    except Exception:  # pylint: disable=broad-except
-        return False
+    for attempt in range(5):
+        try:
+            if data_dir.exists():
+                shutil.rmtree(data_dir)
+            bak_dir.rename(data_dir)
+            return True
+        except OSError:
+            time.sleep(0.2 * (attempt + 1))
+    return False
 
 
 # ── Fallback: in-memory snapshot (used by zClean mid-test row delete) ─────────

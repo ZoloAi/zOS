@@ -151,9 +151,38 @@ class CLIRunner(BaseStepRunner):
     # ── IO internals ────────────────────────────────────────────────────────
 
     def _reader(self) -> None:
+        # select() only works on sockets on Windows — pipes raise WinError 10038.
+        # There, block in 1-byte reads instead: bufsize=0 means os.read returns as
+        # soon as ANY bytes exist, and the trailing prompt (no newline) is flushed
+        # by the has-more probe below.
         fd  = self._proc.stdout.fileno()
         buf = b""
         while True:
+            if _os.name == "nt":
+                try:
+                    chunk = _os.read(fd, 4096)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                buf += chunk
+                parts = buf.split(b"\n")
+                buf = parts[-1]
+                for part in parts[:-1]:
+                    line = part.decode("utf-8", errors="replace")
+                    self._q.put(line)
+                    if _ECHO_APP_OUTPUT:
+                        print(f"{DIM}  [app] {line}{RESET}", file=sys.stderr, flush=True)
+                if buf:
+                    # A partial line with no newline is (almost always) an
+                    # interactive prompt waiting for input — surface it now;
+                    # blocking for the "rest of the line" would deadlock.
+                    line = buf.decode("utf-8", errors="replace")
+                    self._q.put(line)
+                    if _ECHO_APP_OUTPUT:
+                        print(f"{DIM}  [app] {line}{RESET}", file=sys.stderr, flush=True)
+                    buf = b""
+                continue
             ready, _, _ = _select.select([fd], [], [], 0.05)
             if ready:
                 try:
