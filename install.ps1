@@ -51,8 +51,11 @@ if (-not (Test-Path (Join-Path $Scripts "pip.exe"))) {
 }
 
 # -- 4. install -----------------------------------------------------------------
+# python -m pip, NOT pip.exe: on Windows pip refuses to upgrade itself while
+# its own exe is the running process.
 Say "-> installing zolo-os from PyPI"
-& (Join-Path $Scripts "pip.exe") install --quiet --upgrade pip zolo-os
+& (Join-Path $Scripts "python.exe") -m pip install --quiet --upgrade pip zolo-os
+if ($LASTEXITCODE -ne 0) { Fail "pip install failed (see output above)" }
 
 # -- 5. PATH --------------------------------------------------------------------
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
