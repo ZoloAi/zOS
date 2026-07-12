@@ -67,8 +67,9 @@ def _extract_image(wheel: Path, dest: Path) -> list[str]:
     manifest: list[str] = []
     with zipfile.ZipFile(wheel) as zf:
         for name in zf.namelist():
-            if not name.startswith("zguard/"):
-                continue  # dist-info etc.
+            if not name.startswith("zguard/") or name.endswith("/"):
+                continue  # dist-info, directory entries
+
             path = Path(name)
             is_stub = path.name == "__init__.py"
             is_binary = path.suffix in _ALLOWED_BINARY_SUFFIXES
@@ -83,9 +84,11 @@ def _extract_image(wheel: Path, dest: Path) -> list[str]:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3):
         print(__doc__)
+        print("usage: refresh_zguard_bin.py <wheel_dir> [source_git_sha]")
         return 2
+    source_sha = sys.argv[2] if len(sys.argv) == 3 else None
     wheel_root = Path(sys.argv[1]).expanduser()
     wheels = sorted(wheel_root.rglob("zguard-*.whl"))
     if not wheels:
@@ -108,6 +111,11 @@ def main() -> int:
             manifest = _extract_image(wheel, image_root)
             (image_root / "MANIFEST.txt").write_text("\n".join(manifest) + "\n")
             (image_root / "VERSION").write_text(version + "\n")
+            if source_sha:
+                # Provenance: which zGuard commit these binaries were built from.
+                # Not fetched by zguard_provision (not in MANIFEST.txt) — it is
+                # a repo-side audit artifact.
+                (image_root / "SOURCE_SHA").write_text(source_sha + "\n")
             refreshed.append(f"{platform_folder}/{py_tag}")
             print(f"  ok {platform_folder}/{py_tag}  ({len(manifest)} files, v{version})")
 
