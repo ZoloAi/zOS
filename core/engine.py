@@ -623,6 +623,8 @@ class zOS:  # pylint: disable=invalid-name
         if hasattr(self.config, "websocket"):
             ports.append(self.config.websocket.port)
 
+        import shutil as _shutil  # pylint: disable=import-outside-toplevel
+
         killed_any = False
         for port in ports:
             if port in self._PROTECTED_PORTS:
@@ -630,6 +632,11 @@ class zOS:  # pylint: disable=invalid-name
                     f"[zRaven] Port {port} is reserved by a system service and cannot be used. "
                     f"Set a different HTTP_PORT / WEBSOCKET_PORT in your zEnv file."
                 )
+            if not _shutil.which("lsof"):
+                # Windows (and minimal Linux) ship no lsof — the reservation
+                # registry already keeps runs off each other's ports, so
+                # best-effort clearing is simply skipped.
+                break
             try:
                 result = _os.popen(f"lsof -ti :{port}").read().strip()
                 if result:

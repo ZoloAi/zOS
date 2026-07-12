@@ -79,7 +79,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: baseline-run-${{ matrix.os }}
+          # Only the harness's own logs/ dir — staged demos generate their own
+          # log files whose names can carry characters (colons) that the
+          # artifact store refuses.
           path: |
-            ~/zos-baseline-runs/**/baseline_report.json
-            ~/zos-baseline-runs/**/logs/*.log
+            ~/zos-baseline-runs/*/baseline_report.json
+            ~/zos-baseline-runs/*/logs/*.log
           if-no-files-found: ignore
