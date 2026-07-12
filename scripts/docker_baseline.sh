@@ -29,7 +29,10 @@ IMAGE="zos-baseline:${ARCH_SLUG}"
 RUNS_DIR="${HOME}/zos-baseline-runs/docker-${ARCH_SLUG}"
 
 echo "→ building ${IMAGE} for ${PLATFORM}"
-docker build --platform "$PLATFORM" -t "$IMAGE" \
+# buildx, not the classic builder: classic `docker build --platform` silently
+# builds for the host arch (an arm64 image tagged amd64), which docker run
+# then refuses. buildx honors the platform via QEMU emulation.
+docker buildx build --load --platform "$PLATFORM" -t "$IMAGE" \
     -f "$REPO_ROOT/scripts/docker_baseline/Dockerfile" \
     "$REPO_ROOT/scripts/docker_baseline"
 
