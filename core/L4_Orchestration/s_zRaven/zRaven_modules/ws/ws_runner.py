@@ -1284,8 +1284,13 @@ class ZRaven(BaseStepRunner):
                 "running on built-in default chrome — add one only if you need custom <head>/meta/fonts",
             )
 
+        # If the parent runner (raven_command._handle_run) already isolated Data/,
+        # it also owns the restore — and crucially does it AFTER server shutdown,
+        # when the CSV adapter has flushed its in-memory tables. Restoring here
+        # (pre-shutdown) would let that flush re-pollute the restored originals.
+        _parent_isolated = bool(app_dir) and (Path(app_dir) / "Data._zraven_bak").exists()
         _isolated = prepare_test_data(app_dir) if app_dir else False
-        if _isolated:
+        if _isolated and not _parent_isolated:
             info(f"data isolated: {app_dir}/Data/ (original safe in Data._zraven_bak/)")
 
         ws_blocks      = {k: v for k, v in test_blocks.items() if isinstance(v, dict) and not is_browser_block(v)}
@@ -1313,7 +1318,7 @@ class ZRaven(BaseStepRunner):
                 finally:
                     await self._close_browser()
         finally:
-            if _isolated:
+            if _isolated and not _parent_isolated:
                 teardown_test_data(app_dir)
                 info(f"data restored: {app_dir}/Data/")
 
