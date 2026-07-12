@@ -18,6 +18,11 @@ name: zOS baseline
 
 on:
   workflow_dispatch:
+    inputs:
+      demos:
+        description: "comma-separated demo subset (empty = all)"
+        required: false
+        default: ""
   push:
     branches: [main]
     paths:
@@ -59,16 +64,22 @@ jobs:
 
       - name: Run baseline matrix
         shell: python
+        env:
+          DEMOS: ${{ inputs.demos }}
         run: |
-          import glob, subprocess, sys
+          import glob, os, subprocess, sys
           wheel = glob.glob("dist/zolo_os-*.whl")[0]
-          sys.exit(subprocess.run([sys.executable, "scripts/zos_baseline.py",
-                                   "--wheel", wheel, "--keep"]).returncode)
+          cmd = [sys.executable, "scripts/zos_baseline.py", "--wheel", wheel, "--keep"]
+          if os.environ.get("DEMOS"):
+              cmd += ["--demos", os.environ["DEMOS"]]
+          sys.exit(subprocess.run(cmd).returncode)
 
       - name: Upload run artifacts (report + logs)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: baseline-run-${{ matrix.os }}
-          path: ~/zos-baseline-runs/**/baseline_report.json
+          path: |
+            ~/zos-baseline-runs/**/baseline_report.json
+            ~/zos-baseline-runs/**/logs/*.log
           if-no-files-found: ignore
