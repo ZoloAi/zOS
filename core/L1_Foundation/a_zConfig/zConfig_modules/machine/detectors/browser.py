@@ -64,11 +64,11 @@ def _detect_macos_browser(log_level: Optional[str] = None, is_production: bool =
         output_lower = result.stdout.lower()
         for key, name in BROWSER_MAPPING.items():
             if key in output_lower:
-                _log_info(f"Found default browser via LaunchServices: {name}", is_production)
+                _log_info(f"Found default browser via LaunchServices: {name}", is_production=is_production)
                 return name
 
     except Exception as e:
-        _log_warning(f"Could not query LaunchServices: {e}", is_production)
+        _log_warning(f"Could not query LaunchServices: {e}", is_production=is_production)
 
     return DEFAULT_MACOS_BROWSER
 
@@ -88,10 +88,10 @@ def _detect_linux_browser(log_level: Optional[str] = None, is_production: bool =
             browser_desktop = result.stdout.strip().lower()
             for key, browser in LINUX_BROWSER_DESKTOP_MAP.items():
                 if key in browser_desktop:
-                    _log_info(f"Found default browser via xdg-settings: {browser}", is_production)
+                    _log_info(f"Found default browser via xdg-settings: {browser}", is_production=is_production)
                     return browser
     except Exception as e:
-        _log_warning(f"Could not query xdg-settings: {e}", is_production)
+        _log_warning(f"Could not query xdg-settings: {e}", is_production=is_production)
 
     # Check PATH for common browsers
     for browser in LINUX_BROWSERS:

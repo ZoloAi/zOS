@@ -24,7 +24,7 @@ def detect_ide(log_level: Optional[str] = None, is_production: bool = False) -> 
     # Check for modern GUI IDEs (prioritized by popularity/modernity)
     for ide in MODERN_IDES:
         if shutil.which(ide):
-            _log_info(f"Found modern IDE: {ide}", is_production)
+            _log_info(f"Found modern IDE: {ide}", is_production=is_production)
             return ide
 
     # Check for classic IDEs

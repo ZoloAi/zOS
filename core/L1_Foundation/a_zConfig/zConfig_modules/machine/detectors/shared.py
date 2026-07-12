@@ -37,13 +37,19 @@ DEFAULT_DATETIME_FORMAT = "ddmmyyyy HH:MM:SS"
 
 # Logging Helpers
 
-def _log_info(message: str, is_production: bool = False) -> None:
-    """Log info message (suppressed in Production deployment)."""
+def _log_info(message: str, log_level=None, is_production: bool = False) -> None:  # pylint: disable=unused-argument
+    """Log info message (suppressed in Production deployment).
+
+    log_level is accepted (and ignored) because most detector call sites pass
+    (message, log_level, is_production) — the old 2-arg signature made every
+    such call a TypeError that only surfaced on code paths outside try/except
+    (e.g. headless Linux boot).
+    """
     if not is_production:
         logger.debug("%s %s", LOG_PREFIX, message)
 
-def _log_warning(message: str, is_production: bool = False) -> None:
-    """Log warning message (suppressed in Production deployment)."""
+def _log_warning(message: str, log_level=None, is_production: bool = False) -> None:  # pylint: disable=unused-argument
+    """Log warning message (suppressed in Production deployment). See _log_info."""
     if not is_production:
         logger.warning("%s %s", LOG_PREFIX, message)
 

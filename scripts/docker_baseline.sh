@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# docker_baseline.sh — run the zOS baseline gate inside a Linux container.
+#
+# The cross-platform rung below "this Mac" and above "real cloud machines":
+# a random-user Linux box, on either metal, without leaving this machine.
+#
+#   scripts/docker_baseline.sh                          # linux/arm64 (native on Apple Silicon)
+#   scripts/docker_baseline.sh linux/amd64              # x86_64 via emulation (slower)
+#   scripts/docker_baseline.sh linux/arm64 --demos zHello,zTaskList
+#
+# Everything after the platform argument is passed through to zos_baseline.py.
+# Reports land in ~/zos-baseline-runs/docker-<arch>/ on the host.
+#
+# PREREQUISITE: zguard_bin/ on GitHub main must carry linux-aarch64 / linux-x86_64
+# cp312 binaries (zGuard CI wheels → scripts/refresh_zguard_bin.py → push),
+# otherwise zguard provisioning fails at boot and every suite is red.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [[ "${1:-}" == linux/* ]]; then
+    PLATFORM="$1"; shift
+else
+    PLATFORM="linux/arm64"
+fi
+ARCH_SLUG="${PLATFORM#linux/}"
+IMAGE="zos-baseline:${ARCH_SLUG}"
+RUNS_DIR="${HOME}/zos-baseline-runs/docker-${ARCH_SLUG}"
+
+echo "→ building ${IMAGE} for ${PLATFORM}"
+docker build --platform "$PLATFORM" -t "$IMAGE" \
+    -f "$REPO_ROOT/scripts/docker_baseline/Dockerfile" \
+    "$REPO_ROOT/scripts/docker_baseline"
+
+mkdir -p "$RUNS_DIR"
+echo "→ running baseline in ${PLATFORM} container (reports: ${RUNS_DIR})"
+docker run --rm \
+    --platform "$PLATFORM" \
+    -v "$REPO_ROOT:/zos:ro" \
+    -v "$RUNS_DIR:/root/zos-baseline-runs" \
+    "$IMAGE" --keep "$@"

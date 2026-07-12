@@ -17,12 +17,10 @@ Two install modes:
   (default)         pip install zolo-os from PyPI — post-publish confirmation.
   --wheel PATH      install a local wheel — pre-publish release-candidate gate.
 
-ALPHA SCOPE (2026-07): this machine only — darwin-arm64 / cp312. The zolo-os
-wheel is pure Python (builds in seconds); the compiled zGuard image is
-provisioned from zguard_bin/, which intentionally carries ONLY this platform
-until the alpha ships. No cross-platform wheel matrix, no CI binary builds
-in the loop. Widen zguard_bin (via zGuard CI + scripts/refresh_zguard_bin.py)
-only when the alpha is out the door.
+PLATFORM SCOPE: any POSIX host whose platform tag has binaries in zguard_bin/
+(see zSys.platform_identity). Native runs cover this machine; Linux coverage
+runs through scripts/docker_baseline.sh (linux/arm64 native-speed on Apple
+Silicon, linux/amd64 emulated) — same gate, containerized.
 
 Deployment posture:
   --deployment production   (default) skips zEnv.development.zolo overlays,
