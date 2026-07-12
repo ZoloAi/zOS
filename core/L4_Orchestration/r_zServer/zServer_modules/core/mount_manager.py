@@ -35,7 +35,10 @@ class MountManager:
     """
 
     # Default-mount prefixes that custom config mounts may NOT override.
-    RESERVED_MOUNTS = ("/static/", "/templates/", MOUNT_UI)
+    # /zsyntax/ is reserved as a PREFIX (the actual mount key is versioned,
+    # e.g. /zsyntax/1.2.0/), so the refusal check below also rejects any
+    # custom mount that starts with it.
+    RESERVED_MOUNTS = ("/static/", "/templates/", MOUNT_UI, "/zsyntax/")
 
     def __init__(self, serve_path, static_mounts, logger):
         """
@@ -71,7 +74,7 @@ class MountManager:
         if static_mounts:
             from zOS.zPath import resolve_folder
             for url_prefix, fs_path in static_mounts.items():
-                if url_prefix in self.RESERVED_MOUNTS:
+                if url_prefix in self.RESERVED_MOUNTS or url_prefix.startswith("/zsyntax/"):
                     self.logger.warning(
                         f"[MountManager] Refused custom mount on reserved prefix "
                         f"'{url_prefix}' → {fs_path} (defaults are protected)"
@@ -131,6 +134,29 @@ class MountManager:
         if os.path.isdir(plugin_path):
             self.mounts[MOUNT_PLUGINS] = plugin_path
             self.logger.info(f"[MountManager] Auto-mounted plugins: {MOUNT_PLUGINS} → {plugin_path}")
+
+    def auto_mount_zsyntax(self):
+        """Mount the zolo-lsp Prism syntax bundle at its versioned route.
+
+        The bundle is package data inside the installed zolo-lsp (SSOT: the
+        grammar the browser highlights with == the parser the engine runs).
+        zSys.zsyntax_bundle owns the URL/dir resolution — the SAME module
+        html_injectors reads to announce `syntaxBase` in zui-config, so the
+        mount and the announcement cannot disagree. No-op (no mount, no log
+        noise beyond debug) when the installed zolo-lsp predates the bundle.
+        """
+        from zSys.zsyntax_bundle import zsyntax_base, zsyntax_dir  # pylint: disable=import-outside-toplevel
+
+        base, bundle_dir = zsyntax_base(), zsyntax_dir()
+        if not base or not bundle_dir:
+            self.logger.debug(
+                "[MountManager] zsyntax not mounted (zolo-lsp lacks bifrost_prism_dir)"
+            )
+            return
+        if base in self.mounts:
+            return  # Already mounted
+        self.mounts[base] = str(bundle_dir)
+        self.logger.info(f"[MountManager] Auto-mounted zsyntax: {base} → {bundle_dir}")
 
     def get_mount_for_path(self, url_path: str) -> Optional[Tuple[str, str]]:
         """

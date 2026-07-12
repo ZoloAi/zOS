@@ -174,7 +174,7 @@ class StaticFileHandler:
         that canonical file here so the Bifrost client and the zCLI consume the
         exact same data. Only the explicit allow-list below is reachable.
         """
-        from .....zSys.accessibility._data import data_file_path
+        from zSys.accessibility._data import data_file_path
 
         allowed = {"emoji-a11y.en.json", "bootstrap-icons.json"}
         if filename not in allowed:

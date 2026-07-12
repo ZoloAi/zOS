@@ -13,6 +13,8 @@ Minimal facade that delegates to specialized managers for:
 Designed to work standalone or alongside zBifrost WebSocket server.
 """
 
+
+__version__ = "1.0.0"
 from .zServer_modules.core.config_manager import ConfigManager
 from .zServer_modules.core.mount_manager import MountManager
 from .zServer_modules.core.route_manager import RouteManager
@@ -84,6 +86,7 @@ class zServer:
             # Note: Bifrost removed - configure via ZSERVER_MOUNTS in zEnv (Dev) or use CDN (Prod)
             self.mount_manager.auto_mount_plugins()
             self.mount_manager.auto_mount_styles()
+            self.mount_manager.auto_mount_zsyntax()
 
             # Setup routes
             if self.config_manager.routes_file:
