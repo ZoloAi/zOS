@@ -327,6 +327,11 @@ class LocalProcessDriver(ComputeDriver):
         child_env[_ENV_WS_PORT] = str(ws_port)
 
         log_fh = open(log_path, "ab", buffering=0)  # noqa: SIM115 (kept for child lifetime)
+        # Own process group so _stop_proc can take down the whole tree:
+        # setsid on POSIX, CREATE_NEW_PROCESS_GROUP on Windows (where
+        # start_new_session=True raises ValueError).
+        group_kw = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+                    if os.name == "nt" else {"start_new_session": True})
         proc = subprocess.Popen(
             self._zolo_argv(app.spark_file),
             cwd=str(folder),
@@ -334,7 +339,7 @@ class LocalProcessDriver(ComputeDriver):
             stdout=log_fh,
             stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL,
-            start_new_session=True,
+            **group_kw,
         )
 
         rec = {
@@ -364,17 +369,26 @@ class LocalProcessDriver(ComputeDriver):
         proc = rec.get("proc")
         stopped = False
         if proc and proc.poll() is None:
-            try:
-                os.killpg(os.getpgid(proc.pid), 15)  # SIGTERM the whole group
-            except (ProcessLookupError, PermissionError, OSError):
-                proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
+            if os.name == "nt":
+                # No killpg on Windows — taskkill /T fells the whole tree.
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                               capture_output=True, check=False)
                 try:
-                    os.killpg(os.getpgid(proc.pid), 9)
-                except (ProcessLookupError, PermissionError, OSError):
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
                     proc.kill()
+            else:
+                try:
+                    os.killpg(os.getpgid(proc.pid), 15)  # SIGTERM the whole group
+                except (ProcessLookupError, PermissionError, OSError):
+                    proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    try:
+                        os.killpg(os.getpgid(proc.pid), 9)
+                    except (ProcessLookupError, PermissionError, OSError):
+                        proc.kill()
             stopped = True
         log_fh = rec.get("log")
         if log_fh:

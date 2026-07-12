@@ -42,16 +42,9 @@ def _record_path(key: str) -> str:
 
 
 def _is_alive(pid: int) -> bool:
-    "True if the pid is a live process (signal 0 probe)."
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True  # exists, just owned by another user
-    except OSError:
-        return False
-    return True
+    "True if the pid is a live process (cross-platform, never signals it)."
+    from zSys.process_utils import pid_alive  # pylint: disable=import-outside-toplevel
+    return pid_alive(pid)
 
 
 def register_instance(port=None, title=None, cwd=None, mode=None) -> int:

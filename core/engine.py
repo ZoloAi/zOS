@@ -19,6 +19,7 @@ Graceful shutdown via SIGINT/SIGTERM handlers (reverse initialization order).
 # ═══════════════════════════════════════════════════════════════════════════════
 
 import os
+import tempfile
 from pathlib import Path
 
 from . import Any, Dict, Optional, contextvars, logging
@@ -446,14 +447,15 @@ class zOS:  # pylint: disable=invalid-name
     # Cross-process reservation ledger: a plain bind-probe alone has a TOCTOU gap
     # (probe closes the socket immediately, but the real zServer/websocket bind
     # happens much later in boot) — two zRaven processes launched moments apart can
-    # both probe the SAME "free" port before either actually binds it. A flock'd
+    # both probe the SAME "free" port before either actually binds it. A locked
     # registry in the shared system temp dir (visible across repos/agents on this
     # machine, unlike anything inside a single workspace) closes that gap: port
     # choice is serialized machine-wide, and a reservation sticks for as long as its
     # owning PID is alive — dead PIDs (crashes, SIGKILL) are pruned on next use, so
     # no manual cleanup step is required.
-    _ZRAVEN_PORT_REGISTRY = Path("/tmp/zos_zraven_ports.json")
-    _ZRAVEN_PORT_LOCK     = Path("/tmp/zos_zraven_ports.lock")
+    # tempfile.gettempdir(), not a literal /tmp — Windows has no /tmp.
+    _ZRAVEN_PORT_REGISTRY = Path(tempfile.gettempdir()) / "zos_zraven_ports.json"
+    _ZRAVEN_PORT_LOCK     = Path(tempfile.gettempdir()) / "zos_zraven_ports.lock"
 
     @classmethod
     def _reserve_free_port(cls, host: str, start_port: int, max_tries: int, tag: str) -> int:
@@ -462,9 +464,35 @@ class zOS:  # pylint: disable=invalid-name
         *tag* namespaces this reservation (e.g. "http"/"ws") so one PID can hold
         more than one reservation at once without colliding with itself.
         """
-        import fcntl as _fcntl    # pylint: disable=import-outside-toplevel
         import json as _json     # pylint: disable=import-outside-toplevel
         import socket as _socket # pylint: disable=import-outside-toplevel
+        import time as _time     # pylint: disable=import-outside-toplevel
+
+        # Exclusive machine-wide file lock: fcntl.flock on POSIX; on Windows
+        # (no fcntl) msvcrt.locking, whose LK_LOCK gives up after ~10s — loop it
+        # so the semantics match flock's indefinite block.
+        if os.name == "nt":
+            import msvcrt as _msvcrt  # pylint: disable=import-outside-toplevel
+
+            def _lock(fd):
+                while True:
+                    try:
+                        _msvcrt.locking(fd, _msvcrt.LK_LOCK, 1)
+                        return
+                    except OSError:
+                        _time.sleep(0.1)
+
+            def _unlock(fd):
+                os.lseek(fd, 0, os.SEEK_SET)
+                _msvcrt.locking(fd, _msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl as _fcntl  # pylint: disable=import-outside-toplevel
+
+            def _lock(fd):
+                _fcntl.flock(fd, _fcntl.LOCK_EX)
+
+            def _unlock(fd):
+                _fcntl.flock(fd, _fcntl.LOCK_UN)
 
         def _bindable(port: int) -> bool:
             sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
@@ -480,7 +508,7 @@ class zOS:  # pylint: disable=invalid-name
         cls._ZRAVEN_PORT_LOCK.touch(exist_ok=True)
         lock_fd = os.open(str(cls._ZRAVEN_PORT_LOCK), os.O_RDWR)
         try:
-            _fcntl.flock(lock_fd, _fcntl.LOCK_EX)  # blocks — serializes port picks machine-wide
+            _lock(lock_fd)  # blocks — serializes port picks machine-wide
 
             try:
                 registry = _json.loads(cls._ZRAVEN_PORT_REGISTRY.read_text())
@@ -489,15 +517,11 @@ class zOS:  # pylint: disable=invalid-name
 
             # Prune reservations whose owning process is gone — self-cleaning, so a
             # crashed/SIGKILLed run never permanently squats on a port.
-            live = {}
-            for key, entry in registry.items():
-                pid = entry.get("pid")
-                try:
-                    os.kill(pid, 0)
-                    live[key] = entry
-                except (OSError, TypeError):
-                    pass
-            registry = live
+            # pid_alive, NOT os.kill(pid, 0): on Windows that "probe" would
+            # TerminateProcess the reservation's live owner.
+            from zSys.process_utils import pid_alive  # pylint: disable=import-outside-toplevel
+            registry = {key: entry for key, entry in registry.items()
+                        if pid_alive(entry.get("pid"))}
 
             reserved_ports = {entry["port"] for entry in registry.values()}
             for candidate in range(start_port, start_port + max_tries):
@@ -514,7 +538,7 @@ class zOS:  # pylint: disable=invalid-name
                 f"ZRAVEN_HTTP_PORT/ZRAVEN_WS_PORT or zRavenPort/zRavenWsPort in zSpark."
             )
         finally:
-            _fcntl.flock(lock_fd, _fcntl.LOCK_UN)
+            _unlock(lock_fd)
             os.close(lock_fd)
 
     def _apply_raven_port_offset(self) -> None:
