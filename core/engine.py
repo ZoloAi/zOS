@@ -825,10 +825,16 @@ class zOS:  # pylint: disable=invalid-name
         register_signal_handlers(self)
 
     def request_shutdown(self, source: str = "unknown") -> None:
-        """Request graceful shutdown (non-blocking, safe to call from threads)."""
-        import os as _os, signal as _signal  # pylint: disable=import-outside-toplevel
+        """Request graceful shutdown (non-blocking, safe to call from threads).
+
+        raise_signal, NOT os.kill(getpid(), SIGINT): on Windows os.kill with any
+        non-CTRL_*_EVENT signal is TerminateProcess — instant death, no graceful
+        shutdown, no data flush. raise_signal triggers the registered Python
+        handler on every platform.
+        """
+        import signal as _signal  # pylint: disable=import-outside-toplevel
         self.logger.info(f"[zOS] Shutdown requested by {source}")
-        _os.kill(_os.getpid(), _signal.SIGINT)
+        _signal.raise_signal(_signal.SIGINT)
 
     def reload_server(self, source: str = "unknown") -> Optional[Dict[str, Any]]:
         """
