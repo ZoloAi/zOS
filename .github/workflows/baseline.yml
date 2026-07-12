@@ -1,11 +1,16 @@
-name: zOS baseline (linux-x86_64)
+name: zOS baseline
 
-# The native-x86_64 rung of the cross-platform gate. Local coverage:
-#   - this Mac (darwin-arm64): scripts/zos_baseline.py
-#   - Linux arm64:             scripts/docker_baseline.sh (native-speed container)
-#   - Linux x86_64:            THIS workflow — Chromium cannot run under QEMU
-#                              user emulation, so emulated local runs can't
-#                              exercise browser suites; a native runner can.
+# The native-runner rungs of the cross-platform gate. Coverage map:
+#   - darwin-arm64:  this Mac, scripts/zos_baseline.py (local)
+#   - linux-aarch64: scripts/docker_baseline.sh (native-speed container, local)
+#   - linux-x86_64:  ubuntu-latest below — Chromium cannot run under QEMU
+#                    user emulation, so emulated local runs can't exercise
+#                    browser suites; a native runner can.
+#   - win-amd64:     windows-latest below
+#   - win-arm64:     windows-11-arm below (Playwright ships no ARM browsers;
+#                    Chromium runs as x64 under Windows' built-in emulation,
+#                    which — unlike QEMU — handles it fine)
+#   - darwin-x86_64: no free native runner; covered by AWS/real-metal phase.
 #
 # Installs the wheel built from the checked-out source (so pushes gate on the
 # code they carry) and runs every zRaven suite of every committed demo.
@@ -19,6 +24,7 @@ on:
       - "core/**"
       - "zDemos/**"
       - "zguard_bin/**"
+      - "scripts/zos_baseline.py"
       - "pyproject.toml"
       - "setup.py"
 
@@ -26,9 +32,18 @@ concurrency:
   group: baseline-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Demos print box-drawing/checkmark glyphs; Windows Python would otherwise
+  # decode/encode with the legacy code page and crash.
+  PYTHONUTF8: "1"
+
 jobs:
   baseline:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -43,13 +58,17 @@ jobs:
           python -m build --wheel
 
       - name: Run baseline matrix
+        shell: python
         run: |
-          python scripts/zos_baseline.py --wheel dist/zolo_os-*.whl --keep
+          import glob, subprocess, sys
+          wheel = glob.glob("dist/zolo_os-*.whl")[0]
+          sys.exit(subprocess.run([sys.executable, "scripts/zos_baseline.py",
+                                   "--wheel", wheel, "--keep"]).returncode)
 
       - name: Upload run artifacts (report + logs)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: baseline-run
+          name: baseline-run-${{ matrix.os }}
           path: ~/zos-baseline-runs/**/baseline_report.json
           if-no-files-found: ignore

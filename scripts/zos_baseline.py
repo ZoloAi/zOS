@@ -17,10 +17,11 @@ Two install modes:
   (default)         pip install zolo-os from PyPI — post-publish confirmation.
   --wheel PATH      install a local wheel — pre-publish release-candidate gate.
 
-PLATFORM SCOPE: any POSIX host whose platform tag has binaries in zguard_bin/
-(see zSys.platform_identity). Native runs cover this machine; Linux coverage
-runs through scripts/docker_baseline.sh (linux/arm64 native-speed on Apple
-Silicon, linux/amd64 emulated) — same gate, containerized.
+PLATFORM SCOPE: any host whose platform tag has binaries in zguard_bin/
+(see zSys.platform_identity) — macOS, Linux, and Windows, both metals.
+Native runs cover this machine; Linux arm64 runs through
+scripts/docker_baseline.sh; Linux x86_64 and Windows run natively in CI
+(.github/workflows/baseline.yml) — same gate everywhere.
 
 Deployment posture:
   --deployment production   (default) skips zEnv.development.zolo overlays,
@@ -56,6 +57,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RUNS_DIR = Path.home() / "zos-baseline-runs"
 DEFAULT_SUITE_TIMEOUT = 900  # seconds; zRM's canonical suite is ~51 browser steps
+IS_WINDOWS = os.name == "nt"
 
 # Env vars that leak this machine's dev setup into the "random user" posture.
 DEV_ENV_VARS = (
@@ -87,7 +89,10 @@ def log(msg: str) -> None:
 
 
 def run(cmd, **kw) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, text=True, capture_output=True, **kw)
+    # Children emit UTF-8; on Windows text=True would decode with the legacy
+    # code page and crash on the first box-drawing glyph.
+    return subprocess.run(cmd, text=True, capture_output=True,
+                          encoding="utf-8", errors="replace", **kw)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -130,11 +135,17 @@ def stage_demos_worktree(dest: Path) -> list[str]:
 # Environment (venv + install)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def venv_bin_dir(venv_dir: Path) -> Path:
+    """The venv's executable directory: bin/ on POSIX, Scripts/ on Windows."""
+    return venv_dir / ("Scripts" if IS_WINDOWS else "bin")
+
+
 def build_venv(run_dir: Path, wheel: Path | None, pin: str | None) -> Path:
     venv_dir = run_dir / "venv"
     log(f"→ creating fresh venv: {venv_dir}")
     venv.EnvBuilder(with_pip=True, clear=True).create(venv_dir)
-    pip = venv_dir / "bin" / "pip"
+    bin_dir = venv_bin_dir(venv_dir)
+    pip = bin_dir / ("pip.exe" if IS_WINDOWS else "pip")
 
     if wheel:
         target = str(wheel.resolve())
@@ -147,7 +158,7 @@ def build_venv(run_dir: Path, wheel: Path | None, pin: str | None) -> Path:
     if r.returncode != 0:
         sys.exit(f"install failed:\n{r.stderr}")
 
-    z = venv_dir / "bin" / "z"
+    z = bin_dir / ("z.exe" if IS_WINDOWS else "z")
     if not z.exists():
         sys.exit("venv install completed but `z` entrypoint is missing")
 
@@ -157,7 +168,8 @@ def build_venv(run_dir: Path, wheel: Path | None, pin: str | None) -> Path:
             log(f"   {line}")
 
     log("→ ensuring Playwright Chromium (shared browser cache)")
-    r = run([str(venv_dir / "bin" / "python"), "-m", "playwright", "install", "chromium"])
+    py = bin_dir / ("python.exe" if IS_WINDOWS else "python")
+    r = run([str(py), "-m", "playwright", "install", "chromium"])
     if r.returncode != 0:
         log(f"   WARNING: playwright install failed: {r.stderr.strip()[:200]}")
     return venv_dir
@@ -167,8 +179,12 @@ def child_env(venv_dir: Path, deployment: str) -> dict:
     env = os.environ.copy()
     for var in DEV_ENV_VARS:
         env.pop(var, None)
-    env["PATH"] = f"{venv_dir / 'bin'}:{env['PATH']}"
+    env["PATH"] = f"{venv_bin_dir(venv_dir)}{os.pathsep}{env['PATH']}"
     env["DEPLOYMENT"] = deployment
+    if IS_WINDOWS:
+        # Demos print box-drawing/checkmark glyphs; Windows consoles default to
+        # a legacy code page, which turns those prints into UnicodeEncodeError.
+        env.setdefault("PYTHONUTF8", "1")
     return env
 
 
@@ -199,10 +215,11 @@ def discover_suites(demo_dir: Path) -> list[tuple[str, str | None]]:
 # Suite execution
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_suite(demo_dir: Path, spark: str, raven: str, env: dict,
+def run_suite(demo_dir: Path, spark: str, raven: str, env: dict, z: str,
               timeout: int, log_path: Path) -> SuiteResult:
     result = SuiteResult(demo=demo_dir.name, suite=raven, spark=spark, log=str(log_path))
-    z = "z"  # venv bin is first on PATH in env
+    # z is the venv entrypoint's ABSOLUTE path: Windows CreateProcess searches
+    # the PARENT's PATH (not the env= we pass), so a bare "z" wouldn't resolve.
 
     # z requirements: installs app-scoped zRequirements (e.g. zDarkroom → Pillow).
     # It confirms interactively ([y/N]) — feed it a yes. A demo without
@@ -214,19 +231,28 @@ def run_suite(demo_dir: Path, spark: str, raven: str, env: dict,
     last_result = demo_dir / "zRaven" / "output" / ".last_raven_result"
     last_result.unlink(missing_ok=True)
 
+    # Own process group/tree → clean kill of z + server + browser on timeout.
+    group_kw = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if IS_WINDOWS
+                else {"start_new_session": True})
+
     start = time.monotonic()
-    with open(log_path, "w") as lf:
+    with open(log_path, "w", encoding="utf-8") as lf:
         # --spark takes the spark FILENAME (works for both zSpark.* and _zSpark.*);
         # the bare `--run <name>` shorthand only resolves zSpark.<name>.zolo stems.
         proc = subprocess.Popen(
             [z, "raven", "--run", "--spark", spark],
             cwd=demo_dir, env=env, stdout=lf, stderr=subprocess.STDOUT,
-            start_new_session=True,  # own process group → clean kill on timeout
+            **group_kw,
         )
         try:
             rc = proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            if IS_WINDOWS:
+                # /T kills the whole tree — SIGKILL/killpg has no Windows analog.
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                               capture_output=True)
+            else:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
             proc.wait()
             result.status = "timeout"
             result.duration_s = round(time.monotonic() - start, 1)
@@ -334,6 +360,7 @@ def main() -> int:
 
     venv_dir = build_venv(run_dir, args.wheel, args.pin)
     env = child_env(venv_dir, args.deployment)
+    z = str(venv_bin_dir(venv_dir) / ("z.exe" if IS_WINDOWS else "z"))
 
     results: list[SuiteResult] = []
     for demo in staged:
@@ -351,7 +378,7 @@ def main() -> int:
                 continue
             log(f"→ {demo}: {spark} + {raven}")
             log_path = logs_dir / f"{demo}.{raven}.log"
-            r = run_suite(demo_dir, spark, raven, env, args.timeout, log_path)
+            r = run_suite(demo_dir, spark, raven, env, z, args.timeout, log_path)
             mark = STATUS_MARK.get(r.status, "?")
             log(f"   {mark} {r.status.upper()} in {r.duration_s}s")
             results.append(r)
