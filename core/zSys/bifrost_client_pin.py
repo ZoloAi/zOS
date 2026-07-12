@@ -1,29 +1,34 @@
 # zSys/bifrost_client_pin.py
 """
-bifrost_client_pin — SSOT for which @zolomedia/bifrost-client the browser loads.
+bifrost_client_pin — SSOT for which bifrost-client the browser loads.
 
-Two knobs, two update cadences:
+THE SSOT IS THE GIT TAG. The client repo (github.com/ZoloAi/zbifrost-client)
+is public, and jsdelivr serves any tag directly:
 
-  * Floating base (@1 alias)  — bifrost_client.js bootstrap + zbase.css. These
-    are a ~200-line loader and a stylesheet that almost never change; riding
-    npm's major channel keeps the injected <script>/<link> lines immortal.
-  * Pinned core version       — bifrost_core.js and, transitively, its ~130
-    lazy modules (they resolve relative to the core's own URL, so one pinned
-    core URL versions the whole module graph atomically — no torn deployments
-    during CDN propagation).
+    https://cdn.jsdelivr.net/gh/ZoloAi/zbifrost-client@v<pin>/...
+
+Bootstrap (bifrost_client.js), zbase.css, AND bifrost_core.js all resolve from
+the SAME tag — one pin versions the entire client atomically (the ~130 lazy
+modules resolve relative to the core's own URL, so they ride the tag too).
+No npm publish, no CDN purge, no propagation lag: push a tag, bump the pin.
+
+The npm @1 channel remains ONLY as a fail-safe when the pin cannot be
+resolved at all (fresh install, offline, no cache) — it must never be the
+primary path again, because npm/local/git triple-sourcing caused exactly the
+drift this module exists to kill.
 
 The pin lives in zguard_bin/BIFROST_CLIENT_PIN (git-tracked, pruned from the
 wheel like the rest of zguard_bin) and is resolved exactly like the zguard
 binaries themselves (see zguard_provision.py): dev checkout reads the file
 straight from the repo; installed machines fetch it from raw.githubusercontent
 and cache it under zMachine with a daily recheck. Bumping the client is
-therefore an npm publish + a one-line commit to zOS main — never a zolo-os
+therefore a git tag push + a one-line commit to zOS main — never a zolo-os
 release, never a zGuard rebuild.
 
 Consumed by BOTH sides of the bridge:
   * zOS zServer html_injectors  — <script src> / zbase.css <link> injection.
   * zGuard bridge_connection.so — connection_info.bifrost_core_url (imports
-    this module at runtime; falls back to the floating @1 alias if absent).
+    this module at runtime; falls back to the npm @1 alias if absent).
 """
 
 import os
@@ -31,10 +36,11 @@ import time
 from pathlib import Path
 from typing import Optional
 
-# Floating major-channel alias. MUST be cdn.jsdelivr.net — bifrost_client.js's
+# Both hosts below MUST be cdn.jsdelivr.net — bifrost_client.js's
 # DEFAULT_CORE_ORIGINS allowlist only trusts that host (2026-07-11 bugfix).
+_GH_CDN_FMT = 'https://cdn.jsdelivr.net/gh/ZoloAi/zbifrost-client@v{pin}'
+# npm floating alias: FAIL-SAFE ONLY (pin unresolvable). Not the SSOT.
 BIFROST_CDN_BASE = 'https://cdn.jsdelivr.net/npm/@zolomedia/bifrost-client@1'
-_PINNED_CDN_FMT = 'https://cdn.jsdelivr.net/npm/@zolomedia/bifrost-client@{pin}'
 
 _PIN_FILENAME = 'BIFROST_CLIENT_PIN'
 _RAW_PIN_URL = f'https://raw.githubusercontent.com/ZoloAi/zOS/main/zguard_bin/{_PIN_FILENAME}'
@@ -47,23 +53,26 @@ _memo = {"pin": None, "at": 0.0}  # process-lifetime memo of the resolved pin
 
 
 def bifrost_client_base() -> str:
-    """Base for the bootstrap <script> and zbase.css <link> (floating @1)."""
-    return os.getenv('ZBIFROST_CLIENT_BASE') or BIFROST_CDN_BASE
+    """Base URL for the whole client: bootstrap <script>, zbase.css, core.
 
-
-def bifrost_core_url() -> str:
-    """URL of bifrost_core.js the client must dynamic-import (pinned when possible).
-
-    Priority: ZBIFROST_CLIENT_BASE env (dev mount) -> pinned CDN URL from the
-    BIFROST_CLIENT_PIN file -> floating @1 alias (fail-safe).
+    Priority: ZBIFROST_CLIENT_BASE env (explicit dev override) -> git-tag pin
+    via jsdelivr/gh -> npm @1 alias (fail-safe only).
     """
     base = os.getenv('ZBIFROST_CLIENT_BASE')
     if base:
-        return f'{base}/bifrost_core.js'
+        return base
     pin = _resolve_pin()
     if pin:
-        return _PINNED_CDN_FMT.format(pin=pin) + '/bifrost_core.js'
-    return f'{BIFROST_CDN_BASE}/bifrost_core.js'
+        return _GH_CDN_FMT.format(pin=pin)
+    return BIFROST_CDN_BASE
+
+
+def bifrost_core_url() -> str:
+    """URL of bifrost_core.js the client must dynamic-import.
+
+    Same resolution as bifrost_client_base() — one pin, one tag, atomic client.
+    """
+    return f'{bifrost_client_base()}/bifrost_core.js'
 
 
 def _resolve_pin() -> Optional[str]:

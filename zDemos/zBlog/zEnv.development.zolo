@@ -1,7 +1,0 @@
-# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
-# TODO: local zbifrost-client checkout for dev only — unset before shipping public (falls back to CDN @1 channel).
-
-ZBIFROST_CLIENT_BASE: /zbifrost
-zServer:
-    mounts:
-        zbifrost: /Users/galnachshon/Projects/zbifrost-client

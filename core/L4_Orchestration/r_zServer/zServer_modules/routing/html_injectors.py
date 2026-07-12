@@ -13,9 +13,9 @@ import html
 
 # Client-URL policy SSOT moved to zSys/bifrost_client_pin.py, shared with the
 # sealed zGuard bridge (bridge_connection imports it for bifrost_core_url).
-# The bootstrap <script> and zbase.css keep riding the floating @1 alias; the
-# core is pinned via zguard_bin/BIFROST_CLIENT_PIN. BIFROST_CDN_BASE stays
-# re-exported here for existing importers.
+# Everything (bootstrap <script>, zbase.css, core) resolves from ONE git-tag
+# pin (zguard_bin/BIFROST_CLIENT_PIN) served via jsdelivr/gh; the npm @1 alias
+# is a fail-safe only. BIFROST_CDN_BASE stays re-exported for old importers.
 from zSys.bifrost_client_pin import BIFROST_CDN_BASE, bifrost_client_base
 
 
@@ -113,6 +113,18 @@ def _inject_zui_head(html_content, zui_config_values, zVaFile_meta, styles_folde
     the template path does not), keeping their only real difference at the call site.
     """
     import json
+
+    # syntaxBase — announce the served zolo-lsp Prism bundle (versioned URL,
+    # e.g. "/zsyntax/1.2.0/"). The client's prism_loader prefers it over its
+    # own bundled syntax/ dir and treats the value as an OPAQUE base. Absent
+    # entirely (not null) when the installed zolo-lsp predates the bundle —
+    # zSys.zsyntax_bundle is the same SSOT MountManager mounts from, so the
+    # field is only ever announced when the route actually serves.
+    from zSys.zsyntax_bundle import zsyntax_base
+    _syntax_base = zsyntax_base()
+    if _syntax_base and 'syntaxBase' not in zui_config_values:
+        zui_config_values = {**zui_config_values, 'syntaxBase': _syntax_base}
+
     zbase_css_url = f'{_bifrost_client_base()}/zSys/theme/zbase.css'
     styles_html = _build_styles_links(
         zVaFile_meta, logger, styles_folder=styles_folder, zbase_css_url=zbase_css_url,

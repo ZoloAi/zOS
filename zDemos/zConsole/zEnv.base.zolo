@@ -1,0 +1,4 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+#> terminal demo always runs sandboxed — safety default for every posture <#
+ZTERMINAL_MODE: sandbox
