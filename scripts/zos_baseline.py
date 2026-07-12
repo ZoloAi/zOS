@@ -22,6 +22,9 @@ PLATFORM SCOPE: any host whose platform tag has binaries in zguard_bin/
 Native runs cover this machine; Linux arm64 runs through
 scripts/docker_baseline.sh; Linux x86_64 and Windows run natively in CI
 (.github/workflows/baseline.yml) — same gate everywhere.
+darwin-x86_64 runs on Apple Silicon via Rosetta (universal2 Python):
+    arch -x86_64 python3 scripts/zos_baseline.py
+— the venv, zguard binaries, and Playwright Chromium all resolve as Intel.
 
 Deployment posture:
   --deployment production   (default) skips zEnv.development.zolo overlays,
