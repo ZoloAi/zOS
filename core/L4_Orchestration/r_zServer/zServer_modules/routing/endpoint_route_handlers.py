@@ -72,6 +72,11 @@ class EndpointRouteHandlersMixin:
                 type: zProxy
                 zProxy:
                     table: <your registry table>   # REQUIRED — no default
+                    model: @.models.zSchema.<t>     # schema handle for the table —
+                                                    # per-request zos.data sessions
+                                                    # start UNCONNECTED (zData is
+                                                    # schema-at-a-time), same reason
+                                                    # zLogin declares `model`
                     key: slug                       # url param → row lookup column
                     spark_field: spark_path         # column holding the boot path
                     visibility_field: status        # optional — omit to serve any row
@@ -109,6 +114,16 @@ class EndpointRouteHandlersMixin:
             return self._serve_error(404, "No app identifier")
 
         try:
+            # Per-request zos.data starts unconnected (zData is schema-at-a-time);
+            # connect the registry's schema before the read — the same reason
+            # zLogin/zpush connect their model first. `model` on the route wins;
+            # the conventional @.models.zSchema.<table> handle is the fallback.
+            model = cfg.get("model") or f"@.models.zSchema.{table}"
+            try:
+                zos.data.load_schema(zos.loader.handle(model))
+            except Exception as exc:  # pylint: disable=broad-except
+                if self.logger:
+                    self.logger.warning(f"[RouteDispatcher] zProxy schema connect warning: {exc}")
             rows = zos.data.select(table=table, where={key: slug})
         except Exception as exc:  # pylint: disable=broad-except
             if self.logger:
