@@ -87,14 +87,6 @@ from ..shared.parser_constants import (
     _KEY_DEFAULT_ROUTE as KEY_DEFAULT_ROUTE,
     _KEY_ERROR_PAGES as KEY_ERROR_PAGES,
     _KEY_TYPE as KEY_TYPE,
-    _KEY_FILE as KEY_FILE,
-    _KEY_CONTENT as KEY_CONTENT,
-    _KEY_TEMPLATE as KEY_TEMPLATE,
-    _KEY_CONTEXT as KEY_CONTEXT,
-    _KEY_HANDLER as KEY_HANDLER,
-    _KEY_TARGET as KEY_TARGET,
-    _KEY_STATUS as KEY_STATUS,
-    _KEY_DESCRIPTION as KEY_DESCRIPTION,
     _KEY_RBAC as KEY_RBAC,
     _KEY_ZVAFILE as KEY_ZVAFILE,
     _KEY_ZBLOCK as KEY_ZBLOCK,
@@ -215,51 +207,25 @@ def parse_server_file(
         # Extract RBAC metadata
         rbac = route_data.get(KEY_RBAC, None)
 
-        # Build route entry
-        route_entry = {
-            KEY_TYPE: route_data.get(KEY_TYPE, ROUTE_TYPE_STATIC),
-            KEY_RBAC: rbac
-        }
+        # Carry the FULL route dict — same SSOT rule as the zMeta block above.
+        # Rebuilding the entry from a fixed key whitelist was the identical leak:
+        # it silently dropped every key not on the list (method:, kind:,
+        # zapi_config:, …), so a hand-declared zAPI route fell back to the
+        # GET/zData defaults downstream (zapi_handler) while auto-scanned routes
+        # — whose route_data carries kind/method explicitly — worked fine.
+        # A faithful parse means ONE read carries everything; only the routing
+        # defaults and canonical aliases are normalized below.
+        route_entry = dict(route_data)
+        route_entry.setdefault(KEY_TYPE, ROUTE_TYPE_STATIC)
+        route_entry[KEY_RBAC] = rbac
 
-        # Add type-specific fields
-        if KEY_FILE in route_data:
-            route_entry[KEY_FILE] = route_data[KEY_FILE]
-        if KEY_CONTENT in route_data:
-            route_entry[KEY_CONTENT] = route_data[KEY_CONTENT]
-        if KEY_TEMPLATE in route_data:
-            route_entry[KEY_TEMPLATE] = route_data[KEY_TEMPLATE]
-        if KEY_CONTEXT in route_data:
-            route_entry[KEY_CONTEXT] = route_data[KEY_CONTEXT]
-        if KEY_HANDLER in route_data:
-            route_entry[KEY_HANDLER] = route_data[KEY_HANDLER]
-        if KEY_TARGET in route_data:
-            route_entry[KEY_TARGET] = route_data[KEY_TARGET]
-        if KEY_STATUS in route_data:
-            route_entry[KEY_STATUS] = route_data[KEY_STATUS]
-        if KEY_DESCRIPTION in route_data:
-            route_entry[KEY_DESCRIPTION] = route_data[KEY_DESCRIPTION]
         # View reference (the page to render). `zUI` is the SSOT alias for the
         # legacy `zVaFile`; both accept the agnostic zPath grammar — a single full
         # `@.<folder>.<zUI.File>` (normalized to folder/file/block below) or the
-        # bare `zUI.File` + zVaFolder default. zUI wins if both appear.
-        view_ref = route_data.get("zUI") if "zUI" in route_data else route_data.get(KEY_ZVAFILE)
-        if view_ref is not None:
-            route_entry[KEY_ZVAFILE] = view_ref
-        if "zVaFolder" in route_data:  # zWalker folder path
-            route_entry["zVaFolder"] = route_data["zVaFolder"]
-        if KEY_ZBLOCK in route_data:
-            route_entry[KEY_ZBLOCK] = route_data[KEY_ZBLOCK]
-        # Data reference: route-level `zLoom` (named read, SSOT). The gate for
-        # type:zLoom routes, and data injected into ANY route's view context.
-        # Alias or full @ zPath — same grammar as a block's zMeta.zLoom.
-        if "zLoom" in route_data:
-            route_entry["zLoom"] = route_data["zLoom"]
-        if "auto_discover_blocks" in route_data:  # Smart Walker Routes (auto-discovery)
-            route_entry["auto_discover_blocks"] = route_data["auto_discover_blocks"]
-        if "data" in route_data:  # JSON route data
-            route_entry["data"] = route_data["data"]
-        if "zProxy" in route_data:  # type:zProxy front-door policy (table/key/spark_field)
-            route_entry["zProxy"] = route_data["zProxy"]
+        # bare `zUI.File` + zVaFolder default. zUI wins if both appear; the entry
+        # keeps ONE canonical key (zVaFile) so downstream never double-reads.
+        if "zUI" in route_data:
+            route_entry[KEY_ZVAFILE] = route_entry.pop("zUI")
 
         # Agnostic zPath normalization for the view ref: a FULL zPath
         #   (@.<folder>.<zUI.File>[.<Block>]) is split into folder/file/block so
