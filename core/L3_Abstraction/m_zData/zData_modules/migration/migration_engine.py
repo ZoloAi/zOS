@@ -24,6 +24,7 @@ from ..shared.data_keys import SCHEMA_KEY_META
 _LOG_PREFIX = "[MigrationEngine]"
 _META_KEY = SCHEMA_KEY_META
 _META_KEY_DATA_TYPE = "Data_Type"
+_META_KEY_DATA_LABEL = "Data_Label"
 _META_KEY_ZMIGRATION = "zMigration"
 _META_KEY_ZMIGRATION_VERSION = "zMigrationVersion"
 _ERROR_NO_ADAPTER = "No adapter initialized"
@@ -106,18 +107,82 @@ class MigrationEngine:
         new_version = new_meta.get(_META_KEY_ZMIGRATION_VERSION, "unknown")
         self.logger.info(f"[zMigrate] Schema version: {new_version}")
 
-        # Check for backend changes
+        # ── Backend change (Data_Type) ─────────────────────────────────────
+        # Two ways a switch surfaces:
+        #   explicit — orchestrator still holds the OLD schema/adapter and the
+        #              new file declares a different backend;
+        #   implicit — the usual `z migrate` / boot flow, where load_schema()
+        #              already re-wired the orchestrator to the NEW backend so
+        #              old-vs-new meta looks identical. detect_backend_switch()
+        #              recovers the truth from the persisted backend marker (or,
+        #              pre-marker, from legacy CSV data still on disk).
+        from .backend_migration import (
+            BackendMigration,
+            detect_backend_switch,
+            resolve_marker_dir,
+            write_backend_marker,
+        )
+
         old_meta = orchestrator.schema.get(_META_KEY, {})
         old_backend = old_meta.get(_META_KEY_DATA_TYPE)
         new_backend = new_meta.get(_META_KEY_DATA_TYPE)
 
-        if old_backend and new_backend and old_backend != new_backend:
-            self.logger.info(f"[zMigrate] Backend change detected: {old_backend} → {new_backend}")
-            from .backend_migration import BackendMigration
-            backend_migration = BackendMigration(self.zos, self.logger)
-            return backend_migration.handle_backend_migration(
-                orchestrator, old_backend, new_backend, new_schema, dry_run
+        marker_dir = resolve_marker_dir(self.zos, self.logger, new_schema)
+        transfer_result: Optional[Dict[str, Any]] = None
+
+        explicit_switch = bool(
+            old_backend and new_backend
+            and str(old_backend).lower() != str(new_backend).lower()
+        )
+        if explicit_switch:
+            switch_old_backend: Optional[str] = old_backend
+            switch_source = orchestrator.adapter  # still connected to the old backend
+        else:
+            detected = detect_backend_switch(
+                self.zos, self.logger, new_schema, orchestrator.adapter
             )
+            switch_old_backend, switch_source = detected if detected else (None, None)
+
+        if switch_source is not None:
+            self.logger.info(
+                f"[zMigrate] Backend change detected: {switch_old_backend} → {new_backend}"
+            )
+            backend_migration = BackendMigration(self.zos, self.logger)
+
+            if dry_run:
+                result = backend_migration.handle_backend_migration(
+                    orchestrator, switch_old_backend, new_backend, new_schema,
+                    dry_run=True, source_adapter=switch_source,
+                )
+                # The boot gate keys off diff.has_changes — a pending backend
+                # switch with unmoved data IS drift and must refuse launch.
+                result["diff"] = {
+                    "has_changes": True,
+                    "backend_switch": f"{switch_old_backend} → {new_backend}",
+                }
+                return result
+
+            transfer_result = backend_migration.handle_backend_migration(
+                orchestrator, switch_old_backend, new_backend, new_schema,
+                dry_run=False, source_adapter=switch_source,
+            )
+            if not transfer_result.get("success"):
+                return transfer_result
+            self.zos.display.text(
+                f"📦 {transfer_result.get('message', 'Backend data transfer complete')}"
+            )
+            if explicit_switch:
+                # The orchestrator is still wired to the OLD backend — running the
+                # DDL path against it would target the wrong store. Record the
+                # marker and stop; a re-run on the new backend finishes DDL extras.
+                if marker_dir:
+                    write_backend_marker(
+                        marker_dir, new_backend, new_meta.get(_META_KEY_DATA_LABEL)
+                    )
+                return transfer_result
+            # Implicit switch: orchestrator.adapter IS the new backend — fall
+            # through to the normal DDL path so indexes/constraints/history land
+            # on the target, then the marker is written below on success.
 
         # Compute schema hash
         schema_hash = get_current_schema_hash(new_schema)
@@ -126,6 +191,8 @@ class MigrationEngine:
         if is_migration_applied(orchestrator.adapter, schema_hash):
             self.logger.info("[zMigrate] Schema hash matches last applied migration — up to date")
             self.zos.display.text("✅ Migration completed successfully!")
+            if not dry_run and marker_dir:
+                write_backend_marker(marker_dir, new_backend, new_meta.get(_META_KEY_DATA_LABEL))
             return {"success": True, "diff": {}, "operations_executed": 0}
 
         # Resolve from_version from last migration record (first user-defined table)
@@ -154,6 +221,12 @@ class MigrationEngine:
 
         # Execute migration via operations facade
         result = orchestrator.operations.route_action("migrate", request)
+
+        if isinstance(result, dict) and result.get("success") and not dry_run and not plan:
+            if marker_dir:
+                write_backend_marker(marker_dir, new_backend, new_meta.get(_META_KEY_DATA_LABEL))
+            if transfer_result is not None:
+                result["backend_transfer"] = transfer_result.get("report")
         return result
 
     def rollback(self, orchestrator: Any, specific_table: Optional[str] = None) -> Dict[str, Any]:

@@ -184,6 +184,8 @@ def _run_schema_migrations(zcli: Any, zspark_file: Any) -> int:
 def _summarize_schema_drift(diff: dict) -> str:
     """One-line human description of a schema diff, for the refusal message."""
     parts = []
+    if diff.get("backend_switch"):
+        parts.append(f"backend switch {diff['backend_switch']} — data transfer pending")
     added = diff.get("tables_added") or []
     dropped = diff.get("tables_dropped") or []
     if added:

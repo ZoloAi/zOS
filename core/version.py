@@ -2,8 +2,8 @@
 # ───────────────────────────────────────────────────────────────
 """Version management for zOS package."""
 
-__version__ = "1.6.10"
-__version_info__ = (1, 6, 10)
+__version__ = "1.6.11"
+__version_info__ = (1, 6, 11)
 
 # Package metadata
 PACKAGE_NAME = "zOS"

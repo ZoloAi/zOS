@@ -103,14 +103,50 @@ def transfer_backend(
     """
     Move all declared user tables from source → target, then validate row counts.
 
+    Tables that already hold rows on the TARGET are skipped (reported under
+    ``skipped``) — re-running a transfer must never duplicate data. A fresh
+    backend switch has an empty target, so nothing is skipped on first run.
+
     Returns a report: success (all counts matched), tables moved, total rows, the
-    per-table written counts, and any {table: {expected, actual}} mismatches.
+    per-table written counts, skipped tables, and any {table: {expected, actual}}
+    mismatches.
     """
     dataset = export_tables(source_adapter, schema)
-    written = import_tables(target_adapter, dataset)
+
+    skipped: Dict[str, int] = {}
+    for table in list(dataset):
+        try:
+            if hasattr(target_adapter, "table_exists") and target_adapter.table_exists(table):
+                existing = len(target_adapter.select(table) or [])
+                if existing:
+                    skipped[table] = existing
+                    dataset.pop(table)
+                    if logger:
+                        logger.info(
+                            "[BackendTransfer] %s already has %d row(s) on target — skipping",
+                            table, existing,
+                        )
+        except Exception:  # pylint: disable=broad-except
+            pass  # unreadable target table → attempt the transfer; validation will catch it
+
+    # Per-table import: one failing table (e.g. an FK whose target table is
+    # created by a LATER schema's migration) must not sink the whole transfer.
+    # Failures are reported under ``errors``; the caller retries after the
+    # rest of the schemas have run.
+    written: Dict[str, int] = {}
+    errors: Dict[str, str] = {}
+    for table, payload in dataset.items():
+        try:
+            written.update(import_tables(target_adapter, {table: payload}))
+        except Exception as exc:  # pylint: disable=broad-except
+            errors[table] = str(exc)
+            if logger:
+                logger.warning("[BackendTransfer] %s failed to import: %s", table, exc)
 
     mismatches: Dict[str, Any] = {}
     for table, payload in dataset.items():
+        if table in errors:
+            continue
         expected = len(payload["rows"])
         actual = len(target_adapter.select(table) or [])
         if actual != expected:
@@ -123,10 +159,12 @@ def transfer_backend(
         )
 
     return {
-        "success": not mismatches,
+        "success": not mismatches and not errors,
         "tables": len(dataset),
         "rows": sum(written.values()),
         "written": written,
+        "skipped": skipped,
+        "errors": errors,
         "mismatches": mismatches,
     }
 
