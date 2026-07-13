@@ -144,7 +144,14 @@ def fetch_zguard_binaries(dest: Path, platform_tag: str, py_tag: str) -> bool:
             return False
         target = dest / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
+        # Write-to-temp + rename, NEVER in place: macOS caches code-signature
+        # validation per inode, so rewriting an existing .so's bytes into the
+        # same inode makes the kernel SIGKILL ("Code Signature Invalid") the
+        # next process that dlopens it. A rename gives a fresh inode; it is
+        # also atomic, so a reader never sees a half-written module.
+        tmp = target.with_name(target.name + ".fetch")
+        tmp.write_bytes(data)
+        tmp.replace(target)
 
     (dest / "VERSION").write_text(version_text)
     return True
