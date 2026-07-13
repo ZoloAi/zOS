@@ -353,7 +353,16 @@ class InstanceFacade:
     def sleep(self, app: Any) -> bool:
         """Tear down the app's instance. Accepts an app_id or an app spec."""
         app_id = app if isinstance(app, str) else AppSpec.coerce(app).app_id
-        return self._driver().sleep(app_id)
+        stopped = self._driver().sleep(app_id)
+        # Ingress: retire <slug>.<domain> so the proxy never points at a dead port.
+        from .ingress import IngressConfig  # pylint: disable=import-outside-toplevel
+        ingress = IngressConfig.from_env()
+        if ingress:
+            try:
+                ingress.unpublish(app_id)
+            except Exception:  # pylint: disable=broad-except
+                pass  # proxy admin down ≠ failed sleep; route goes stale, not wrong
+        return stopped
 
     def status(self, app: Any) -> Instance:
         """Current :class:`Instance` (state asleep/waking/running) — never raises."""

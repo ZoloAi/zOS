@@ -159,10 +159,25 @@ def commit_green(
     """
     log = logger or getattr(zos, "logger", None)
     spec = AppSpec.coerce(app)
-    committed = get_driver(zos).commit(spec.app_id, drain_timeout=drain_timeout)
+    driver = get_driver(zos)
+    committed = driver.commit(spec.app_id, drain_timeout=drain_timeout)
     if log:
         log.info("[zSwap] Commit for '%s': front flipped to green, blue retired (%s)",
                  spec.app_id, committed)
+    # Ingress: re-point <slug>.<domain> at green's ports — the flip above only
+    # moved the driver's front pointer; direct-subdomain visitors ride the proxy.
+    if committed:
+        from .ingress import IngressConfig  # pylint: disable=import-outside-toplevel
+        ingress = IngressConfig.from_env()
+        if ingress:
+            inst = driver.status(spec.app_id)
+            if inst.port:
+                try:
+                    ingress.publish(spec.app_id, inst.port, inst.ws_port)
+                except Exception as exc:  # pylint: disable=broad-except
+                    if log:
+                        log.error("[zSwap] Ingress re-publish failed for '%s': %s",
+                                  spec.app_id, exc)
     return committed
 
 

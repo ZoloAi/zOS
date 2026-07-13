@@ -559,7 +559,9 @@ class PageRouteHandlersMixin:
                 extra_config={"websocket": {
                     "ssl_enabled": _ws.ssl_enabled if _ws else False,
                     "host": _ws_host,
-                    "port": _ws.port if _ws else _WS_DEFAULT_PORT,
+                    # advertised_port ≠ bind port only behind an ingress proxy
+                    # (hosted tenants); it falls back to the bind port otherwise.
+                    "port": _ws.advertised_port if _ws else _WS_DEFAULT_PORT,
                 },
                 # SSOT gap closer: %route.* is seated for THIS http request's
                 # own SSR gate/render (line ~349) but render_zvaf ships an

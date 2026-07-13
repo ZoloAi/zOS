@@ -325,6 +325,10 @@ class LocalProcessDriver(ComputeDriver):
         child_env[_ENV_HTTP_PORT] = str(port)
         child_env[_ENV_WS_HOST] = app.host
         child_env[_ENV_WS_PORT] = str(ws_port)
+        # Published tenants (ZHOST_INGRESS_DOMAIN set) additionally advertise the
+        # ingress WS port + their own subdomain origin; binds above stay private.
+        from .ingress import ingress_child_env  # pylint: disable=import-outside-toplevel
+        child_env.update(ingress_child_env(app.app_id))
 
         log_fh = open(log_path, "ab", buffering=0)  # noqa: SIM115 (kept for child lifetime)
         # Own process group so _stop_proc can take down the whole tree:

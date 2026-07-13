@@ -26,6 +26,11 @@ _CONFIG_SECTION_KEY_LEGACY = "websocket"
 # Environment Variables
 _ENV_VAR_HOST = "WEBSOCKET_HOST"
 _ENV_VAR_PORT = "WEBSOCKET_PORT"
+# Public/ingress port ADVERTISED to browsers (zui-config), when it differs from
+# the bind port. Hosted tenants bind a private per-instance port while the
+# ingress proxy (Caddy) exposes ONE stable TLS port and routes by SNI/Host —
+# so pages must advertise the ingress port, never the bind port.
+_ENV_VAR_ADVERTISED_PORT = "WEBSOCKET_ADVERTISED_PORT"
 _ENV_VAR_REQUIRE_AUTH = "WEBSOCKET_REQUIRE_AUTH"
 _ENV_VAR_ALLOWED_ORIGINS = "WEBSOCKET_ALLOWED_ORIGINS"
 _ENV_VAR_TOKEN = "WEBSOCKET_TOKEN"
@@ -36,6 +41,7 @@ _ENV_VAR_SSL_KEY = "WEBSOCKET_SSL_KEY"
 # Config Keys
 _KEY_HOST = "host"
 _KEY_PORT = "port"
+_KEY_ADVERTISED_PORT = "advertised_port"
 _KEY_REQUIRE_AUTH = "require_auth"
 _KEY_ALLOWED_ORIGINS = "allowed_origins"
 _KEY_TOKEN = "token"
@@ -54,6 +60,7 @@ _KEY_SSL_KEY = "ssl_key"
 ZSOCKET_BLOCK_ENV_MAP = {
     "host":            _ENV_VAR_HOST,
     "port":            _ENV_VAR_PORT,
+    "advertised_port": _ENV_VAR_ADVERTISED_PORT,
     "require_auth":    _ENV_VAR_REQUIRE_AUTH,
     "allowed_origins": _ENV_VAR_ALLOWED_ORIGINS,
     "token":           _ENV_VAR_TOKEN,
@@ -133,6 +140,7 @@ class WebSocketConfig:
         # 1. Check environment variables (Layer 3/4 - .zEnv or system env)
         env_host = os.getenv(_ENV_VAR_HOST)
         env_port = os.getenv(_ENV_VAR_PORT)
+        env_advertised_port = os.getenv(_ENV_VAR_ADVERTISED_PORT)
         env_auth = os.getenv(_ENV_VAR_REQUIRE_AUTH)
         env_origins = os.getenv(_ENV_VAR_ALLOWED_ORIGINS)
         env_token = os.getenv(_ENV_VAR_TOKEN)
@@ -150,6 +158,13 @@ class WebSocketConfig:
                 self.logger.framework.debug(f"{_LOG_PREFIX} WebSocket port from env: {env_port}")
             except ValueError:
                 self.logger.framework.warning(f"{_LOG_PREFIX} Invalid {_ENV_VAR_PORT}: {env_port}")
+
+        if env_advertised_port:
+            try:
+                websocket_config[_KEY_ADVERTISED_PORT] = int(env_advertised_port)
+                self.logger.framework.debug(f"{_LOG_PREFIX} WebSocket advertised port from env: {env_advertised_port}")
+            except ValueError:
+                self.logger.framework.warning(f"{_LOG_PREFIX} Invalid {_ENV_VAR_ADVERTISED_PORT}: {env_advertised_port}")
 
         if env_auth:
             websocket_config[_KEY_REQUIRE_AUTH] = env_auth.lower() in _TRUTHY_VALUES
@@ -212,6 +227,7 @@ class WebSocketConfig:
         self.config = {
             _KEY_HOST: websocket_config.get(_KEY_HOST, self._zserver_host_fallback()),
             _KEY_PORT: websocket_config.get(_KEY_PORT, _DEFAULT_PORT),
+            _KEY_ADVERTISED_PORT: websocket_config.get(_KEY_ADVERTISED_PORT),
             _KEY_REQUIRE_AUTH: websocket_config.get(_KEY_REQUIRE_AUTH, _DEFAULT_REQUIRE_AUTH),
             _KEY_ALLOWED_ORIGINS: websocket_config.get(_KEY_ALLOWED_ORIGINS, _DEFAULT_ALLOWED_ORIGINS),
             _KEY_TOKEN: websocket_config.get(_KEY_TOKEN, _DEFAULT_TOKEN),
@@ -264,6 +280,17 @@ class WebSocketConfig:
     def port(self) -> int:
         """WebSocket port."""
         return self.config[_KEY_PORT]
+
+    @property
+    def advertised_port(self) -> int:
+        """Port ADVERTISED to browsers (zui-config) — the public/ingress port.
+
+        Falls back to the bind ``port`` when no ingress remap is configured, so
+        every existing caller/deployment behaves exactly as before. Page
+        injection must read THIS, never ``port``, or hosted tenants behind an
+        SNI-routing proxy would advertise their private bind port.
+        """
+        return self.config.get(_KEY_ADVERTISED_PORT) or self.config[_KEY_PORT]
 
     @property
     def require_auth(self) -> bool:
