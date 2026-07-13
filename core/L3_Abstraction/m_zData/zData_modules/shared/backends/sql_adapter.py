@@ -148,7 +148,7 @@ See Also
 """
 
 from abc import abstractmethod
-from zOS import Dict, List, Optional, Any
+from zOS import Dict, List, Optional, Any, re
 from .base_adapter import BaseDataAdapter
 from .type_mapping import resolve_sql_type, SQLITE_TYPE_MAP
 from .join_policy import resolve_auto_join, to_sql_keyword, DEFAULT_AUTO_JOIN
@@ -683,12 +683,14 @@ class SQLAdapter(BaseDataAdapter):
 
         if is_multi_table:
             # Build FROM clause with JOINs
-            from_clause, _ = self._build_join_clause(
+            from_clause, joined_tables = self._build_join_clause(
                 tables, joins=joins, schema=schema, auto_join=auto_join
             )
 
-            # Build SELECT clause with table qualifiers for multi-table
-            select_clause = self._build_select_clause(fields, tables)
+            # Build SELECT clause with table qualifiers for multi-table —
+            # include join-added tables so `*` expands across ALL of them.
+            all_tables = tables + [t for t in joined_tables if t not in tables]
+            select_clause = self._build_select_clause(fields, tables, all_tables=all_tables)
 
             self._log('info', "[JOIN] Multi-table query: %s", " + ".join(tables))
         else:
@@ -1233,16 +1235,53 @@ class SQLAdapter(BaseDataAdapter):
             return ", ".join(parts)
         return ""
 
-    def _build_select_clause(self, fields, tables):
-        """Build SELECT clause with table qualifiers for multi-table queries."""
+    def _build_select_clause(self, fields, tables, all_tables=None):
+        """Build SELECT clause preserving qualified keys across a join.
+
+        Contract (csv/sql parity — see data_advanced + Queries): after a join,
+        every column surfaces in the row dicts as "table.column". The DB-API
+        ``cursor.description`` strips table qualifiers (two joined ``name``
+        columns collide and dict(zip) silently drops one), so each qualified
+        field is aliased to itself (``zApps.name AS "zApps.name"``) and the
+        multi-table ``*`` expands to per-column aliased selects via live
+        introspection. The CSV adapter produces these dotted keys natively.
+        """
+        all_tables = all_tables or tables
+
         if not fields or fields == ["*"]:
-            # For *, use table.* for each table to avoid ambiguity
-            if len(tables) > 1:
-                return ", ".join([f"{table}.*" for table in tables])
+            if len(all_tables) > 1:
+                parts = []
+                for table in all_tables:
+                    columns = self._introspect_columns_safe(table)
+                    if columns:
+                        parts.extend(
+                            f'{table}.{col} AS "{table}.{col}"' for col in columns
+                        )
+                    else:
+                        # Unknown columns — keep table.* (keys come back bare,
+                        # but nothing better is possible without introspection).
+                        parts.append(f"{table}.*")
+                return ", ".join(parts)
             return "*"
 
-        # Fields may already have table prefixes, just join them
-        return ", ".join(fields)
+        out = []
+        for field in fields:
+            stripped = str(field).strip()
+            # Only plain table.column tokens are self-aliased — expressions,
+            # functions, and pre-aliased fields pass through untouched.
+            if re.fullmatch(r"\w+\.\w+", stripped):
+                out.append(f'{stripped} AS "{stripped}"')
+            else:
+                out.append(field)
+        return ", ".join(out)
+
+    def _introspect_columns_safe(self, table):
+        """Column names for a table via live introspection, or None on failure."""
+        try:
+            columns = self.introspect_schema(table)
+            return list(columns) if columns else None
+        except Exception:  # pylint: disable=broad-except
+            return None
 
     def _build_join_clause(self, tables, joins=None, schema=None, auto_join=False):
         """Build JOIN clause for multi-table queries (manual or auto-detected)."""
