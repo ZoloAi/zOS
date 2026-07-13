@@ -5,4 +5,4 @@
 # subpackages re-export it, and zOS's zguard_bin/<platform>/<py>/VERSION files
 # are stamped from the wheel built at this version. Bump ONLY here.
 
-__version__ = "1.0.5"
+__version__ = "1.0.6"
