@@ -147,6 +147,69 @@ def _inject_zui_head(html_content, zui_config_values, zVaFile_meta, styles_folde
     return html_content
 
 
+def _inject_seo_meta(html_content, page_title, app_brand, zVaFile_meta,
+                     request_host=None, request_path=None, request_proto=None,
+                     logger=None):
+    """Stamp crawler-facing meta tags into the shell head (SEO seam, zMeta-driven).
+
+    The rendered shell is a hydration stub (content arrives over the Bifrost WS),
+    so plain-GET consumers — search engines, link-preview bots, social cards —
+    see only what this head carries. Declarative sources, all optional:
+
+      zMeta.zDescription → <meta name="description"> + og:description
+      zMeta.zImage       → og:image (absolutized against the request host)
+      page title / brand → og:title / og:site_name
+      request host+path  → canonical <link> + og:url (skipped when Host unknown)
+
+    Nothing is invented: pages that declare nothing get title/site_name/canonical
+    only. Injection is idempotent per render (runs once, before </head>).
+    """
+    if '</head>' not in html_content:
+        return html_content
+
+    description = (zVaFile_meta or {}).get('zDescription')
+    image = (zVaFile_meta or {}).get('zImage')
+
+    base_url = None
+    if request_host:
+        proto = request_proto or 'http'
+        base_url = f"{proto}://{request_host}"
+
+    canonical = None
+    if base_url is not None and request_path:
+        canonical = base_url + request_path.split('?', 1)[0]
+
+    def _attr(value):
+        return html.escape(str(value), quote=True)
+
+    tags = []
+    if description:
+        tags.append(f'<meta name="description" content="{_attr(description)}">')
+    if page_title:
+        tags.append(f'<meta property="og:title" content="{_attr(page_title)}">')
+    if description:
+        tags.append(f'<meta property="og:description" content="{_attr(description)}">')
+    if app_brand:
+        tags.append(f'<meta property="og:site_name" content="{_attr(app_brand)}">')
+    tags.append('<meta property="og:type" content="website">')
+    if canonical:
+        tags.append(f'<link rel="canonical" href="{_attr(canonical)}">')
+        tags.append(f'<meta property="og:url" content="{_attr(canonical)}">')
+    if image:
+        img = str(image)
+        if img.startswith('/') and base_url:
+            img = base_url + img
+        tags.append(f'<meta property="og:image" content="{_attr(img)}">')
+        tags.append('<meta name="twitter:card" content="summary_large_image">')
+    else:
+        tags.append('<meta name="twitter:card" content="summary">')
+
+    seo_html = '\n<!-- SEO meta (auto-injected from zMeta) -->\n' + '\n'.join(tags) + '\n'
+    if logger:
+        logger.debug(f'[RouteDispatcher] SEO meta injected ({len(tags)} tags)')
+    return html_content.replace('</head>', seo_html + '</head>', 1)
+
+
 def _inject_title(html_content, page_title, logger=None):
     """Write the computed page title into the rendered ``<title>`` (SSOT).
 

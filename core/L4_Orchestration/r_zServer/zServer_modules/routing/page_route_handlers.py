@@ -12,6 +12,7 @@ from .utils import HandlerUtils
 from .html_injectors import (
     _build_nav_html_safe,
     _inject_zui_head,
+    _inject_seo_meta,
     _inject_title,
     _inject_watermark,
 )
@@ -54,6 +55,20 @@ class PageRouteHandlersMixin:
         html_content = _inject_zui_head(
             html_content, zui_config_values, zVaFile_meta, _styles_folder,
             self.logger, zcanvas_name=_zcanvas
+        )
+        # SEO meta — the shell is a hydration stub, so this head is ALL that
+        # plain-GET consumers (search engines, link-preview bots) ever see.
+        _headers = getattr(self.handler, 'headers', None)
+        _host = _proto = None
+        if _headers is not None:
+            _host = _headers.get('X-Forwarded-Host') or _headers.get('Host')
+            _proto = _headers.get('X-Forwarded-Proto') or 'http'
+        html_content = _inject_seo_meta(
+            html_content, page_title, app_brand, zVaFile_meta,
+            request_host=_host,
+            request_path=getattr(self.handler, 'path', None),
+            request_proto=_proto,
+            logger=self.logger,
         )
         html_content = _inject_title(html_content, page_title, self.logger)
         html_content = _inject_watermark(html_content, zos, self.logger)

@@ -68,6 +68,10 @@ class WSGIBridgeHandler(LoggingHTTPRequestHandler):
         self.headers = self._build_headers(environ)
         self.rfile = self._read_body(environ)
         self.wfile = BytesIO()
+        # The buffer the WSGI response is read from. Kept as a separate anchor:
+        # on HEAD, end_headers swaps self.wfile to a throwaway BytesIO so body
+        # writes are discarded — the real response body must stay empty.
+        self._response_buffer = self.wfile
 
         # Response capture
         self._status_code = 200
@@ -146,6 +150,11 @@ class WSGIBridgeHandler(LoggingHTTPRequestHandler):
         for name, value in build_response_headers(cors_origin):
             self._headers.append((name, value))
         self._headers_sent = True
+        # HEAD = GET minus body (mirrors the dev handler's end_headers swap):
+        # body writes after this point land in a throwaway buffer; do_HEAD
+        # restores the original response buffer, which stays empty.
+        if self.command == "HEAD":
+            self.wfile = BytesIO()
 
     def flush_headers(self):  # no-op: nothing is socket-bound here
         pass
@@ -184,4 +193,4 @@ class WSGIBridgeHandler(LoggingHTTPRequestHandler):
 
     @property
     def body(self):
-        return self.wfile.getvalue()
+        return self._response_buffer.getvalue()

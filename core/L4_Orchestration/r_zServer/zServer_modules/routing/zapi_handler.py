@@ -48,6 +48,11 @@ def handle(handler, route: dict, zos) -> None:
         _send_json(handler, 204, None, cors=True)
         return
 
+    # HEAD is GET's shadow (RFC 7231): same guard, same execution — the
+    # transport layer strips the body (see handler.do_HEAD / end_headers).
+    if method == "HEAD":
+        method = "GET"
+
     method_allowed = route.get("method", "GET").upper()
     if method != method_allowed:
         _send_json(handler, 405, {"error": f"Method not allowed. Expected {method_allowed}."})

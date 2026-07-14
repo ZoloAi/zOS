@@ -172,6 +172,9 @@ setup(
     package_data={
         # Accessibility ships its built-in JSON data (emoji descriptions + icon codepoints)
         "zSys.accessibility": ["data/*.json"],
+        # zServer's built-in assets (default favicon served for /favicon.ico when
+        # the app ships none) — was repo-only before, so prod wheels 404'd on it.
+        "zOS.L4_Orchestration.r_zServer": ["static/*"],
     },
     cmdclass={
         "develop": PostDevelopCommand,

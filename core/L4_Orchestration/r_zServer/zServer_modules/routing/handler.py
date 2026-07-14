@@ -17,6 +17,22 @@ from .http_headers import build_response_headers
 from ..utils.zserver_constants import MOUNT_UI, HEALTH_PATH
 
 
+class _BodyDiscardSink:
+    """Write sink that swallows body bytes for HEAD responses (RFC 7231 §4.3.2).
+
+    Swapped in as ``wfile`` by ``end_headers`` once the status line + headers
+    have gone out, so every handler downstream can write its body unchanged —
+    the bytes just never reach the client. Headers (incl. Content-Length of the
+    would-be body) are preserved, which is exactly what HEAD promises.
+    """
+
+    def write(self, data):
+        return len(data)
+
+    def flush(self):
+        pass
+
+
 class LoggingHTTPRequestHandler(SimpleHTTPRequestHandler):
     """HTTP request handler with zOS logger integration + routing (Facade Pattern)"""
 
@@ -85,6 +101,27 @@ class LoggingHTTPRequestHandler(SimpleHTTPRequestHandler):
         for name, value in build_response_headers(cors_origin):
             self.send_header(name, value)
         super().end_headers()
+        # HEAD = GET minus body: headers are on the wire now, so from this point
+        # every body write is discarded. do_HEAD restores the real wfile after
+        # the request (keep-alive connections reuse this handler instance).
+        if self.command == "HEAD":
+            self.wfile = _BodyDiscardSink()
+
+    def do_HEAD(self):
+        """Serve HEAD through the FULL GET pipeline (routing, RBAC, errors, caching).
+
+        The inherited ``SimpleHTTPRequestHandler.do_HEAD`` serves raw filesystem
+        semantics — wrong for routed apps, and a hard 500 under the WSGI bridge
+        (it reads ``self.directory``, which the bridge never sets). Instead we run
+        ``do_GET`` verbatim; ``end_headers`` swaps ``wfile`` for a discard sink the
+        moment headers are sent, so the response is byte-identical to GET minus
+        the body — status codes, Content-Length, cache and security headers intact.
+        """
+        _real_wfile = self.wfile
+        try:
+            return self.do_GET()
+        finally:
+            self.wfile = _real_wfile
 
     def do_OPTIONS(self):
         """Handle OPTIONS requests for CORS preflight"""
