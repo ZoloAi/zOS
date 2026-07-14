@@ -62,6 +62,19 @@ class WaitressManager:
             host=self.config.host,
             port=self.config.port,
             threads=self.DEFAULT_THREADS,
+            # The production shape is TLS terminated by a local ingress (Caddy /
+            # nginx on the same box) proxying to waitress over loopback. Waitress
+            # clears X-Forwarded-* from untrusted peers (correct default), which
+            # also erased the ingress's own headers — so pages could never learn
+            # the request was https (canonical/og:url came out http://). Trusting
+            # LOOPBACK ONLY lets waitress rewrite wsgi.url_scheme/Host from the
+            # proxy's headers; remote peers still can't spoof them.
+            trusted_proxy="127.0.0.1",
+            trusted_proxy_count=1,
+            trusted_proxy_headers={
+                "x-forwarded-for", "x-forwarded-host",
+                "x-forwarded-proto", "x-forwarded-port",
+            },
         )
         self._running = True
         self._thread = threading.Thread(

@@ -105,6 +105,12 @@ class WSGIBridgeHandler(LoggingHTTPRequestHandler):
             if key.startswith("HTTP_"):
                 header_name = key[5:].replace("_", "-").title()
                 msg[header_name] = value
+        # Scheme fallback: when the WSGI server already resolved the effective
+        # scheme (waitress rewrites wsgi.url_scheme from a TRUSTED proxy's
+        # X-Forwarded-Proto, then may drop the header), surface it back as the
+        # header the shared pipeline reads — so https survives the proxy hop.
+        if "X-Forwarded-Proto" not in msg:
+            msg["X-Forwarded-Proto"] = environ.get("wsgi.url_scheme", "http")
         return msg
 
     def _read_body(self, environ):
