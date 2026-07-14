@@ -65,6 +65,17 @@ snapshotted in `zCloud/deploy/box/` — update the snapshot when you change it.
 
 ## Git & branching — trunk-based, three moves
 
+**Where do versions live?** In the commit history, named by tags — never in
+branches. `main` is the workbench, not the release: released versions are
+tagged commits *inside* main's history (`v1.6.14` = the exact commit the
+published wheel was built from). New commits land after a tag; they can never
+alter it. So you work on main for the next version, and every past version
+stays reachable forever via `git checkout v1.6.X`.
+
+    main:  ──o──o──o──o──o──o──o──→   (work here)
+                 ▲           ▲
+              v1.6.14     v1.6.15     (releases = tagged commits)
+
 **A. Normal work → straight on main.**
 Small commits, push freely. The baseline gate runs on every push and is the
 safety net; a red gate blocks *releasing*, not *pushing*. (zCloud's trunk is
