@@ -63,6 +63,35 @@ zCloud is an app, not a package. Deploy = copy + restart:
 Box-only config (`zEnv.production.zolo`, Caddyfile, systemd unit) is
 snapshotted in `zCloud/deploy/box/` — update the snapshot when you change it.
 
+## Git & branching — trunk-based, three moves
+
+**A. Normal work → straight on main.**
+Small commits, push freely. The baseline gate runs on every push and is the
+safety net; a red gate blocks *releasing*, not *pushing*. (zCloud's trunk is
+its `zCloud-alpha` branch — same role, different name.)
+
+**B. Risky / multi-day work → short-lived branch.**
+`git checkout -b feat/<name>`, break things in peace, merge back to main when
+the gate is green. Delete the branch after merge. Use this whenever half-done
+work on main would block you from cutting a release.
+
+**C. Prod is broken but main has moved on → hotfix from the tag.**
+The one flow that's new since the lock-down. Never publish main if it carries
+unreleased work you don't want to ship yet — branch from what prod actually runs:
+
+    git checkout -b hotfix/1.6.14 v1.6.14   # exactly what's on the box
+    # fix, bump to 1.6.15, gate, publish, upgrade box
+    git checkout main && git merge hotfix/1.6.14   # fix flows back to trunk
+    git branch -d hotfix/1.6.14
+
+**Tags are the release ledger.**
+- zOS: the publish flow tags nothing automatically — tag `v1.6.X` when you publish.
+- zGuard: pushing a `vX.Y.Z` tag IS the trigger (it starts the wheel build).
+- `alpha-N`: cross-repo milestone freeze, all three repos at once.
+
+**Never:** force-push main, delete or move a pushed tag, or rebase commits
+that are already on origin. History that shipped is history.
+
 ## Milestones
 
 When a new state is worth freezing, tag all three repos `alpha-2`, `alpha-3`, …
