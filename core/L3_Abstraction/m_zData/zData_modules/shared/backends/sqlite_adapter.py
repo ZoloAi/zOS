@@ -142,6 +142,8 @@ See Also
 - postgresql_adapter.py: PostgreSQL implementation
 """
 
+import threading
+
 from zOS import sqlite3, Dict, List, Any
 from .sql_adapter import SQLAdapter
 from .type_mapping import resolve_sql_type, SQLITE_TYPE_MAP, SQL_DEFAULT_TYPE
@@ -280,6 +282,57 @@ class SQLiteAdapter(SQLAdapter):
     # ============================================================
     # Connection Management
     # ============================================================
+    #
+    # THREADING MODEL (per-thread connections):
+    # In Bifrost the adapter is born on the boot thread (migrations, drift
+    # check) but form_submit onSubmit plugins run in executor worker threads.
+    # A single shared connection is wrong twice over: with the default
+    # check_same_thread=True every browser-driven insert died with "SQLite
+    # objects created in a thread can only be used in that same thread", and
+    # merely dropping the guard is NOT safe — concurrent statements on one
+    # connection interleave result sets (verified: two threads SELECTing the
+    # same one-row table got [] and [row, row]). So `connection`/`cursor` are
+    # thread-local properties: each thread lazily opens its OWN connection to
+    # the same .db file and SQLite's file locking (plus `timeout`) arbitrates
+    # writers. TCL state (BEGIN/SAVEPOINT/COMMIT) rides the thread's own
+    # connection, so transaction semantics are per-handler, as they always
+    # logically were. disconnect() closes every connection ever opened (a
+    # generation counter invalidates other threads' cached handles so their
+    # next use transparently reopens).
+
+    def __init__(self, config: Dict[str, Any], logger: Any = None) -> None:
+        # Thread-local plumbing MUST exist before super().__init__, which
+        # assigns self.connection/self.cursor = None through the properties.
+        self._tlocal = threading.local()
+        self._conn_registry: List[Any] = []
+        self._registry_lock = threading.Lock()
+        self._generation = 0
+        super().__init__(config, logger)
+
+    @property
+    def connection(self) -> Any:
+        state = getattr(self._tlocal, 'conn_state', None)
+        if state is not None and state[0] == self._generation:
+            return state[1]
+        return None
+
+    @connection.setter
+    def connection(self, value: Any) -> None:
+        self._tlocal.conn_state = (self._generation, value)
+        if value is not None:
+            with self._registry_lock:
+                self._conn_registry.append(value)
+
+    @property
+    def cursor(self) -> Any:
+        state = getattr(self._tlocal, 'cursor_state', None)
+        if state is not None and state[0] == self._generation:
+            return state[1]
+        return None
+
+    @cursor.setter
+    def cursor(self, value: Any) -> None:
+        self._tlocal.cursor_state = (self._generation, value)
 
     def connect(self) -> Any:
         """
@@ -313,7 +366,19 @@ class SQLiteAdapter(SQLAdapter):
             # savepoint. In autocommit mode our explicit BEGIN / SAVEPOINT / COMMIT
             # (see sql_adapter TCL) are honored verbatim; single writes outside a
             # transaction still persist immediately (each statement self-commits).
-            self.connection = sqlite3.connect(str(self.db_path), isolation_level=None)
+            #
+            # check_same_thread=False: each thread opens and USES only its own
+            # connection (thread-local, see class threading model above) — the
+            # guard is disabled solely so disconnect() can close every thread's
+            # connection from whichever thread runs the cleanup (per-ws session
+            # teardown, shutdown). timeout makes concurrent writers wait on the
+            # file lock instead of failing immediately.
+            self.connection = sqlite3.connect(
+                str(self.db_path),
+                isolation_level=None,
+                timeout=_DEFAULT_TIMEOUT,
+                check_same_thread=False,
+            )
             self.connection.row_factory = sqlite3.Row  # Enable dict-like access
             self.connection.execute(_PRAGMA_FOREIGN_KEYS)  # Enable FK support
             self._logical_connected = True
@@ -352,39 +417,52 @@ class SQLiteAdapter(SQLAdapter):
             - Closes cursor before connection
             - Sets connection and cursor to None after closing
         """
-        if self.connection:
-            try:
-                if self.cursor:
-                    self.cursor.close()
-                    self.cursor = None
-                self.connection.close()
-                self.connection = None
-                self._logical_connected = False
-                self._log('info', _LOG_DISCONNECTED, self.db_path)
-            except Exception as e:  # pylint: disable=broad-except
-                self._log('error', _ERR_DISCONNECT_FAILED, e)
+        with self._registry_lock:
+            conns, self._conn_registry = self._conn_registry, []
+            # Invalidate every thread's cached handle: their next use falls
+            # through the generation check and transparently reopens.
+            self._generation += 1
+        if not conns:
+            self._logical_connected = False
+            return
+        try:
+            for conn in conns:
+                try:
+                    conn.close()
+                except Exception:  # pylint: disable=broad-except
+                    pass  # already closed / mid-op on a dying thread — best-effort
+            self._logical_connected = False
+            self._log('info', _LOG_DISCONNECTED, self.db_path)
+        except Exception as e:  # pylint: disable=broad-except
+            self._log('error', _ERR_DISCONNECT_FAILED, e)
 
     def get_cursor(self) -> Any:
         """
-        Get or create a database cursor (lazy initialization).
-        
-        Creates a cursor on first call, then returns cached cursor on
-        subsequent calls. This enables efficient cursor reuse.
-        
+        Get a FRESH database cursor (lazy connection open).
+
+        Returns a new cursor per call, never a shared cached one. The
+        connection itself is safe to share across threads (SERIALIZED build,
+        see _open), but a single cached cursor is NOT: two threads driving
+        the same cursor interleave execute/fetch and sqlite3 raises
+        "Recursive use of cursors not allowed" (seen when a Bifrost
+        form_submit worker ran concurrently with another handler). Every
+        adapter operation is already self-contained (cur = get_cursor();
+        execute; fetch/lastrowid), so per-op cursors isolate them fully.
+
         Returns:
-            sqlite3.Cursor: Database cursor for query execution
-        
+            sqlite3.Cursor: Fresh cursor for one operation
+
         Example:
             >>> cur = adapter.get_cursor()
             >>> cur.execute("SELECT * FROM users")
-        
+
         Notes:
-            - Cursor created lazily (only when needed)
-            - Cached for reuse across operations
-            - Automatically closed during disconnect()
+            - Cursor created per call (cheap: a small C struct)
+            - self.cursor keeps the latest one only so disconnect() has
+              something to close (back-compat with BaseDataAdapter shape)
         """
         self._ensure_open()  # lazy: first cursor request opens (and creates) the db
-        if not self.cursor and self.connection:
+        if self.connection:
             self.cursor = self.connection.cursor()
         return self.cursor
 
