@@ -84,7 +84,14 @@ Repository = "https://github.com/ZoloAi/zOS"
 # to capture the full zOS subpackage tree (117 packages under core/)
 
 [tool.setuptools.package-data]
-# Include non-Python files in packages
+# Include non-Python files in packages.
+# NOTE: this table is the ONLY package-data source — setup.py's package_data
+# kwarg is ignored when this table exists (static pyproject fields win), so
+# every data entry must live HERE.
+"zSys.accessibility" = ["data/*.json"]
+# zServer's built-in assets (default favicon for /favicon.ico) — was repo-only,
+# so prod wheels 404'd on it.
+"zOS.L4_Orchestration.r_zServer" = ["static/*"]
 zTestSuite = [
     "demos/*.yaml",
     "demos/*.py",
