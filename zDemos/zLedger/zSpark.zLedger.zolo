@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     zLedger
+    zMode:     zBifrost
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zLedger
+    zBlock:    Main
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — LIVE data table (search-as-you-type zDialog + zVar + scoped zDelta, zero plugins), soft-delete/restore (zNull), aggregate + window insights, csv→sqlite migration with a shared Data_Label
+    tags: [zData, zSchema, foreign_key, zLive, zVar, zDelta, soft_delete, zNull, aggregate, window, zMigration]
+    author: zAgents

@@ -1,0 +1,274 @@
+# .zolo — zOS UI language. NOT YAML. String-first by default: no quotes unless : { # present.
+# Comments: whole-line "#"  |  inline: key: value  #> stripped comment <#  |  bare # = part of value.
+#
+# zLedger — golden reference for a LIVE data table, zero plugins end to end.
+#
+# The pattern this app exists to prove (scaffold it, don't reinvent it):
+#
+#   1. SEARCH-AS-YOU-TYPE — an INLINE `zDialog` with `zLive: true` renders as
+#      a page search bar (no modal, no Submit button). Every debounced
+#      keystroke submits `onSubmit: {zVar: {ledger_q: zConv.q}}` — a
+#      DECLARATIVE session-var write, no zfunc anywhere — and
+#      `onSuccess: zDelta($Main.Ledger)` repaints ONLY the Ledger section
+#      (scoped fragment re-walk; the search input is OUTSIDE the target, so
+#      focus and the half-typed term survive every repaint).
+#   2. The table's own read carries `search: %ledger_q` — crud_read resolves
+#      the token from session zVars at query time (unset/empty = unfiltered).
+#      The WRITE side (zVar) and the READ side (%token) can never drift.
+#   3. CLEAR — a fields-less confirm zDialog (one click), same zVar write with
+#      an empty term, same scoped zDelta. No page reload, no Refresh button.
+#   4. `zLive: true` also tells the chunk engine this dialog is AMBIENT —
+#      it never gates the walk, so everything below it renders immediately.
+#
+# Plus the advanced-zData surface, all live against the same two tables:
+# soft-delete void/restore (zNull), scalar + group_by aggregates, a window
+# running balance — and the whole app double-tests csv → sqlite migration
+# (models share Data_Label: zLedger; flip Data_Type to sqlite and re-run).
+
+zMeta:
+    zBrush: [zLedger]
+    zSpool: [ledger_net, ledger_live_count, ledger_voided_count]
+
+Main:
+    _zClass: zledger
+
+    Header:
+        _zClass: zledger-header
+        Title:
+            zH1:
+                label: zLedger
+                color: PRIMARY
+                _zClass: zledger-title
+        Lead:
+            zText:
+                content: A studio's money trail — live-filtered, voidable, self-summarizing. Type in the search box and watch the ledger repaint under your cursor.
+                _zClass: zledger-lead
+
+    #> ── SearchBar — THE live-table centerpiece. An inline (non-modal)
+    #     zDialog: `zLive: true` = ambient form — debounced auto-submit on
+    #     input, no Submit button, never gates the walk. The zVar onSubmit is
+    #     the whole write path; the Ledger section below re-reads the token. ── <#
+    SearchBar:
+        _zClass: zledger-searchbar
+        zDialog:
+            title:  Search the ledger
+            zLive:  true
+            fields: [
+                {zConv: q, type: search, label: Payee, category, or memo, required: false, placeholder: coffee, rent, travel…},
+            ]
+            onSubmit:
+                zVar: {ledger_q: zConv.q}
+            onSuccess: zDelta($Main.Ledger)
+
+    #> ── Toolbar — writes stay MODAL dialogs (deliberate contrast with the
+    #     ambient search: a mutation deserves a focused moment), every one
+    #     `onSuccess: zDelta($Main.Ledger)` so the table, the stats, and the
+    #     voided list all repaint together, zero manual refresh anywhere. ── <#
+    Toolbar:
+        _zClass: zledger-toolbar
+
+        #> fields-less confirm + zLive (ambient, non-gating): ONE click clears
+        #  the filter — the same declarative zVar write, empty term. <#
+        Clear:
+            _zClass: zledger-clear
+            zDialog:
+                title:  Clear filter — show every live entry
+                zLive:  true
+                onSubmit:
+                    zVar: {ledger_q: }
+                onSuccess: zDelta($Main.Ledger)
+
+        NewEntry:
+            zBtn:
+                label:  bi-plus-lg New Entry
+                color:  primary
+                _zClass: zledger-new-btn
+                action:
+                    zModal:
+                        zDialog:
+                            title:  New ledger entry
+                            model:  @.models.zSchema.Transactions
+                            #> schema-driven fields: category's enum draws a
+                            #  select, posted_on a date picker — no options:
+                            #  lists to hand-sync with the model <#
+                            fields: [account_id, posted_on, payee, category, amount, memo]
+                            #> data: zConv — THE whole submitted form dict, in
+                            #  one token. Field names == column names, so the
+                            #  dialog and the insert can never drift. <#
+                            onSubmit:
+                                zData:
+                                    action: insert
+                                    model:  @.models.zSchema.Transactions.Transactions
+                                    data:   zConv
+                            onSuccess: zDelta($Main.Ledger)
+
+        Void:
+            zBtn:
+                label:  bi-slash-circle Void Entry
+                color:  secondary
+                _zClass: zledger-void-btn
+                action:
+                    zModal:
+                        zDialog:
+                            title:  Void a ledger entry (soft delete — it moves to the Voided list)
+                            fields: [
+                                {zConv: id, type: number, label: Entry id, required: true},
+                            ]
+                            #> soft_delete: true on the table routes this
+                            #  delete to STAMP deleted_at — nothing is lost <#
+                            onSubmit:
+                                zData:
+                                    action: delete
+                                    model:  @.models.zSchema.Transactions.Transactions
+                                    where:  id = zConv.id
+                            onSuccess: zDelta($Main.Ledger)
+
+        Restore:
+            zBtn:
+                label:  bi-arrow-counterclockwise Restore Entry
+                color:  secondary
+                _zClass: zledger-restore-btn
+                action:
+                    zModal:
+                        zDialog:
+                            title:  Restore a voided entry
+                            fields: [
+                                {zConv: id, type: number, label: Voided entry id, required: true},
+                            ]
+                            #> zNull — the write-side NULL literal: clearing
+                            #  the stamp un-voids the row (zOS#18) <#
+                            onSubmit:
+                                zData:
+                                    action: update
+                                    model:  @.models.zSchema.Transactions.Transactions
+                                    set:    {deleted_at: zNull}
+                                    where:  id = zConv.id
+                            onSuccess: zDelta($Main.Ledger)
+
+    #> ── Ledger — the ONE zDelta target. Everything data-derived lives inside
+    #     this section so a single scoped repaint refreshes it all: stats,
+    #     filter state, the live table, the insight tables, the voided list.
+    #     The SearchBar/Toolbar sit OUTSIDE it — repaints never touch them. ── <#
+    Ledger:
+        _zClass: zledger-ledger
+
+        Stats:
+            _zClass: zledger-stats
+            Net:
+                _zClass: zledger-stat
+                Value:
+                    zText:
+                        content: %data.ledger_net | default(0)
+                        _zClass: zledger-stat-value zledger-net
+                Label:
+                    zText:
+                        content: Net balance
+            Live:
+                _zClass: zledger-stat
+                Value:
+                    zText:
+                        content: %data.ledger_live_count | default(0)
+                        _zClass: zledger-stat-value
+                Label:
+                    zText:
+                        content: Live entries
+            Voided:
+                _zClass: zledger-stat
+                Value:
+                    zText:
+                        content: %data.ledger_voided_count | default(0)
+                        _zClass: zledger-stat-value
+                Label:
+                    zText:
+                        content: Voided
+
+        #> the same %ledger_q token the read consumes — label and query can
+        #  never disagree <#
+        FilterState:
+            _zClass: zledger-filterstate
+            zText:
+                content: Filter: %ledger_q | default(— none — showing every live entry)
+
+        #> the LIVE table: server-side FTS via the session token, soft-deleted
+        #  rows excluded by the same zNull vocabulary the writes use. NOTE
+        #  posted_on is in fields: BECAUSE it's the order_by column (a
+        #  projected-away order_by silently no-ops — proven csv gotcha). <#
+        Table:
+            zData:
+                action:        read
+                model:         @.models.zSchema.Transactions
+                table:         Transactions
+                fields:        [id, posted_on, payee, category, amount, memo]
+                zFilters:      {deleted_at: zNull}
+                order_by:      posted_on DESC
+                search:        %ledger_q
+                search_fields: [payee, category, memo]
+                zTable:
+                    zPages:  true
+                    limit:   15
+                    caption: Live entries only — voided rows keep their ids in the Voided list below.
+
+        Insights:
+            _zClass: zledger-insights
+
+            SpendHeading:
+                zH3:
+                    label: Spend by category
+
+            #> group_by aggregate drawn straight to a table — `where:` speaks
+            #  the SAME zFilters dialect (zOS#17), order_by sorts the GROUPED
+            #  output by the alias value (most spent first). <#
+            SpendByCategory:
+                zData:
+                    action:   aggregate
+                    function: sum
+                    field:    amount
+                    alias:    total
+                    model:    @.models.zSchema.Transactions
+                    table:    Transactions
+                    group_by: category
+                    where:    {deleted_at: zNull, amount: {zBelow: 0}}
+                    order_by: total ASC
+                    zTable:
+                        caption: Live spend only (negative amounts), biggest first.
+
+            BalanceHeading:
+                zH3:
+                    label: Running balance
+
+            #> window function: a running sum PER ROW, every row kept — the
+            #  classic bank-statement column. `fields:` is the OUTPUT
+            #  projection (alias included, applied after the compute —
+            #  zOS#16), never forwarded to the source read. <#
+            RunningBalance:
+                zData:
+                    action:   window
+                    function: sum
+                    field:    amount
+                    alias:    running
+                    model:    @.models.zSchema.Transactions
+                    table:    Transactions
+                    where:    {deleted_at: zNull}
+                    order_by: posted_on ASC
+                    fields:   [posted_on, payee, amount, running]
+                    zTable:
+                        zPages: true
+                        limit:  10
+                        caption: Statement view — the running column is computed, never stored.
+
+        VoidedHeading:
+            zH3:
+                label: Voided entries
+
+        #> the soft-delete payoff: nothing was lost — the stamp is data like
+        #  any other, so the audit trail is one zKnown filter away. <#
+        VoidedList:
+            zData:
+                action:   read
+                model:    @.models.zSchema.Transactions
+                table:    Transactions
+                fields:   [id, posted_on, payee, amount, deleted_at]
+                zFilters: {deleted_at: zKnown}
+                order_by: deleted_at DESC
+                zTable:
+                    caption: Restore any of these by id — the stamp clears, the row returns to the ledger.

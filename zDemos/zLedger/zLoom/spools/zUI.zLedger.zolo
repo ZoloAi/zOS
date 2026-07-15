@@ -1,0 +1,29 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# zLedger's stat spools — scalar aggregates (no group_by → a bare scalar per
+# reel, %data.<name>). All three respect the soft-delete stamp, so a Void or
+# Restore visibly moves the numbers on the very next Ledger repaint.
+
+ledger_net:
+    zData:
+        action:   aggregate
+        function: sum
+        field:    amount
+        model:    @.models.zSchema.Transactions
+        table:    Transactions
+        where:    {deleted_at: zNull}
+
+ledger_live_count:
+    zData:
+        action:   aggregate
+        function: count
+        model:    @.models.zSchema.Transactions
+        table:    Transactions
+        where:    {deleted_at: zNull}
+
+ledger_voided_count:
+    zData:
+        action:   aggregate
+        function: count
+        model:    @.models.zSchema.Transactions
+        table:    Transactions
+        where:    {deleted_at: zKnown}

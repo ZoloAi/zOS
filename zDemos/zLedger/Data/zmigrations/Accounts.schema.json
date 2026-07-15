@@ -1,0 +1,14 @@
+{
+  "id": {
+    "type": "int"
+  },
+  "name": {
+    "type": "str"
+  },
+  "kind": {
+    "type": "str"
+  },
+  "opened_at": {
+    "type": "date"
+  }
+}

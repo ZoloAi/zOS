@@ -1,0 +1,34 @@
+/* zLedger — golden live-table demo. Minimal brush: layout + the live search
+   bar's toolbar shape (the .zDialog-live container is unboxed by the client;
+   this just sizes and aligns it). */
+
+.zledger { max-width: 1080px; margin: 0 auto; padding: 0 1rem; }
+
+.zledger-header { margin-bottom: 1rem; }
+.zledger-lead   { color: var(--z-text-muted, #8a93a6); }
+
+/* Search bar + toolbar sit on one visual band above the ledger. */
+.zledger-searchbar { margin: 0.75rem 0 0.25rem; }
+.zledger-searchbar .zDialog-live { max-width: 480px; }
+.zledger-searchbar input[type="search"] { width: 100%; }
+
+.zledger-toolbar {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+  margin: 0.5rem 0 1.25rem;
+}
+/* The Clear confirm renders as a small zDialog container — flatten it into
+   the toolbar row like a plain button. */
+.zledger-clear .zDialog-container { padding: 0; border: none; background: none; box-shadow: none; }
+.zledger-clear .zmb-2 { display: none; }  /* hide the confirm title — the button says it */
+
+.zledger-stats { display: flex; gap: 2rem; margin: 0.5rem 0 1rem; }
+.zledger-stat  { text-align: center; }
+.zledger-stat-value { font-size: 1.6rem; font-weight: 700; display: block; }
+.zledger-net   { color: var(--z-primary, #5ca9ff); }
+
+.zledger-filterstate {
+  font-size: 0.9rem; color: var(--z-text-muted, #8a93a6);
+  margin-bottom: 0.5rem;
+}
+
+.zledger-insights { margin-top: 1.5rem; }

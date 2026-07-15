@@ -1,0 +1,220 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# zLedger raven — proves the LIVE-table golden pattern end to end, zero plugins:
+#
+#   • search-as-you-type: zFill types into the zLive dialog (no Submit button
+#     exists — the debounced input IS the submit) and the Ledger fragment
+#     repaints in place; the waits key on row text appearing/disappearing.
+#   • repeatability: a SECOND live search right after the first proves the
+#     dialog registration survives (zVar submits never consume it).
+#   • one-click clear: the fields-less zLive confirm resets the filter.
+#   • writes: New Entry / Void / Restore are modal dialogs whose
+#     onSuccess: zDelta($Main.Ledger) repaints table+stats+voided together —
+#     no manual close, no Refresh button anywhere in the app.
+#   • soft delete: Void moves a row to the Voided list (stamp), Restore
+#     zNulls the stamp and the row returns. Data snapshot/restore makes the
+#     whole run idempotent.
+
+Tests:
+
+    # ── boot: seeded ledger renders, voided seeds partitioned out ───────────
+    Open_App:
+        zOpen: zSpark
+        zWait:
+            selector: "[data-zkey='Ledger']"
+            state: visible
+            timeout: 10000
+        zShot:
+            full_page: true
+
+    Assert_Seed_Rows:
+        zAssert:
+            dom:
+                selector: "[data-zkey='Table']"
+                contains: Acme Corp
+
+    Assert_Seed_Rent:
+        zAssert:
+            dom:
+                selector: "[data-zkey='Table']"
+                contains: Harbor Realty
+
+    #> seeds 18/20 carry a deleted_at stamp — they must open in the Voided
+    #  list and stay OUT of the live table (zFilters: {deleted_at: zNull}) <#
+    Assert_Voided_Not_In_Live:
+        zAssert:
+            dom:
+                selector: "[data-zkey='Table']"
+                not_contains: Sky Bistro
+
+    Assert_Voided_Listed:
+        zAssert:
+            dom:
+                selector: "[data-zkey='VoidedList']"
+                contains: Sky Bistro
+
+    Assert_Stats_Present:
+        zAssert:
+            dom:
+                selector: "[data-zkey='Stats']"
+                contains: Net balance
+
+    # ── live search: type, wait for the fragment repaint, no clicks ─────────
+    Live_Search_Coffee:
+        zFill:
+            q: coffee
+        zWait:
+            selector: "[data-zkey='Table'] tr:has-text('Blue Bottle Coffee')"
+            state: visible
+            timeout: 10000
+        zShot:
+            full_page: true
+
+    Wait_NonMatches_Gone:
+        zWait:
+            selector: "[data-zkey='Table'] tr:has-text('Harbor Realty')"
+            state: hidden
+            timeout: 10000
+
+    Assert_Filter_Label_Live:
+        zAssert:
+            dom:
+                selector: "[data-zkey='FilterState']"
+                contains: coffee
+
+    # ── second search straight after the first: the live dialog is REUSABLE
+    #    (zVar submits never consume the registration) ──────────────────────
+    Live_Search_Rail:
+        zFill:
+            q: rail
+        zWait:
+            selector: "[data-zkey='Table'] tr:has-text('Rail Express')"
+            state: visible
+            timeout: 10000
+
+    Wait_Coffee_Gone:
+        zWait:
+            selector: "[data-zkey='Table'] tr:has-text('Blue Bottle Coffee')"
+            state: hidden
+            timeout: 10000
+
+    # ── one-click clear: fields-less zLive confirm, full roster returns ─────
+    Clear_Filter:
+        zClick:
+            selector: "[data-zkey='Clear'] button"
+        zWait:
+            selector: "[data-zkey='Table'] tr:has-text('Harbor Realty')"
+            state: visible
+            timeout: 10000
+        zShot:
+            full_page: true
+
+    # ── New Entry: modal insert, onSuccess repaints the Ledger fragment ─────
+    Open_New_Entry:
+        zClick:
+            selector: "button[data-zkey='NewEntry'], [data-zkey='NewEntry'] button"
+        zWait:
+            selector: "[name='payee']"
+            state: visible
+            timeout: 10000
+
+    Fill_New_Entry:
+        zFill:
+            account_id: 1
+            posted_on:  2026-07-10
+            payee:      Golden Demo Co
+            category:   misc
+            amount:     -42.42
+            memo:       raven-inserted
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 10000
+
+    Wait_New_Row:
+        zWait:
+            selector: "[data-zkey='Table'] tr:has-text('Golden Demo Co')"
+            state: visible
+            timeout: 10000
+        zShot:
+            full_page: true
+
+    # ── Void: soft delete by id — the row leaves the table, joins Voided ────
+    Open_Void:
+        zClick:
+            selector: "button[data-zkey='Void'], [data-zkey='Void'] button"
+        zWait:
+            selector: "[name='id']"
+            state: visible
+            timeout: 10000
+
+    #> id 23 — Nimbus Cloud 2026-07-01: recent enough to sit on PAGE 1 of the
+    #  DESC-ordered table (limit 15) before AND after, so row presence/absence
+    #  is actually observable. (The other Nimbus Cloud row, id 6 @ 2026-06-06,
+    #  stays on page 2 throughout — the marker is unique where it matters.) <#
+    Fill_Void_Id:
+        zFill:
+            id: 23
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 10000
+
+    Wait_Voided_Out_Of_Table:
+        zWait:
+            selector: "[data-zkey='Table'] tr:has-text('Nimbus Cloud')"
+            state: hidden
+            timeout: 10000
+
+    Wait_Voided_In_List:
+        zWait:
+            selector: "[data-zkey='VoidedList'] tr:has-text('Nimbus Cloud')"
+            state: visible
+            timeout: 10000
+        zShot:
+            full_page: true
+
+    # ── Restore: zNull clears the stamp — the row returns to the ledger ─────
+    Open_Restore:
+        zClick:
+            selector: "button[data-zkey='Restore'], [data-zkey='Restore'] button"
+        zWait:
+            selector: "[name='id']"
+            state: visible
+            timeout: 10000
+
+    Fill_Restore_Id:
+        zFill:
+            id: 23
+        zWait:
+            selector: .zModal-overlay
+            state: hidden
+            timeout: 10000
+
+    Wait_Restored_In_Table:
+        zWait:
+            selector: "[data-zkey='Table'] tr:has-text('Nimbus Cloud')"
+            state: visible
+            timeout: 10000
+
+    Wait_Restored_Out_Of_Voided:
+        zWait:
+            selector: "[data-zkey='VoidedList'] tr:has-text('Nimbus Cloud')"
+            state: hidden
+            timeout: 10000
+        zShot:
+            full_page: true
+
+    # ── insights: aggregate + window tables drew real rows ──────────────────
+    Assert_Spend_Table:
+        zAssert:
+            dom:
+                selector: "[data-zkey='SpendByCategory']"
+                contains: rent
+
+    #> the computed alias column header — proof the window ran and the alias
+    #  survived the output projection (zOS#16) <#
+    Assert_Running_Balance:
+        zAssert:
+            dom:
+                selector: "[data-zkey='RunningBalance']"
+                contains: running

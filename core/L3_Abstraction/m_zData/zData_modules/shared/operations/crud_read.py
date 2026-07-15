@@ -264,6 +264,11 @@ def _build_where_from_filters(z_filters: Dict) -> Dict:
             z_where_str = rules
             continue
 
+        # Flat unary tokens: col: zNull / col: zKnown — same condensed spelling
+        # `where:` accepts (request_extract._ZFILTER_FLAT_TOKENS). Without this,
+        # the bare string would fall into plain equality and match nothing.
+        if isinstance(rules, str) and rules in ('zNull', 'zKnown'):
+            rules = {rules: True}
         # Plain scalar equality: col: value (no operator block needed)
         if not isinstance(rules, dict):
             result[col] = rules

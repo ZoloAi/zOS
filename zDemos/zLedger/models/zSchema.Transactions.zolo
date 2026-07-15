@@ -1,0 +1,73 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#
+# zLedger's transactions — the FK CHILD, and the app's live-table star.
+#
+#> Data_Label matches Accounts (zLedger) — see the Accounts schema header for
+#  the shared-label rule that keeps this FK pair in ONE .db on a backend move. <#
+#
+#> soft_delete: true — a TABLE-LEVEL flag (a sibling of the columns, never a
+#  column itself; zOS#15 pinned that migrations skip it in the diff). It
+#  routes `action: delete` to STAMP deleted_at instead of removing the row —
+#  a voided ledger entry stays auditable. Restore is `action: update` +
+#  `set: {deleted_at: zNull}` (the write-side NULL literal, zOS#18). <#
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        zLedger
+    Schema_Name:       zSchema.Transactions
+    zMigration:        true
+    zMigrationVersion: v1.0.0
+
+Transactions:
+    soft_delete: true
+
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    #> restrict — a transaction is the money trail: an account with entries
+    #  can never be deleted out from under them <#
+    account_id:
+        type:         int
+        required:     true
+        foreign_key:  Accounts.id
+        on_delete:    restrict
+
+    posted_on:
+        type:     date
+        required: true
+
+    payee:
+        type:     str
+        required: true
+        rules:
+            max_length: 120
+
+    category:
+        type:     str
+        required: true
+        enum:     [salary, rent, groceries, utilities, dining, travel, office, fees, transfer, misc]
+
+    #> signed amount — income positive, spend negative; the window/aggregate
+    #  reads below the table turn this single column into running balances
+    #  and per-category totals with zero computed columns stored anywhere <#
+    amount:
+        type:     float
+        required: true
+
+    memo:
+        type:    str
+        default:
+
+    #> the soft-delete stamp — nullable datetime, empty means LIVE. Declared
+    #  explicitly so the column exists from v1 (crud_delete stamps it, reads
+    #  filter on it, restore zNulls it). <#
+    deleted_at:
+        type:     datetime
+        nullable: true
+
+    created_at:
+        type:    datetime
+        default: now

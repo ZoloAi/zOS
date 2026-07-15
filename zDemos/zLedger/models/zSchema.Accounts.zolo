@@ -1,0 +1,42 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#
+# zLedger's chart of accounts — the FK PARENT of Transactions.
+#
+#> SHARED Data_Label — both zLedger schema files declare `Data_Label: zLedger`
+#  on purpose: a backend move (csv → sqlite) creates ONE <label>.db per label,
+#  so FK-related tables that must live in the same database file MUST share
+#  the label (zOS#13 — split labels strand the FK across two .db files and
+#  cross-table reads/plugins break). zContacts (separate labels, no backend
+#  move) shows the per-table default; THIS pair shows the migration-safe rule. <#
+
+zMeta:
+    Data_Type:         csv
+    Data_Path:         @.Data
+    Data_Label:        zLedger
+    Schema_Name:       zSchema.Accounts
+    zMigration:        true
+    zMigrationVersion: v1.0.0
+
+Accounts:
+    id:
+        type:           int
+        pk:             true
+        auto_increment: true
+
+    name:
+        type:     str
+        required: true
+        unique:   true
+        rules:
+            max_length: 80
+
+    #> enum → the New Transaction dialog's account picker draws these as a
+    #  select automatically (schema-driven fields, no options: to hand-sync) <#
+    kind:
+        type:     str
+        required: true
+        enum:     [checking, savings, credit, revenue, expense]
+
+    opened_at:
+        type:    date
+        default: now
