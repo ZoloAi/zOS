@@ -55,6 +55,60 @@ _ERR_TABLE_NOT_EXISTS_LOG = "[FAIL] Table '%s' does not exist"
 _ERR_NO_FIELDS = "No fields provided for %s. Use --field_name value syntax"
 _LOG_WARN_NO_WHERE = "[WARN] No WHERE clause - operation will affect ALL rows!"
 
+# zFilters rule vocabulary (mirror of crud_read._build_where_from_filters).
+# A where-dict value that is itself a dict of ONLY these tokens is the authored
+# rule dialect, not a literal — it must compile, never compare by equality.
+_ZFILTER_RULE_TOKENS = frozenset({
+    "zAbove", "zBelow", "zIs", "zIncludes", "zStarts", "zEnds",
+    "zIN", "zBetween", "zNull", "zKnown",
+})
+# Flat unary spellings: `where: {deleted_at: zNull}` — the condensed-doc form.
+_ZFILTER_FLAT_TOKENS = frozenset({"zNull", "zKnown"})
+
+
+def _normalize_rule_dialect(where: Dict[str, Any], ops: Any) -> Dict[str, Any]:
+    """Compile zFilters rule entries found inside a ``where:`` dict (zOS#17).
+
+    ``where:`` historically compared dict values by plain equality, so the rule
+    dialect (`{deleted_at: {zNull: true}}`) silently matched nothing — while the
+    same rules under ``zFilters:`` parsed fine. Every dict WHERE flows through
+    here (read/aggregate/window/update/delete all extract via this module), so
+    the two spellings now agree:
+
+        {col: {zNull: true}}   → IS NULL          (nested rule dict)
+        {col: zNull}           → IS NULL          (flat unary token)
+        {col: {zAbove: 5}}     → {col: {"$gt": 5}}
+
+    Anything else — scalars, IN lists, subquery dicts ({zData: ...}), IR dicts
+    ({"$gt": ...}) — passes through untouched. Only a dict whose keys are ALL
+    recognized rule tokens compiles; a mixed dict is not the dialect.
+    """
+    out: Dict[str, Any] = {}
+    for col, cond in where.items():
+        rules = None
+        if isinstance(cond, str) and cond in _ZFILTER_FLAT_TOKENS:
+            rules = {cond: True}
+        elif isinstance(cond, dict) and cond and all(
+            k in _ZFILTER_RULE_TOKENS for k in cond
+        ):
+            rules = cond
+        if rules is None:
+            out[col] = cond
+            continue
+        # Deferred import — crud_read imports this module via helpers.
+        from .crud_read import _build_where_from_filters  # pylint: disable=import-outside-toplevel
+        compiled = _build_where_from_filters({col: rules})
+        if col in compiled:
+            out[col] = compiled[col]
+            if ops and getattr(ops, "logger", None):
+                ops.logger.debug(
+                    "[zData] where: rule dialect compiled on '%s': %r → %r",
+                    col, cond, compiled[col],
+                )
+        else:
+            out[col] = cond
+    return out
+
 
 def extract_table_from_request(
     request: Dict[str, Any],
@@ -161,8 +215,10 @@ def extract_where_clause(
     # Phase 2: Dict Passthrough - If already a dict, skip string processing
     # ─────────────────────────────────────────────────────────────────────────
     if where_str and isinstance(where_str, dict):
-        # WHERE clause is already in dict format (e.g., from auto-query)
-        where = where_str
+        # WHERE clause is already in dict format (e.g., from auto-query).
+        # Compile any zFilters rule-dialect entries so `where:` and `zFilters:`
+        # accept the same vocabulary (zOS#17).
+        where = _normalize_rule_dialect(where_str, ops)
     else:
         # ─────────────────────────────────────────────────────────────────────
         # Phase 3: Quote Stripping - Remove surrounding quotes (shell artifact)

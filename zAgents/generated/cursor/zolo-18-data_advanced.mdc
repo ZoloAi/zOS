@@ -21,8 +21,9 @@ joins: stitch related rows into one result
 
 aggregate: many rows → one answer — `action: aggregate`
     function — count · count_distinct · sum · avg · min · max · median · stddev · variance · group_concat (string_agg); non-count takes `field:`
-    group_by — `<field>` (one per group) · `[country, occupation]` (per combination) · `alias:` names the computed column
+    group_by — `<field>` (one per group) · `[country, occupation]` (per combination) · `alias:` names the computed column · `order_by: date DESC` sorts the GROUPED output (group col sorts by key, alias/anything else by value)
     filter   — `having: total > 1` (by aggregate) · `where: <expr>` (which rows count) · `distinct: true`
+    where_dialect — `where:` dicts speak the SAME zFilters rules as `zFilters:` (`where: {deleted_at: {zNull: true}}` and flat `{deleted_at: zNull}` both compile to IS NULL) — one vocabulary, aggregate/window/read/update/delete alike
     shape    — NO `group_by` → the whole reel resolves to a bare SCALAR (`%data.cart_subtotal`), never a `.0.<alias>`
         row; add `group_by` and it flips to a LIST of `{<group_field>, <alias>}` rows like any other read — the
         `alias:` key only matters once it's a row you're pulling a named field off of
@@ -34,6 +35,7 @@ window: an answer per row, keep every row — `action: window`
     rank/offset — row_number · rank · dense_rank · percent_rank · cume_dist · ntile (+buckets: 4) · lag/lead (+field:, offset: 1)
     value/agg OVER — first_value · last_value · nth_value · avg/sum/count/min/max (running with order_by)
     scope — partition_by: (within group) · order_by: score DESC · alias: (new column) · frame: ROWS BETWEEN 2 PRECEDING AND CURRENT ROW (UNBOUNDED/n FOLLOWING work)
+    fields — `fields: [name, score, rank]` is the OUTPUT projection (alias included) — applied AFTER the compute, never forwarded to the source read
 
 subquery: nest a `zData` inside `where` — one query answers another
     IN     — `where: {country: {zData: {action: read, ..., where: score > 90, distinct: true}}}` (inner runs first)
@@ -73,6 +75,8 @@ upsert: insert-or-update per row — `action: upsert`
     `conflict_fields: [...]` (or `conflict_key:`) decides the match; pairs with a list (bulk) + `returning:`
 
 update_advanced: more than a flat value in `set:`
+    zNull — the write-side NULL literal: `set: {deleted_at: zNull}` stores SQL NULL (un-archive, clear a stamp) — mirrors the token's zFilters read-side meaning; works in `values:`/`data:` too (a literal string "zNull" as data is forfeited, same reserved-token tradeoff as reads)
+    temporal_iso — `date`/`datetime` values normalize to ISO (`YYYY-MM-DD [HH:MM:SS]`) before storage — `&zNow` in write position resolves (bare or `custom_format=` kwargs) and machine-pref shapes are re-canonicalized so `order_by` on the column stays lexicographic; ISO date-only into a `datetime` column widens to midnight
     zCase — per-row, first match: `set: {role: {zCase: [{when: score zABOVE 8, then: admin}, {when: score zABOVE 5, then: editor}], else: viewer}}` (when speaks zFilters; no else → unmatched keep value)
     computed — `{$inc: n}` · `{$dec: n}` · `{$mul: n}` · `{$div: n}` · `{zExpr: price * qty}` (math over the row's own columns, never code)
         from a plugin — `data.update(table, {field: {"$inc": n}}, where)` also resolves it (12_zfunc.md `data`)
@@ -81,7 +85,7 @@ update_advanced: more than a flat value in `set:`
 
 delete_advanced: remove by relationship, not just id
     on_delete — deleting a parent checks every child `fk:` field: cascade (children first) · restrict (block while children exist) · set_null/set_default (re-point); multi-hop recurses the fk chain
-    soft — `soft_delete: true` routes `action: delete` to stamp `deleted_at` (same call site, no data lost)
+    soft — `soft_delete: true` routes `action: delete` to stamp `deleted_at` (same call site, no data lost); table-level flag, invisible to migrations (never diffed as a column); restore = `action: update` + `set: {deleted_at: zNull}`
     subquery — `where: {user_id: {zData: {action: read, ..., where: active = false}}}`
     cross-table — `using: {model, on, where}` (delete from A by a match in B)
     time purge — `where: joined_date zBELOW zNow()` · capture with `returning: true`

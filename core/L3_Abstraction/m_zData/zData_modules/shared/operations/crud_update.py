@@ -227,6 +227,7 @@ try:
         check_row_constraints,
         surface_errors_to_session,
         apply_transforms,
+        normalize_write_values,
     )
     from .crud_helpers import _display_returning
     from .crud_update_cond import has_conditional_set, handle_conditional_update
@@ -243,6 +244,7 @@ except ImportError:
         check_row_constraints,
         surface_errors_to_session,
         apply_transforms,
+        normalize_write_values,
     )
     from crud_helpers import _display_returning
     from crud_update_cond import has_conditional_set, handle_conditional_update
@@ -419,6 +421,13 @@ def handle_update(request: Dict[str, Any], ops: Any) -> bool:
     # Phase 3.9: Apply field-level transforms (pre-validate normalisation)
     # ============================================================
     data = apply_transforms(table, data, table_schema, ops)
+    fields = list(data.keys())
+    values = list(data.values())
+
+    # ============================================================
+    # Phase 3.92: zNull sentinel → NULL; date/datetime → ISO canonical (zOS#18)
+    # ============================================================
+    data = normalize_write_values(table, data, table_schema, ops)
     fields = list(data.keys())
     values = list(data.values())
 

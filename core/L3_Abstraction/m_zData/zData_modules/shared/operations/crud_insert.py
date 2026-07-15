@@ -207,6 +207,7 @@ try:
         surface_errors_to_session,
         apply_transforms,
         apply_defaults,
+        normalize_write_values,
     )
     from .crud_helpers import _display_returning
     from .blob_ops import coerce_blob_fields, store_blob_fields
@@ -221,6 +222,7 @@ except ImportError:
         surface_errors_to_session,
         apply_transforms,
         apply_defaults,
+        normalize_write_values,
     )
     from crud_helpers import _display_returning
     from blob_ops import coerce_blob_fields, store_blob_fields
@@ -273,6 +275,9 @@ def _process_row(table: str, raw_data: Dict[str, Any], table_schema: Dict[str, A
 
     # transforms
     data = apply_transforms(table, data, table_schema, ops)
+
+    # zNull sentinel → NULL; date/datetime values → ISO canonical (zOS#18)
+    data = normalize_write_values(table, data, table_schema, ops)
 
     # blob coercion — normalise blob inputs to bytes so validation sizes the bytes.
     # Conversion to the backend storage cell happens after validation (caller).
@@ -544,6 +549,11 @@ def handle_insert(request: Dict[str, Any], ops: Any) -> bool:
 
     # Phase 2.9: Apply field-level transforms (pre-validate normalisation)
     data = apply_transforms(table, data, table_schema, ops)
+    fields = list(data.keys())
+    values = list(data.values())
+
+    # Phase 2.92: zNull sentinel → NULL; date/datetime → ISO canonical (zOS#18)
+    data = normalize_write_values(table, data, table_schema, ops)
     fields = list(data.keys())
     values = list(data.values())
 

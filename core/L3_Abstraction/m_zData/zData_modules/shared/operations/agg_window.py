@@ -366,8 +366,12 @@ def handle_window(request: Dict[str, Any], ops: Any) -> Any:
         else:
             rows = list(cte_rows)
     else:
-        # Adapter read — pass through all relevant keys, strip window-specific ones
-        _WINDOW_KEYS = {'function', 'field', 'offset', 'alias',
+        # Adapter read — pass through all relevant keys, strip window-specific ones.
+        # `fields:` is the OUTPUT projection (docstring: "incl. alias") — the alias
+        # column doesn't exist until step 3 computes it, so forwarding fields to the
+        # inner read emits `SELECT ..., rank` → "no such column" on sql backends
+        # (zero rows, no error). Step 4 owns projection; the inner read stays full-row.
+        _WINDOW_KEYS = {'function', 'field', 'offset', 'alias', 'fields',
                         'partition_by', 'action', 'with', 'from', 'frame', 'buckets'}
         inner = {k: v for k, v in request.items() if k not in _WINDOW_KEYS}
         from .crud_read import handle_read

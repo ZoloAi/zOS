@@ -80,6 +80,28 @@ def _is_empty(value: Any) -> bool:
     return value is None or value == ""
 
 
+def _is_fillable(value: Any, cdef: Any) -> bool:
+    """Is this cell still 'untouched by real data' for a column ADDED this run?
+
+    Empty (None/"") is always fillable — the csv contract. On sql backends the
+    ADD COLUMN DDL pre-fills every existing row with the declared ``default:``
+    at the DDL level, so by backfill time no cell is empty and the pass silently
+    no-ops (zOS#14: default+backfill were documented companions but mutually
+    exclusive on sqlite). Since backfill only ever runs over columns added in
+    THIS migration, a cell equal to the declared default cannot be real data —
+    it is the DDL pre-fill — so it is fillable too. Values are compared
+    string-coerced so sqlite's typed 0 matches a csv "0". Re-runs stay no-ops:
+    the column is no longer in columns_added.
+    """
+    if _is_empty(value):
+        return True
+    if isinstance(cdef, dict) and "default" in cdef:
+        default = cdef.get("default")
+        if value == default or str(value) == str(default):
+            return True
+    return False
+
+
 def apply_backfills(
     ops: Any,
     tables_modified: Dict[str, Any],
@@ -132,8 +154,10 @@ def apply_backfills(
             continue
 
         for col, spec in specs.items():
+            col_filled = 0
+            cdef = added.get(col)
             for row in rows:
-                if not _is_empty(row.get(col)):
+                if not _is_fillable(row.get(col), cdef):
                     continue
                 key = row.get(pk)
                 if key is None:
@@ -143,12 +167,21 @@ def apply_backfills(
                     continue
                 try:
                     ops.adapter.update(table, [col], [value], {pk: key})
-                    filled += 1
+                    col_filled += 1
                 except Exception as exc:  # pylint: disable=broad-except
                     if logger:
                         logger.warning(
                             "[zBackfill] %s.%s row %s failed: %s", table, col, key, exc
                         )
+            filled += col_filled
+            # A declared backfill that touched nothing on a table WITH rows is a
+            # smell (zOS#14's failure mode was exactly this, silently) — say so.
+            if col_filled == 0 and rows and logger:
+                logger.warning(
+                    "[zBackfill] %s.%s declared backfill but 0 of %d row(s) were "
+                    "eligible — cells already carry non-default data.",
+                    table, col, len(rows)
+                )
     return filled
 
 

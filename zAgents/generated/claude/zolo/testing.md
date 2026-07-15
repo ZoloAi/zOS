@@ -78,6 +78,11 @@ drive_dual: dual-mode primitives — ONE step, both runners (write once, no fork
                                zBifrost: click `button[data-zkey='Option']` (the zUI option/action key)
     zFill: {field: value}    — zCLI: per field assert prompt → submit value; tuned values survive --gen
                                zBifrost: per field set `[name='field']`, then click the form's Submit button
+                               onSuccess dialogs — a zDialog declaring `onSuccess: zDelta($Block)` dismisses its
+                               modal ITSELF on a green submit: pair the zFill with a sibling
+                               `zWait: {selector: .zModal-overlay, state: hidden}` (the vanish IS the proof — never
+                               zClick `.zModal-close` after it), then anchor the next assert on re-walked content
+                               (`:has-text` zWait) so it can't race the streamed repaint
     zSubmit: value           — scalar only here (a dict zSubmit is the zBifrost-only WS-gate form, see drive_web)
                                zCLI: type at the prompt; `$Var` refs resolve from captures — zBifrost: same $Var resolution, no browser action
 

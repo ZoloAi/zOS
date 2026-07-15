@@ -12,7 +12,7 @@ Provides functions for:
 import hashlib
 from zOS import Dict, List, Any, Optional, yaml
 
-from .data_keys import SCHEMA_KEY_META
+from .data_keys import SCHEMA_KEY_META, SCHEMA_TABLE_LEVEL_KEYS
 
 
 def compute_schema_hash(schema: Dict[str, Any]) -> str:
@@ -110,10 +110,19 @@ def detect_schema_changes(old_schema: Dict[str, Any], new_schema: Dict[str, Any]
     old_tables = {k: v for k, v in old_schema.items() if k != SCHEMA_KEY_META}
     new_tables = {k: v for k, v in new_schema.items() if k != SCHEMA_KEY_META}
 
-    # For each table, compare columns
+    # For each table, compare columns. Reserved table-level keys (soft_delete,
+    # primary_key, zConstraints, …) and non-dict entries (hook strings, PK lists)
+    # are NOT columns — skip them here exactly like the diff converter does
+    # (shared registry: data_keys.SCHEMA_TABLE_LEVEL_KEYS, zOS#15).
+    def _field_defs(table_block: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            k: v for k, v in (table_block or {}).items()
+            if k not in SCHEMA_TABLE_LEVEL_KEYS and isinstance(v, dict)
+        }
+
     for table_name in new_tables.keys():
-        old_columns = old_tables.get(table_name, {})
-        new_columns = new_tables[table_name]
+        old_columns = _field_defs(old_tables.get(table_name, {}))
+        new_columns = _field_defs(new_tables[table_name])
 
         old_column_names = set(old_columns.keys())
         new_column_names = set(new_columns.keys())

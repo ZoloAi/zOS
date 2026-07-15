@@ -594,8 +594,10 @@ class SQLAdapter(BaseDataAdapter):
         if column_def.get(_SCHEMA_KEY_REQUIRED):
             col_def += f" {_CONSTRAINT_NOT_NULL}"
 
+        # Quoted as a literal (same as _build_add_column_sql) — a bare string
+        # default reads as a column reference on strict dialects (zOS#14 note).
         if column_def.get(_SCHEMA_KEY_DEFAULT) is not None:
-            col_def += f" {_CONSTRAINT_DEFAULT} {column_def[_SCHEMA_KEY_DEFAULT]}"
+            col_def += f" {_CONSTRAINT_DEFAULT} {self._format_default_sql(column_def[_SCHEMA_KEY_DEFAULT])}"
 
         return col_def
 

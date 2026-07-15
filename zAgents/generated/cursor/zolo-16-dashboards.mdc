@@ -32,8 +32,13 @@ faces: one block, two renders — never branch on zMode
     rule    — TERMINAL IS THE TRUTH; the browser is the skin
 
 rbac: panels gate themselves
-    how  — a `zRBAC` block at the panel's root: `authenticated: true` | `require_role: zAdmin`
-    rail — panels a visitor can't reach are DROPPED before the rail draws
+    how  — a `zGate:` block at the panel's root (`authed: true` | `role: [zAdmin]`; legacy `zRBAC:` auto-lowers)
+    rail — SESSION-gated panels (role/authed) a visitor can't reach are DROPPED before the rail
+        draws — on BOTH surfaces (zCLI always did; Bifrost since zGuard 1.0.9 — rail gotcha below)
+    value gates — a panel-root gate over the panel's own spool (`%data.<reel>.<field>: {zIN: [...]}`)
+        is DEFERRED at rail time (spool unbound there — the tab stays) and enforced at panel-content
+        render, bind-before-gate on EVERY path, default panel's first paint included (1.0.9)
+    split — rail visibility = session gates; panel content = value gates; a mixed gate defers whole
     real — data access underneath is enforced regardless; rail filtering is the polite front
 
 custom: two style levers that NEVER overlap
@@ -63,6 +68,27 @@ gotcha: a panel's own same-file `zDelta` (a Refresh button, `action: zDelta($Pan
     fix      — the server marks `is_dashboard_panel = True` whenever resolution actually
         FALLS BACK to the stamped panel file (not just when the click's own payload says
         so) — first caught by `zDemos/zRM`'s zDash capstone (Add-then-Refresh)
+
+gotcha: over Bifrost the rail used to draw EVERY panel, gates or not (zOS #11, fixed zGuard 1.0.9)
+    why      — the walker ships the authored zDash event to the client verbatim (special-event
+        extraction), so the CLI engine's `_filter_accessible_panels` never ran on that path —
+        drop-before-rail existed but was unreachable in exactly the mode the docs describe it for;
+        content gates still held at click time, so the leak was tab NAMES only
+    fix      — `_filter_zdash_sidebar` gates each listed panel's root via `zos.zgate.check` (the SAME
+        SSOT every page gate uses) at BOTH the expansion seam and the extractor before the event
+        ships; `default` is recomputed off the kept list; per-panel fail-open mirrors the CLI
+    caveat   — a `%`-token gate would fail CLOSED here (token starves before the spool binds — a
+        subscriber would lose their own Billing tab), so the rail filter DEFERS any predicate that
+        references a `%` token to content render; only session gates decide rail membership
+
+gotcha: block-level `%data.*` gates were SKIPPED on the DEFAULT panel's first paint (zOS #12, fixed zGuard 1.0.9)
+    why      — the initial HTTP render reached the chunk gate BEFORE the panel's `zMeta.zSpool`
+        bind (the zPick path binds first) — the `%data` token starved, the render gate failed OPEN
+        by design, and both sibling blocks shipped; content interpolation still painted (it runs at
+        a later seam), which is what made the skip look selective
+    fix      — chunk gates now evaluate against the walker's block_context (the same surface the
+        content interpolation reads) instead of a clobber-prone session stash; a genuinely starved
+        token still fails open but logs at WARNING, so an ordering regression can't hide again
 
 gotcha: a standalone (non-`%item`) `zBtn` with `action: {zModal: {...}}` — anywhere, not just in a
     zDash panel — silently swallowed its click in Bifrost

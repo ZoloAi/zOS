@@ -11,16 +11,77 @@ DB writer both see the same cleaned, defaulted values:
     apply_defaults(table, data, table_schema, ops) -> Dict
         Fill omitted / empty fields with their declared ``default:`` (``now`` →
         current timestamp shaped to the field's temporal type).
+    normalize_write_values(table, data, table_schema, ops) -> Dict
+        ``zNull`` sentinel → SQL NULL, and date/datetime values → ISO canonical
+        form (zOS#18) — runs before validation so validators see final values.
 
-Both return a *new* dict and never mutate the input. ``helpers.py`` re-exports
-both names so existing ``from .helpers import apply_transforms`` call sites keep
+All return a *new* dict and never mutate the input. ``helpers.py`` re-exports
+the names so existing ``from .helpers import apply_transforms`` call sites keep
 working unchanged.
 """
 
 from zOS import Any, Dict
 from ..validators.constants import SCHEMA_KEY_DEFAULT
 
-__all__ = ["apply_transforms", "apply_defaults"]
+__all__ = ["apply_transforms", "apply_defaults", "normalize_write_values"]
+
+# Write-side NULL sentinel (zOS#18): .zolo is string-first, so there was no way
+# to WRITE a NULL declaratively (un-archiving a soft-deleted row needed a
+# plugin). `zNull` mirrors its zFilters read-side meaning — in values:/data:/set:
+# it resolves to SQL NULL. A literal string "zNull" as data is forfeited, same
+# reserved-token tradeoff the read side already made.
+_ZNULL_SENTINEL = "zNull"
+
+# Temporal types whose accepted values are normalized to ISO before storage.
+_TEMPORAL_ISO_TYPES = ("date", "datetime")
+
+
+def normalize_write_values(
+    table: str,
+    data: Dict[str, Any],
+    table_schema: Dict[str, Any],
+    ops: Any,
+) -> Dict[str, Any]:
+    """
+    Normalize a write payload's VALUES **before** validation (zOS#18):
+
+    1. ``zNull`` sentinel → ``None`` on any field — the declarative NULL literal
+       (e.g. restore = ``set: {deleted_at: zNull}``), mirroring the token's
+       zFilters read-side meaning.
+    2. ``date`` / ``datetime`` typed fields → ISO canonical form via
+       ``coerce_temporal_iso``: machine-pref-formatted values (``&zNow``'s
+       default shape) become sortable ISO, and an ISO date-only value widens to
+       midnight for a datetime column. Unparseable values pass through
+       unchanged so the validator still owns the reject.
+
+    Returns a *new* dict; ``data`` is not mutated.
+    """
+    from ..validators.format_validator import coerce_temporal_iso  # pylint: disable=import-outside-toplevel
+
+    result = dict(data)
+    for field_name, raw_value in data.items():
+        if isinstance(raw_value, str) and raw_value.strip() == _ZNULL_SENTINEL:
+            result[field_name] = None
+            ops.logger.info(
+                "[zData] zNull sentinel on '%s.%s' → NULL", table, field_name
+            )
+            continue
+
+        field_def = table_schema.get(field_name)
+        if not isinstance(field_def, dict):
+            continue
+        ftype = field_def.get("type")
+        if ftype in _TEMPORAL_ISO_TYPES and isinstance(raw_value, str) and raw_value.strip():
+            iso_value = coerce_temporal_iso(
+                raw_value.strip(), ftype, getattr(ops, "zos", None)
+            )
+            if iso_value != raw_value:
+                result[field_name] = iso_value
+                ops.logger.info(
+                    "[zData] %s '%s.%s' normalized to ISO: %r → %r",
+                    ftype, table, field_name, raw_value, iso_value,
+                )
+    return result
 
 
 def apply_transforms(

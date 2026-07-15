@@ -70,7 +70,7 @@ proven: exercised by a fresh isolated app (`Tests/zRBAC_app`, Bifrost)
         request against someone else's row still bounces even if the button were somehow clicked
 
 routing_gotcha: a gated page needs its OWN route to actually redirect in Bifrost
-    rule    — `onDenied`/zLogin `onSuccess`/zLogout `onSuccess` are always a `zLink` — Bifrost resolves it to a router URL, never an in-page swap
+    rule    — `onDenied`/zLogin `onSuccess`/zLogout `onSuccess` are always a `zLink` — Bifrost resolves it to a router URL, never an in-page swap (identity moves the SESSION, so the page must move too; a plain zDialog's `onSuccess` is the opposite tool — an in-place `zDelta` re-walk → Forms `onsuccess`)
     trap    — Login/Vault/Logout as BLOCKS inside the home zVaFile share ITS one URL (14_server.md "one file = one URL"); a redirect to another block in the SAME file resolves back to `/` and silently re-renders the home block instead
     fix     — give each gated page its OWN `zUI.<Page>.zolo` file in `zViews/` so the router auto-discovers a real URL (`/Login`, `/Vault`, `/Logout`) for the zLink to land on — the pattern `zDemos/zTeamVault` and `Tests/zRBAC_app` both use
 

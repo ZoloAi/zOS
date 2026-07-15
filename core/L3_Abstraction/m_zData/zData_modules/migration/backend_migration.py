@@ -270,6 +270,12 @@ class BackendMigration:
         if source_adapter is None:
             return {"success": False, "error": "No source adapter to export from"}
 
+        # zOS#13 guard: a cross-schema-file FK on a db-file backend lands in a
+        # different {Data_Label}.db — flag it BEFORE the split becomes silent
+        # data-layer breakage (both on dry-run preview and the live move).
+        if str(new_backend).lower() != "csv":
+            self._warn_cross_file_fks(new_schema or orchestrator.schema or {}, new_backend)
+
         if dry_run:
             preview = preview_transfer(source_adapter, orchestrator.schema or {})
             return {
@@ -330,6 +336,47 @@ class BackendMigration:
                          "the missing ones are retried."}
                if not report["success"] else {}),
         }
+
+    def _warn_cross_file_fks(self, schema: Dict[str, Any], new_backend: str) -> None:
+        """Warn when this schema declares FKs to tables OUTSIDE its own file (zOS#13).
+
+        On db-file backends each schema file lands in its own ``{Data_Label}.db``,
+        so an FK whose target table lives in a sibling schema file points across
+        database files — sqlite cannot enforce it, and multi-table plugin access
+        via the injected ``data`` facade breaks (`no such table`). The one-line
+        declarative fix is the SAME ``Data_Label:`` on every related schema file
+        (all tables land in one ``{label}.db``); this makes the rule loud at the
+        exact moment the split would happen instead of failing silently later.
+        """
+        from ..shared.data_keys import SCHEMA_TABLE_LEVEL_KEYS  # pylint: disable=import-outside-toplevel
+
+        local_tables = {k for k in schema if k != _META_KEY}
+        crossers = []
+        for table, block in schema.items():
+            if table == _META_KEY or not isinstance(block, dict):
+                continue
+            for col, cdef in block.items():
+                if col in SCHEMA_TABLE_LEVEL_KEYS or not isinstance(cdef, dict):
+                    continue
+                fk = cdef.get("fk") or cdef.get("foreign_key")
+                if not isinstance(fk, str) or "." not in fk:
+                    continue
+                ref_table = fk.split(".", 1)[0].strip()
+                if ref_table and ref_table not in local_tables:
+                    crossers.append(f"{table}.{col} → {fk}")
+        if not crossers:
+            return
+
+        label = schema.get(_META_KEY, {}).get(_META_KEY_DATA_LABEL)
+        self.logger.warning(
+            f"{_LOG_PREFIX} ⚠ FK target(s) outside this schema file: "
+            f"{', '.join(crossers)}. On {new_backend} each schema file maps to "
+            f"its own {{Data_Label}}.db — a cross-file FK lands in a DIFFERENT "
+            f"database file, where it is unenforceable and invisible to "
+            f"multi-table reads. Fix: declare the same Data_Label"
+            f"{f' ({label!r})' if label else ''} on every related schema file "
+            f"so all FK-linked tables share one database."
+        )
 
     def _suspend_foreign_keys(self, adapter: Any) -> bool:
         """Turn off SQLite FK enforcement for a bulk load. Returns True if done."""

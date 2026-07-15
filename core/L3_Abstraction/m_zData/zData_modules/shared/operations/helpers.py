@@ -91,7 +91,7 @@ from .fk_cascade import (  # pylint: disable=wrong-import-position
 # Pre-write payload prep (transforms + defaults) lives in its own module (SSOT);
 # re-exported so existing `from .helpers import apply_transforms` sites keep working.
 from .write_prep import (  # pylint: disable=wrong-import-position
-    apply_transforms, apply_defaults,
+    apply_transforms, apply_defaults, normalize_write_values,
 )
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -125,6 +125,7 @@ __all__ = [
     "surface_errors_to_session",
     "apply_transforms",
     "apply_defaults",
+    "normalize_write_values",
     "handle_on_delete",
     "resolve_fk_scan_tables",
 ]

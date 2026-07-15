@@ -32,7 +32,8 @@ spool: where a live value comes from — the reel a `%` thread pulls off
         only runs on the dict shape; a string `where` ships the literal token text and the read silently returns
         nothing (no error, just an empty reel) — `zDemos/zBlog`'s Profile page is the worked example
     freshness — a `zMeta.zSpool` is re-resolved on EVERY landed render (boot, zLink, zDelta alike) — a list-backed
-        reel always reflects a write made moments earlier on a DIFFERENT screen, same session
+        reel always reflects a write made moments earlier on a DIFFERENT screen, same session; a zDialog's
+        `onSuccess: zDelta($Block)` (Forms) rides this same freshness — submit stamps, the re-walk re-reads
     golden   — `zDemos/zBooking`'s My_Bookings: a `zList` reel joining 3 tables, freshly re-read after a `zDelta`
         hop away and back (New_Booking's own insert) — zero plugins, availability itself is a `zNotExists` read
         (see Advanced Queries), conflict validation a plain `unique: true` (see Data CRUD)

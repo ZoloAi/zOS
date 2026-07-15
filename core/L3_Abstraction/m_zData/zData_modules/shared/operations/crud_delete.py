@@ -196,7 +196,9 @@ _WARN_BACKUP = "Create backup before large DELETE operations"
 # Schema Keys
 # ============================================================
 
-_SCHEMA_KEY_SOFT_DELETE = "soft_delete"
+# SSOT: data_keys.SCHEMA_TABLE_LEVEL_KEYS carries the same key so the migration
+# diff never mistakes this table-level flag for a column (zOS#15).
+from ..data_keys import SCHEMA_KEY_SOFT_DELETE as _SCHEMA_KEY_SOFT_DELETE
 _SCHEMA_KEY_DELETED_AT = "deleted_at"
 
 # ============================================================

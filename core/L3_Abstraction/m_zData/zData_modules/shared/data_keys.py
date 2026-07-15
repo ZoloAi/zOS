@@ -66,10 +66,31 @@ KEY_SILENT = "silent"
 # ──────────────────────────────────────────────────────────────────────────
 SCHEMA_KEY_META = "zMeta"
 SCHEMA_KEY_DB_PATH = "db_path"
+SCHEMA_KEY_SOFT_DELETE = "soft_delete"
+
+# Table-level (non-field) keys that may appear INSIDE a table block alongside
+# column defs. Runtime consumers each read their own key (crud_delete →
+# soft_delete, constraints_check → zConstraints, sql_adapter → primary_key /
+# indexes…), but the MIGRATION side iterates the whole block — so this is the
+# one registry the diff/detection layers skip, keeping the two views of the
+# schema shape from drifting (zOS#15: `soft_delete: true` was diffed as a
+# column and crashed the executor with `'bool' object has no attribute 'get'`).
+# A value that isn't a dict is never a column def either (hooks are strings,
+# composite PKs are lists) — migration consumers pair this set with an
+# isinstance(def, dict) guard as the defensive second belt.
+SCHEMA_TABLE_LEVEL_KEYS = frozenset({
+    SCHEMA_KEY_SOFT_DELETE,   # soft-delete flag (crud_delete Phase 3.5)
+    "primary_key",            # composite PK list (sql_adapter create_table)
+    "indexes",                # index specs list (lifted by the diff converter)
+    "constraints",            # constraint specs (lifted by the diff converter)
+    "zConstraints",           # row-level unique/check rules (constraints_check)
+    "view",                   # saved-read marker (view_resolver)
+})
 
 __all__ = [
     "KEY_ACTION", "KEY_MODEL", "KEY_TABLE", "KEY_TABLES", "KEY_FIELDS",
     "KEY_VALUES", "KEY_FILTERS", "KEY_WHERE", "KEY_LIMIT", "KEY_OFFSET",
     "KEY_OPTIONS", "KEY_ORDER", "KEY_JOINS", "KEY_SILENT",
-    "SCHEMA_KEY_META", "SCHEMA_KEY_DB_PATH",
+    "SCHEMA_KEY_META", "SCHEMA_KEY_DB_PATH", "SCHEMA_KEY_SOFT_DELETE",
+    "SCHEMA_TABLE_LEVEL_KEYS",
 ]

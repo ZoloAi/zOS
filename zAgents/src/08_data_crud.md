@@ -110,11 +110,12 @@ migrations: evolve the shape without losing data — edit the zSchema to what it
         4 diff         — new table→CREATE · new col→ADD · removed→DROP · changed type→MODIFY · `renamed_from:`→RENAME · `indexes:`→CREATE/DROP INDEX · `constraints:` by kind; rows preserved
         5 apply        — run change set (unless `--dry-run`); a new col's `backfill:` fills in the SAME txn; logged to `__zmigration_<table>`
     rename   — `renamed_from: qty` → true RENAME COLUMN (sql in place, csv header); harmless to leave in
-    backfill — populate a new column at birth, computed in zOS layer (same on every backend), idempotent (only cols ADDED this run, only EMPTY cells)
+    backfill — populate a new column at birth, computed in zOS layer (same on every backend), idempotent (only cols ADDED this run; fills EMPTY cells + cells still at the DDL-pre-filled `default:` — sql ADD COLUMN pre-fills existing rows, so default+backfill stay true companions)
         `backfill: free` (literal) · `%name` (copy a column) · `{concat: [%first, " ", %last]}`; needs single-col pk; companion to `default:` (constant) vs backfill (derived)
     indexes  — add/remove an `indexes:` entry → next migrate CREATE/DROP by name (reads live indexes; declared+existing = no-op; pk/unique auto left alone; csv no-op)
     constraints — `constraints:` by kind: unique folds into index pipeline (idempotent, csv no-op); fk/check need ALTER TABLE ADD/DROP (postgres native, sqlite guards w/ message, csv no-op)
     backend_change — change `Data_Type` → zData MOVES data: export all tables to in-memory rows, open new adapter, recreate from schema, coerce, bulk-insert, validate counts (indexes don't ride — re-declare + migrate)
+        shared_label RULE — FK-related tables split across schema files MUST declare the SAME `Data_Label:` — each file otherwise lands in its own `{label}.db`, where a cross-file FK is unenforceable and multi-table plugin reads crash (`no such table`); the mover warns when it sees a cross-file FK
     cli      — `z migrate <app> --dry-run` (preview) · `--plan`/`--sql` (print DDL) · `--schema <name>` · `--auto-approve` · `--history` · `--rollback` · `--version <vX>`
         rollback — csv-first (restores each table from last backup); sql `--rollback` is a non-destructive guard (recover from DB backup or re-declare + migrate forward)
     rule     — golden habit: `--dry-run`/`--plan` before you ever apply

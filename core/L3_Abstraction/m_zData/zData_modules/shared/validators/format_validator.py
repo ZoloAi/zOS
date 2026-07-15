@@ -44,6 +44,60 @@ from .constants import (
     LOG_UNKNOWN_FORMAT,
 )
 
+# ── Machine-pref → strptime maps (SSOT for validators + write-side coercion) ──
+DATE_FORMAT_MAP = {
+    "ddmmyyyy": "%d%m%Y", "mmddyyyy": "%m%d%Y", "yyyy-mm-dd": "%Y-%m-%d",
+    "dd/mm/yyyy": "%d/%m/%Y", "mm/dd/yyyy": "%m/%d/%Y",
+    "dd-mm-yyyy": "%d-%m-%Y", "mm-dd-yyyy": "%m-%d-%Y",
+}
+DATETIME_FORMAT_MAP = {
+    "ddmmyyyy HH:MM:SS": "%d%m%Y %H:%M:%S", "mmddyyyy HH:MM:SS": "%m%d%Y %H:%M:%S",
+    "yyyy-mm-dd HH:MM:SS": "%Y-%m-%d %H:%M:%S",
+    "dd/mm/yyyy HH:MM:SS": "%d/%m/%Y %H:%M:%S", "mm/dd/yyyy HH:MM:SS": "%m/%d/%Y %H:%M:%S",
+    "dd-mm-yyyy HH:MM:SS": "%d-%m-%Y %H:%M:%S", "mm-dd-yyyy HH:MM:SS": "%m-%d-%Y %H:%M:%S",
+}
+ISO_DATE = "%Y-%m-%d"
+ISO_DATETIME = "%Y-%m-%d %H:%M:%S"
+
+
+def coerce_temporal_iso(value: str, ftype: str, zos=None) -> str:
+    """Normalize an accepted date/datetime string to its ISO canonical form.
+
+    zOS#18: ``&zNow`` defaults come from machine prefs (``ddmmyyyy HH:MM:SS``),
+    so the same app stored differently-formatted — and non-lexicographically-
+    sortable — datetimes per machine, breaking ``order_by`` on the column. The
+    write path calls this BEFORE validation so anything the validators accept
+    lands in storage as ISO (``YYYY-MM-DD [HH:MM:SS]``), and an ISO date-only
+    value is widened to midnight for a ``datetime`` column.
+
+    Parse candidates: the machine-pref format, every other known pref format
+    (unambiguous where they differ in separators/order), and ISO. Returns the
+    ISO string on the first successful parse; an unparseable value is returned
+    unchanged so the validator still owns the reject.
+    """
+    fmt_map = DATETIME_FORMAT_MAP if ftype == "datetime" else DATE_FORMAT_MAP
+    pref_key = "datetime_format" if ftype == "datetime" else "date_format"
+    iso_out = ISO_DATETIME if ftype == "datetime" else ISO_DATE
+
+    candidates = []
+    if zos:
+        pref = zos.config.machine.get(pref_key)
+        if pref in fmt_map:
+            candidates.append(fmt_map[pref])
+    candidates.append(iso_out)
+    if ftype == "datetime":
+        candidates.append(ISO_DATE)          # date-only widens to midnight
+    else:
+        candidates.append(ISO_DATETIME)      # datetime narrows to its date
+
+    for fmt in candidates:
+        try:
+            parsed = datetime.strptime(value, fmt)
+            return parsed.strftime(iso_out)
+        except ValueError:
+            continue
+    return value
+
 
 def validate_email(value: str) -> Tuple[bool, Optional[str]]:
     """
@@ -165,12 +219,7 @@ def validate_date(value: str, zos=None) -> Tuple[bool, Optional[str]]:
     if zos:
         date_format = zos.config.machine.get('date_format', date_format)
 
-    format_map = {
-        "ddmmyyyy": "%d%m%Y", "mmddyyyy": "%m%d%Y", "yyyy-mm-dd": "%Y-%m-%d",
-        "dd/mm/yyyy": "%d/%m/%Y", "mm/dd/yyyy": "%m/%d/%Y",
-        "dd-mm-yyyy": "%d-%m-%Y", "mm-dd-yyyy": "%m-%d-%Y",
-    }
-    strptime_format = format_map.get(date_format, "%Y-%m-%d")
+    strptime_format = DATE_FORMAT_MAP.get(date_format, "%Y-%m-%d")
 
     try:
         datetime.strptime(value, strptime_format)
@@ -179,9 +228,9 @@ def validate_date(value: str, zos=None) -> Tuple[bool, Optional[str]]:
         pass
 
     # Browser <input type="date"> always returns ISO 8601 (YYYY-MM-DD); accept it universally.
-    if strptime_format != "%Y-%m-%d":
+    if strptime_format != ISO_DATE:
         try:
-            datetime.strptime(value, "%Y-%m-%d")
+            datetime.strptime(value, ISO_DATE)
             return True, None
         except ValueError:
             pass
@@ -242,33 +291,29 @@ def validate_datetime(value: str, zos=None) -> Tuple[bool, Optional[str]]:
         - Always accepts ISO 8601 (YYYY-MM-DD HH:MM:SS) as a valid fallback —
           write_prep.apply_defaults() shapes a `default: now` datetime to this
           format regardless of locale, same reasoning as validate_date's fallback.
+        - Also accepts ISO date-only (YYYY-MM-DD) — an `&zNow(custom_format=
+          'yyyy-mm-dd')` value is MORE standard than the machine-pref form and
+          used to be the one that failed (zOS#18); write-side coercion widens it
+          to midnight before storage.
     """
     datetime_format = "yyyy-mm-dd HH:MM:SS"  # Default
     if zos:
         datetime_format = zos.config.machine.get('datetime_format', datetime_format)
 
-    format_map = {
-        "ddmmyyyy HH:MM:SS": "%d%m%Y %H:%M:%S", "mmddyyyy HH:MM:SS": "%m%d%Y %H:%M:%S",
-        "yyyy-mm-dd HH:MM:SS": "%Y-%m-%d %H:%M:%S",
-        "dd/mm/yyyy HH:MM:SS": "%d/%m/%Y %H:%M:%S", "mm/dd/yyyy HH:MM:SS": "%m/%d/%Y %H:%M:%S",
-        "dd-mm-yyyy HH:MM:SS": "%d-%m-%Y %H:%M:%S", "mm-dd-yyyy HH:MM:SS": "%m-%d-%Y %H:%M:%S",
-    }
-    strptime_format = format_map.get(datetime_format, "%Y-%m-%d %H:%M:%S")
+    strptime_format = DATETIME_FORMAT_MAP.get(datetime_format, ISO_DATETIME)
 
-    try:
-        datetime.strptime(value, strptime_format)
-        return True, None
-    except ValueError:
-        pass
+    # Machine-pref format, then the universal ISO fallbacks (full + date-only).
+    accepted = [strptime_format]
+    if strptime_format != ISO_DATETIME:
+        accepted.append(ISO_DATETIME)
+    accepted.append(ISO_DATE)
 
-    # `default: now` (write_prep.apply_defaults) always shapes to ISO — accept
-    # it universally, same as validate_date's browser-ISO fallback.
-    if strptime_format != "%Y-%m-%d %H:%M:%S":
+    for fmt in accepted:
         try:
-            datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+            datetime.strptime(value, fmt)
             return True, None
         except ValueError:
-            pass
+            continue
 
     return False, f"{ERR_DATETIME_FORMAT} (expected: {datetime_format})"
 

@@ -477,16 +477,34 @@ class MigrationEngine:
         Table-level ``indexes`` (declared specs on the new side, live names on the
         old/introspected side) is lifted OUT of the column map into its own ``Indexes``
         slot so the diff engine can compare it as indexes — not mistake it for a column.
+
+        Every OTHER reserved table-level key (``soft_delete``, ``primary_key``,
+        ``zConstraints``, …) is likewise excluded from the column map — sourced from
+        the shared SCHEMA_TABLE_LEVEL_KEYS registry so the migration diff and the
+        runtime consumers agree on the schema shape (zOS#15: the flag was diffed as
+        a column → plan emitted ``ADD COLUMN soft_delete TEXT`` and the executor
+        crashed on the boolean). Non-dict values (hook strings, PK lists) are
+        skipped defensively with a debug note — a column def is always a dict.
         """
         from ..shared.validators.constants import SCHEMA_KEY_INDEXES, SCHEMA_KEY_CONSTRAINTS
         from ..shared.constraint_helpers import split_constraints
+        from ..shared.data_keys import SCHEMA_TABLE_LEVEL_KEYS
         tables: Dict[str, Any] = {}
         for key, value in zcli_schema.items():
             if key == _META_KEY:
                 continue
             if isinstance(value, dict):
-                columns = {k: v for k, v in value.items()
-                           if k not in (SCHEMA_KEY_INDEXES, SCHEMA_KEY_CONSTRAINTS)}
+                columns = {}
+                for k, v in value.items():
+                    if k in (SCHEMA_KEY_INDEXES, SCHEMA_KEY_CONSTRAINTS) or k in SCHEMA_TABLE_LEVEL_KEYS:
+                        continue
+                    if not isinstance(v, dict):
+                        self.logger.debug(
+                            f"[zMigrate] {key}.{k} is not a column def "
+                            f"({type(v).__name__}) — skipping in diff"
+                        )
+                        continue
+                    columns[k] = v
                 table_def: Dict[str, Any] = {"Columns": columns}
                 indexes = list(value.get(SCHEMA_KEY_INDEXES, []) or [])
                 # UNIQUE constraints ride the index pipeline; fk/check stay constraints.

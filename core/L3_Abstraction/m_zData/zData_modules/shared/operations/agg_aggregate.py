@@ -188,6 +188,44 @@ _HAVING_OPS = {
 }
 
 
+def _parse_order_by(raw: Any):
+    """Split an ``order_by:`` spec into (column, descending). None when absent."""
+    if not raw:
+        return None, False
+    parts = str(raw).strip().split()
+    return parts[0], (len(parts) > 1 and parts[1].upper() == "DESC")
+
+
+def _sort_grouped(result: Any, order_col: str, desc: bool, group_by: Any, alias: Any):
+    """Sort grouped aggregate output by ``order_by`` (zOS#17: it was silently
+    ignored — groups rendered in first-seen raw-row order).
+
+    Two grouped shapes exist:
+        alias form  → list of row dicts [{group: ..., alias: ...}] — sort by the
+                      named column (group col or alias, whichever order_by names).
+        flat form   → {group_value: aggregate_value} dict — order_by naming the
+                      group column sorts by key; anything else sorts by value.
+    None values sort last on ASC (first on DESC), mirroring the window handler.
+    """
+    if isinstance(result, list):
+        return sorted(
+            result,
+            key=lambda r: (r.get(order_col) is None, r.get(order_col, "")),
+            reverse=desc,
+        )
+    if isinstance(result, dict):
+        group_cols = group_by if isinstance(group_by, list) else [group_by]
+        by_key = order_col in group_cols
+        items = sorted(
+            result.items(),
+            key=(lambda kv: (kv[0] is None, kv[0])) if by_key
+            else (lambda kv: (kv[1] is None, kv[1])),
+            reverse=desc,
+        )
+        return dict(items)
+    return result
+
+
 def _apply_having(rows, having_expr: str, alias: str):
     """Filter row dicts by a simple HAVING expression on the alias column.
 
@@ -373,6 +411,18 @@ def handle_aggregate(request: Dict[str, Any], ops: Any) -> Any:
         # ═══════════════════════════════════════════════════════
         # 4. POST-PROCESS: HAVING filter + display
         # ═══════════════════════════════════════════════════════
+
+        # Honor order_by on grouped output — the inner read's ordering is
+        # destroyed by grouping (first-seen raw-row order), so the computed
+        # groups themselves are sorted here (zOS#17: was silently ignored).
+        order_col, order_desc = _parse_order_by(
+            request.get("order_by") or request.get("order")
+        )
+        if order_col and group_by and isinstance(result, (list, dict)):
+            result = _sort_grouped(result, order_col, order_desc, group_by, alias)
+            if logger:
+                logger.info("  ORDER BY (grouped): %s %s",
+                            order_col, "DESC" if order_desc else "ASC")
 
         # When alias + group_by produced row dicts, apply HAVING and display as zTable
         if isinstance(result, list) and alias and group_by:

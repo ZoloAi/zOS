@@ -5,6 +5,7 @@ zdialog: the first event that COLLECTS
     title    — the form's heading
     fields   — the things to collect (see fields)
     onSubmit — the action run when the form is submitted (see result)
+    onSuccess— OPTIONAL follow-up fired only on a GREEN result (see onsuccess)
     runs the whole exchange: zCLI asks field by field, the browser shows one real form — same block, both surfaces
 
 fields: each entry is a bare key or a small dict
@@ -41,6 +42,23 @@ result: onSubmit returns a RESULT — success or failure
     same envelope on both surfaces (ZResult.success / ZResult.failure) — the form just renders what the action returns, never asks why
     average_joe: green line when it works, red line with your words still in the box when it doesn't — nothing breaks, nothing lost
     log_severity: a business failure (success:false) is an EXPECTED outcome — surface it inline, never a console error (that's reserved for a real exception)
+
+onsuccess: the form's "and then" — a follow-up zEvent fired only on a GREEN result
+    `onSuccess: zDelta($Block)` — a SIBLING of onSubmit; a successful submit dismisses the hosting
+        modal by itself and re-walks the target block (the same self-hop a Refresh button fires) —
+        the page updates live, zero manual close/refresh clicks
+    failure — nothing fires: the red line renders, the form stays armed for an in-place retry
+        (the follow-up can never leak on a failed submit)
+    trust   — the target registers SERVER-side beside onSubmit in the dialog registry; the response
+        only echoes the block name and the CLIENT re-fires its own zDelta — the server never pushes
+        unsolicited content
+    kin     — zLogin/zLogout carry `onSuccess: zLink(...)` (a REDIRECT → Identity); a plain zDialog's
+        onSuccess is the in-place cousin (`zDelta`) — same key, the zEvent names the move
+    scope   — Bifrost today; zCLI ignores the key (a terminal re-walk of the dialog's own block would
+        re-prompt every field — loop-unsafe until designed)
+    pattern — write-then-reread: onSubmit stamps state (a zVar, a row), the re-walked block's own
+        declarative read picks it up fresh — zCloud zRM's Subscriptions toolbar (Search/Clear/Grant/
+        Edit dialogs, all `onSuccess: zDelta($Subscriptions)`) is the worked example
 
 onward: onSubmit is a DOORWAY — the same hook, bigger jobs
     onSubmit is always a dict — ONE key naming the subsystem, never a bare `&.` call
