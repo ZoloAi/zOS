@@ -1105,6 +1105,20 @@ def handle_read(request: Dict[str, Any], ops: Any) -> Union[bool, List[Dict[str,
     # Rows are scored by token-hit count (_score column) and sorted DESC by score.
     # Rows scoring 0 are dropped.  search_fields defaults to all row columns.
     fts_query = request.get(_KEY_SEARCH)
+    if isinstance(fts_query, str) and fts_query.startswith('%'):
+        # `%token` search terms (search: %subs_q) resolve through the zLoom token
+        # SSOT — the SAME navigator WHERE interpolation and gates use, added HERE
+        # (not per caller) so spool, inline-block, and dialog dispatch paths all
+        # agree. A miss resolves to None → falsy → the read stays UNFILTERED
+        # (an empty search box shows everything; where-style fail-closed would
+        # blank the whole table on first render, before any term exists).
+        _resolver = getattr(ops.zos, 'zloom', None)
+        if _resolver is not None and hasattr(_resolver, 'resolve_value'):
+            _resolved = _resolver.resolve_value(fts_query)
+            ops.logger.debug("Search token %s resolved to %r", fts_query, _resolved)
+            fts_query = _resolved
+        else:
+            fts_query = None
     if fts_query and rows:
         fts_fields = request.get(_KEY_SEARCH_FIELDS) or []
         if isinstance(fts_fields, str):

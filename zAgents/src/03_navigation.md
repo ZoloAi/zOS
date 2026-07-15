@@ -33,6 +33,7 @@ zmodal: a modal is a glance, not a move — forward with auto-back built in
     contract — trail-INVISIBLE: no crumb, route never moves, zBack after return acts like the detour never happened
         completion — target finishes (zDialog onSubmit returns / content walks off its last key) → auto-return, caller resumes
         dismiss    — a zBack inside the modal closes it (same return path); pure-content modals gate on `Press Enter to close`
+        auto-dismiss — a modal-carried zDialog declaring `onSuccess: zDelta($Block)` closes ITSELF on a green submit and re-walks the block (→ Forms `onsuccess`); without it, Bifrost dismissal stays local (backdrop/ESC/×)
         fired from a `~Menu*` anchor → returns to that menu (drill-in/step-out)
     zLoom — read-only both ways: a $/@ target's file-root zSpool is pre-woven (modal renders data like a page would)
         zModal lives ONLY in zUI pages — never in zLoom/ files (data+shape only, no events)
