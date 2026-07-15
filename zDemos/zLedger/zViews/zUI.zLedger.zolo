@@ -53,8 +53,10 @@ Main:
         zDialog:
             title:  Search the ledger
             zLive:  true
+            #> flow-list gotcha: a comma inside label/placeholder SPLITS the
+            #  entry — keep the copy comma-free (use · instead) <#
             fields: [
-                {zConv: q, type: search, label: Payee, category, or memo, required: false, placeholder: coffee, rent, travel…},
+                {zConv: q, type: search, label: Search payee · category · memo, required: false, placeholder: coffee · rent · travel…},
             ]
             onSubmit:
                 zVar: {ledger_q: zConv.q}
@@ -68,11 +70,12 @@ Main:
         _zClass: zledger-toolbar
 
         #> fields-less confirm + zLive (ambient, non-gating): ONE click clears
-        #  the filter — the same declarative zVar write, empty term. <#
+        #  the filter — the same declarative zVar write, empty term. The title
+        #  IS the rendered button label. <#
         Clear:
             _zClass: zledger-clear
             zDialog:
-                title:  Clear filter — show every live entry
+                title:  Clear filter
                 zLive:  true
                 onSubmit:
                     zVar: {ledger_q: }

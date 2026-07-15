@@ -136,6 +136,25 @@ boot_logger = BootstrapLogger()
 boot_logger.debug("Python: %s", sys.version.split()[0])
 boot_logger.debug("Installation: %s", detect_installation_type(_get_zos_package(), detailed=True))
 
+# Provenance stamp — ALWAYS say which zguard this process resolved (dev source
+# vs fetched binary + version). Two `z` processes on one machine can silently
+# load different zguards (ZGUARD_DEV_PATH is per-shell); this line is the SSOT
+# breadcrumb that makes such drift visible in every boot log and raven report.
+from zSys.cli.zguard_provision import zguard_origin, zguard_capability_gap  # pylint: disable=import-error,wrong-import-position
+boot_logger.info("zGuard: %s", zguard_origin())
+
+# Capability handshake — if the loaded zguard predates grammar this zOS core
+# emits, say so NOW with a remedy, instead of letting every affected submit
+# die as a click-time "Unknown action type" toast.
+_zguard_gap = zguard_capability_gap()
+if _zguard_gap:
+    boot_logger.warning(
+        "zGuard build lacks grammar capabilities %s — declarative forms using "
+        "them WILL fail at submit. Remedy: run `z patch` for the latest "
+        "binaries, or export ZGUARD_DEV_PATH=<zGuard source checkout>.",
+        sorted(_zguard_gap),
+    )
+
 # Main Entry Point
 def main() -> None:
     """Main entry point for the zOS command."""

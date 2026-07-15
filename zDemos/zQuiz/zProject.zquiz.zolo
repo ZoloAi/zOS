@@ -1,0 +1,17 @@
+# .zolo — zOS UI language. NOT YAML. String-first by default: no quotes unless : { # present.
+#
+# zProject — distribution manifest for `zolo push` (see zLedger's for the
+# annotated reference). Ships everything minus ignore; zCloud wakes `spark`.
+
+zProject:
+    slug:       zquiz
+    name:       zQuiz
+    spark:      zSpark.zQuiz.zolo
+    visibility: public
+    tagline:    Test yourself — a declarative quiz engine in pure zolo
+    tags:       [games, learning]
+    ignore:
+        - zRaven
+        - logs
+        - zVersions
+        - zShots

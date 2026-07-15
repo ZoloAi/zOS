@@ -1,0 +1,28 @@
+# .zolo — zOS UI language. NOT YAML. String-first by default: no quotes unless : { # present.
+#
+# zProject — the DISTRIBUTION manifest `zolo push` ships. Everything under this
+# folder minus `ignore` becomes the hosted app/ slice; zCloud wakes `spark`.
+#
+# WHY the ignores:
+#   • zEnv.development.zolo — machine-local dev mount (absolute path to a
+#     zbifrost-client working tree). Hosted instances must fall back to the
+#     pinned CDN client, so the dev env NEVER ships.
+#   • zRaven/ + logs/ — test harness and run artifacts; dormant weight only.
+#   • *.db-journal / zShots — sqlite scratch + raven screenshots.
+# Data/ DOES ship: the seeded ledger (csv + migrated sqlite) IS the demo.
+
+zProject:
+    slug:       zledger
+    name:       zLedger
+    spark:      zSpark.zLedger.zolo
+    visibility: public
+    #> feed-card meta — manifest-authoritative on every push (zpush.py);
+    #  absent keys leave the zApps columns alone (dashboard edits survive). <#
+    tagline:    Live search · soft-delete · aggregates — the golden data-table reference
+    tags:       [tools, data, reference]
+    ignore:
+        - zEnv.development.zolo
+        - zRaven
+        - logs
+        - "*.db-journal"
+        - zShots

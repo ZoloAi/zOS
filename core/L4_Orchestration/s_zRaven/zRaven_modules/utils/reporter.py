@@ -154,8 +154,22 @@ def _classify_error(failed: int, failed_steps: list, mode: str) -> str:
 _RUNS_CSV_COLUMNS = (
     "id", "timestamp", "mode", "raven_file", "ui_version", "raven_rev",
     "steps_total", "steps_passed", "steps_failed", "failed_steps",
-    "duration_sec", "error_class",
+    "duration_sec", "error_class", "zguard_origin",
 )
+
+
+def _zguard_origin() -> str:
+    """The zguard provenance this run's process resolved (SSOT: zguard_provision).
+
+    Stamped into every result so "green" always means "green AGAINST THIS
+    zguard" — a raven run under a dev checkout and a user boot on the fetched
+    wheel are different systems even when every app file matches.
+    """
+    try:
+        from zSys.cli.zguard_provision import zguard_origin  # pylint: disable=import-outside-toplevel,import-error
+        return zguard_origin()
+    except Exception:  # pylint: disable=broad-except
+        return "unknown"
 
 
 def write_result(
@@ -199,12 +213,15 @@ def write_result(
     error_class  = _classify_error(failed, failed_steps, mode)
     timestamp    = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    zguard_origin = _zguard_origin()
+
     result = {
         "timestamp":    timestamp,
         "raven_file":   raven_path.name,
         "ui_version":   ui_version,
         "raven_rev":    raven_rev,
         "mode":         mode,
+        "zguard_origin": zguard_origin,
         "steps_total":  passed + failed,
         "steps_passed": passed,
         "steps_failed": failed,
@@ -251,6 +268,7 @@ def write_result(
                 "failed_steps": "|".join(str(s) for s in (failed_steps or [])),
                 "duration_sec": duration_sec if duration_sec is not None else "",
                 "error_class":  error_class,
+                "zguard_origin": zguard_origin,
             })
     except Exception:  # pylint: disable=broad-except
         pass  # never block the test run for a result-write failure

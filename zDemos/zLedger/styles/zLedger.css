@@ -16,10 +16,8 @@
   display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
   margin: 0.5rem 0 1.25rem;
 }
-/* The Clear confirm renders as a small zDialog container — flatten it into
-   the toolbar row like a plain button. */
-.zledger-clear .zDialog-container { padding: 0; border: none; background: none; box-shadow: none; }
-.zledger-clear .zmb-2 { display: none; }  /* hide the confirm title — the button says it */
+/* The live Clear confirm renders unboxed (.zDialog-live) as a plain button
+   labeled by its title — nothing to flatten. */
 
 .zledger-stats { display: flex; gap: 2rem; margin: 0.5rem 0 1rem; }
 .zledger-stat  { text-align: center; }

@@ -45,6 +45,39 @@ _RECHECK_INTERVAL_SECONDS = 24 * 60 * 60
 SUPPORTED_PY_TAGS = ("cp310", "cp311", "cp312")
 SUPPORTED_PLATFORM_TAGS = ZGUARD_PLATFORM_TAGS
 
+# ── Provenance (SSOT) ─────────────────────────────────────────────────────────
+# Which zguard this process resolved: "dev:<path>", "cache:<platform>/<py>@<ver>",
+# or "unresolved". Stamped by ensure_zguard_importable(); read by the boot log
+# and the zRaven reporter so a green test run and a user's boot can be compared
+# binary-for-binary (the 2026-07 zVar drift was invisible without this).
+_resolved_origin: str = "unresolved"
+
+
+def zguard_origin() -> str:
+    """The loaded zguard's provenance for this process (see _resolved_origin)."""
+    return _resolved_origin
+
+
+# ── Capability handshake ──────────────────────────────────────────────────────
+# Grammar features THIS zOS core emits that the loaded zguard must understand.
+# zguard builds export zguard.CAPABILITIES (>= 1.0.9); older builds report an
+# empty set. Grow this in the same commit that makes zOS emit a new construct.
+EXPECTED_ZGUARD_CAPABILITIES = frozenset({"zVar", "zLive", "onSuccess"})
+
+
+def zguard_capability_gap() -> frozenset:
+    """
+    Capabilities this zOS core needs that the loaded zguard build lacks.
+    Empty set == healthy. Called at boot (main.py) to turn silent binary
+    drift into a named, rail-time warning instead of click-time toasts.
+    """
+    try:
+        import zguard  # pylint: disable=import-outside-toplevel
+    except ImportError:
+        return frozenset()  # no zguard at all — shims degrade elsewhere
+    caps = getattr(zguard, "CAPABILITIES", frozenset())
+    return EXPECTED_ZGUARD_CAPABILITIES - frozenset(caps)
+
 
 def current_platform_tag() -> Optional[str]:
     """e.g. 'darwin-arm64', 'linux-x86_64', 'win-amd64' — or None if this OS/arch isn't one we build for."""
@@ -166,11 +199,14 @@ def ensure_zguard_importable(verbose: bool = False) -> bool:
     — callers decide what to do about that (patch_command.py falls back to
     reinstalling onto a supported Python version via uv).
     """
+    global _resolved_origin  # pylint: disable=global-statement
+
     dev_path = zguard_dev_path()
     if dev_path is not None:
         parent = str(dev_path)
         if parent not in sys.path:
             sys.path.insert(0, parent)
+        _resolved_origin = f"dev:{dev_path}"
         if verbose:
             print(f"[zguard] dev mode — using {dev_path}")
         return True
@@ -192,4 +228,9 @@ def ensure_zguard_importable(verbose: bool = False) -> bool:
     parent = str(dest)
     if parent not in sys.path:
         sys.path.insert(0, parent)
+    try:
+        version = (dest / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        version = "?"
+    _resolved_origin = f"cache:{platform_tag}/{py_tag}@{version}"
     return True

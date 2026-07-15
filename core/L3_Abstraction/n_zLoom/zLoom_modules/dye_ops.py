@@ -67,6 +67,32 @@ def _dye_round(v: Any, arg: Any) -> Any:
         return v
 
 
+def _dye_filesize(v: Any, arg: Any) -> Any:
+    """Format a byte count as a human size: ``%data.bytes | filesize`` → "1.2 MB".
+
+    Binary steps of 1024, one decimal above KB (trailing .0 trimmed). Optional
+    arg pins the unit (``| filesize(MB)``). Non-numeric values pass through
+    untouched (fail safe, same contract as ``date``)."""
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return v
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
+    want = _s(arg).strip().upper() if arg not in (None, "") else None
+    idx = 0
+    if want in units:
+        idx = units.index(want)
+        n = n / (1024.0 ** idx)
+    else:
+        while abs(n) >= 1024.0 and idx < len(units) - 1:
+            n /= 1024.0
+            idx += 1
+    if idx == 0:
+        return f"{int(n)} B"
+    text = f"{n:.1f}".rstrip("0").rstrip(".")
+    return f"{text} {units[idx]}"
+
+
 def _dye_date(v: Any, arg: Any) -> Any:
     """Format an ISO date/datetime with friendly tokens (YYYY-MM-DD, etc).
     Non-dates and unparseable values pass through untouched (fail safe)."""
@@ -95,6 +121,7 @@ DYES = {
     "truncate": _dye_truncate,
     "round":    _dye_round,
     "date":     _dye_date,
+    "filesize": _dye_filesize,
 }
 
 
