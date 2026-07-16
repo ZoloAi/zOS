@@ -104,6 +104,24 @@ Tests:
                 selector: body
                 contains: sin(pi/2) = 1
 
+    # Result-to-display: scicalc.js mirrors the plugin's answer INTO the LCD
+    # (the feedback line below stays as the tape). Locks the chassis UX.
+    Assert_Display_Mirrored:
+        zAssert:
+            dom:
+                selector: input[name='Expr']
+                property: value
+                contains: 1
+
+    # Chrome relabel: the renderer's hardcoded "Submit" reads "Evaluate" here
+    # (scicalc.js rewrites the idle label; the type='submit' contract holds).
+    Assert_Evaluate_Label:
+        zAssert:
+            dom:
+                selector: button[type='submit']
+                property: textContent
+                contains: Evaluate
+
     # ── During: typed, pre-submit — prove the styled display + keypad ──────
     Type_Expr:
         zType:
@@ -113,10 +131,11 @@ Tests:
     Shot_During_Submit:
         zShot: {full_page: true}
 
-    # ── After: submitted — prove the styled success feedback ───────────────
-    Click_Submit:
+    # ── After: submitted via the "=" KEY (not the button) — the keypad's =
+    #    clicks the same type='submit' wire, real-calculator style ───────────
+    Click_Equals_Key:
         zClick:
-            selector: button[type='submit']
+            selector: .zSciCalc-keypad-basic [data-key='=']
 
     Wait_Feedback:
         zWait:
@@ -129,6 +148,13 @@ Tests:
             dom:
                 selector: body
                 contains: 3 + 4 * 2 = 11
+
+    Assert_Result_Mirrored:
+        zAssert:
+            dom:
+                selector: input[name='Expr']
+                property: value
+                contains: 11
 
     Shot_After_Submit:
         zShot: {full_page: true}

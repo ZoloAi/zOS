@@ -1,8 +1,21 @@
 # .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#
+# zProject — the distribution manifest `zolo push` reads. Everything the
+# zFeed card shows rides from HERE (the tagline doctrine): tagline + tags
+# land on the zApps row, cover ships as its own multipart part and becomes
+# the card photo. A manifest without a cover gets the slug-seeded generated
+# default — fine for a scratch push, not for a golden demo.
 
 zProject:
     slug:       zhello
     name:       zHello
     spark:      zSpark.zhello.zolo
-    version:    1.0.0
+    version:    1.0.1
     visibility: public
+    tagline:    Hello, world — the smallest possible zOS app.
+    tags:       [starter, tutorial]
+    cover:      cover.png
+    #> ship the teaching material (.cursor/rules, the zRaven test) — a golden
+    #  demo downloaded from zCloud should brief the next agent — but never
+    #  run artifacts: logs, raven output/screenshots, push tarball leftovers. <#
+    ignore:     [logs/*, zRaven/output/*, zRaven/zShots/*, .zpush_*]

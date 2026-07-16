@@ -38,18 +38,36 @@
     { label: ")", insert: ")" },
   ];
 
-          function findExpr() {
-            return document.querySelector(".zSciCalc-expr");
-          }
+  // Set after a result is painted into the display: the next DIGIT starts a
+  // fresh expression (real-calculator muscle memory), while an OPERATOR chains
+  // onto the result. Cleared by any other edit.
+  var justEvaluated = false;
+  var CHAINABLE = /^[+\-*/]$|^\*\*$/;
+
+  function findExpr() {
+    return document.querySelector(".zSciCalc-expr");
+  }
+
+  function findSubmit() {
+    var input = findExpr();
+    var form = input && input.closest("form");
+    return form ? form.querySelector("button[type='submit']") : null;
+  }
 
   function pressKey(insert) {
     var input = findExpr();
     if (!input) return;
     if (insert === "C") {
       input.value = "";
+      justEvaluated = false;
     } else if (insert === "=") {
-      input.value = input.value; // no client-side math — "=" just leaves the expression for Submit to send
+      // "=" IS the submit — same wire as the Evaluate button / Enter key.
+      var btn = findSubmit();
+      if (btn) btn.click();
+      return;
     } else {
+      if (justEvaluated && !CHAINABLE.test(insert)) input.value = "";
+      justEvaluated = false;
       input.value += insert;
     }
     input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -111,11 +129,49 @@
     });
   }
 
+  // The form renderer hardcodes "Submit"; a calculator says "Evaluate".
+  // Only rewrite the idle label — never fight transient states
+  // ("Processing…") the renderer paints mid-submit.
+  function relabelSubmit() {
+    var btn = findSubmit();
+    if (btn && btn.textContent === "Submit") btn.textContent = "Evaluate";
+  }
+
+  // Result-to-display: the plugin's return ("expr = result") lands in the
+  // dialog's .zDialog-feedback slot as a signal. Mirror the RESULT into the
+  // display (like a real calculator) and let the feedback line stand as the
+  // history echo. Errors stay in the slot only — the display keeps the
+  // expression so the user can fix it in place.
+  var lastFeedback = "";
+  function mirrorResult() {
+    var slot = document.querySelector(".zDialog-feedback");
+    if (!slot) return;
+    // textContent includes the signal's dismiss "×" button — strip any
+    // non-text-node children before reading, or the LCD shows "11×".
+    var text = "";
+    slot.querySelectorAll("*").forEach(function (el) {
+      if (el.tagName === "BUTTON") return;
+      if (!el.children.length) text += el.textContent;
+    });
+    text = (text || slot.textContent || "").replace(/\s*×\s*$/, "").trim();
+    if (!text || text === lastFeedback) return;
+    lastFeedback = text;
+    var m = text.match(/^(.+) = (.+)$/);
+    if (!m) return;
+    var input = findExpr();
+    if (!input) return;
+    input.value = m[2];
+    justEvaluated = true;
+  }
+
   function tick() {
     var slot = document.querySelector(".zSciCalc-keypad");
-    if (!slot) return;
-    if (!slot.dataset.zSciCalcMounted) buildKeypad(slot);
-    pruneStrayChildren(slot);
+    if (slot) {
+      if (!slot.dataset.zSciCalcMounted) buildKeypad(slot);
+      pruneStrayChildren(slot);
+    }
+    relabelSubmit();
+    mirrorResult();
   }
 
   tick();

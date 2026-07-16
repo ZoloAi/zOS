@@ -7,11 +7,18 @@ zProject:
     slug:       zquiz
     name:       zQuiz
     spark:      zSpark.zQuiz.zolo
+    version:    1.0.0
     visibility: public
     tagline:    Test yourself — a declarative quiz engine in pure zolo
     tags:       [games, learning]
+    cover:      cover.png
+    #> golden-demo convention (zHello/zSciCalc): SHIP the zRaven test file as
+    #  teaching material, prune only run artifacts — and note the globs:
+    #  bare dir names segment-match whole trees, `dir/*` prunes contents. <#
     ignore:
-        - zRaven
-        - logs
-        - zVersions
-        - zShots
+        - logs/*
+        - zRaven/output/*
+        - zRaven/zShots/*
+        - zVersions/*
+        - .zpush_*
+        - cover.png   #> rides the multipart, not the app/ slice <#

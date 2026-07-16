@@ -1,4 +1,18 @@
 # .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#
+# zHello — the smallest possible zOS app, and the FIRST file most agents and
+# humans ever read. Every construct here is a blessed, golden-path pattern:
+#   zH1/zText            → typography (label for headings, content for prose)
+#   ~Name*: [...]        → the `*` menu shorthand (drives zCLI menus AND
+#                          Bifrost buttons from ONE declaration)
+#   zModal content-mode  → a glance-and-return popup whose body is plain
+#                          display events (a dict of zH2/zText), NOT a form
+#
+# Deliberately absent: zSignals (zSuccess/zWarning/...). Signals are OUTCOME
+# feedback — the framework's voice after an action runs (a save, a delete).
+# A greeting is content, so it's authored as content. (Earlier versions used
+# zSuccess/zWarning here as styled text — a malpractice this file must not
+# teach.)
 
 zMeta:
     zNavBar: false
@@ -15,8 +29,14 @@ zVaF:
 
     Say_Hello:
         zModal:
-            zSuccess: Hello, Zolo!
+            zH2:
+                label: Hello, Zolo!
+            zText:
+                content: Greetings from the smallest possible zOS app.
 
     Say_Goodbye:
         zModal:
-            zWarning: Goodbye, Zolo!
+            zH2:
+                label: Goodbye, Zolo!
+            zText:
+                content: Every journey ends at a prompt. See you there.

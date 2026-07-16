@@ -28,6 +28,15 @@ Tests:
                 selector: body
                 contains: Hello, Zolo!
 
+    # Structural lock (raven --hint suggestion): the greeting is CONTENT — a
+    # real h2 inside the modal — not a zSignal alert. Guards the malpractice
+    # fix (zSuccess/zWarning-as-text) from regressing.
+    Assert_Hello_Structure:
+        zAssert:
+            dom:
+                selector: .zModal-content h2
+                contains: Hello, Zolo!
+
     Close_Hello_Modal:
         zClick:
             selector: .zModal-close

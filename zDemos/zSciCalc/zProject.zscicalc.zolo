@@ -1,0 +1,19 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#
+# zProject — the distribution manifest `zolo push` reads. Everything the
+# zFeed card shows rides from HERE (the tagline doctrine): tagline + tags
+# land on the zApps row, cover ships as its own multipart part and becomes
+# the card photo.
+
+zProject:
+    slug:       zscicalc
+    name:       zSciCalc
+    spark:      zSpark.zscicalc.zolo
+    version:    1.0.0
+    visibility: public
+    tagline:    A scientific calculator — one Python evaluator, two frontends.
+    tags:       [calculator, tools]
+    cover:      cover.png
+    #> ship the teaching material, never run artifacts — NOTE the globs:
+    #  bare dir names do NOT prune subtrees (bundler fnmatch), `dir/*` does. <#
+    ignore:     [logs/*, zRaven/output/*, zRaven/zShots/*, .zpush_*]

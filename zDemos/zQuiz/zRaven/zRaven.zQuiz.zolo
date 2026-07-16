@@ -25,6 +25,16 @@ Tests:
                 selector: "[data-zkey='Track']"
                 contains: Choose your track
 
+    # Structural lock (raven --hint): prove _zClass actually lands on the
+    # rendered options block — screenshots alone can miss a silently-dropped
+    # class (and every zQuiz-* brush rule would die with it).
+    Assert_Options_Class:
+        zAssert:
+            dom:
+                selector: .zQuiz-options
+                property: className
+                contains: zQuiz-options
+
     # ── Beginner track: Q1 right, Q2 wrong -> 2/3 (67%) ──────────────────────
     Pick_Beginner:
         zClick:
