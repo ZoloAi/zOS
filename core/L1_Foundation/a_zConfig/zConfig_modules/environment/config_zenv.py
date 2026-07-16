@@ -94,13 +94,42 @@ ZENV_EXTENSIONS = [
     ZENV_EXT_JSON     # Also try .json
 ]
 
+# ── Tenant-isolation manifest ────────────────────────────────────────────────
+# Every key zEnv writes to os.environ is recorded here and published under
+# ZENV_EXPORTED_KEYS (a JSON list) — the env documents which of its keys came
+# from zEnv FILES rather than the genuine launch environment.
+# Two spawn paths consume it:
+#   • zos_plugin drivers (tenant children): pop the marker + scrub the listed
+#     keys, so a host app's declarative env (ZNAVBAR chrome, flags, RBAC
+#     defaults…) never leaks into a tenant via os.environ.copy().
+#   • THIS module at import (`z swap` self-replace): the fresh instance
+#     inherits the old instance's ALREADY-INJECTED env, so without hygiene
+#     every zEnv value would land in the launch snapshot below and masquerade
+#     as an ops override — skipped on load (stale zEnv edits forever) and,
+#     one generation later, leaked into tenants UNRECORDED (the manifest only
+#     lists keys this process wrote itself). The pass below deletes inherited
+#     zEnv keys so the process starts as-if launched fresh and re-derives its
+#     config from its own files.
+# Env-var transport (not an import) keeps the SDK decoupled from L1 config.
+# Module-level so the record accumulates across `z reload` loader rebuilds.
+ZENV_EXPORTED_KEYS_VAR = "ZENV_EXPORTED_KEYS"
+_EXPORTED_KEYS: set = set()
+
+try:
+    _INHERITED_ZENV_KEYS = json.loads(os.environ.pop(ZENV_EXPORTED_KEYS_VAR, "[]"))
+except (ValueError, TypeError):
+    _INHERITED_ZENV_KEYS = []
+for _key in _INHERITED_ZENV_KEYS:
+    os.environ.pop(_key, None)
+
 # Genuine PROCESS-LAUNCH environment snapshot — captured at first import of this
-# module, which always precedes any zEnv injection (injection happens only *through*
-# this module). Keys present here are explicit launch-time overrides (ops env, or a
-# driver injecting per-instance ports) and MUST win over zEnv FILE defaults — even
-# across a hot `z reload`. Without this, a fresh loader built during reload would
-# snapshot the ALREADY-injected env in __init__ and wrongly treat every zEnv value as
-# a launch override, making reload silently ignore edited zEnv files. SSOT for the
+# module (AFTER the inherited-zEnv hygiene pass above), which always precedes any
+# zEnv injection (injection happens only *through* this module). Keys present here
+# are explicit launch-time overrides (ops env, or a driver injecting per-instance
+# ports) and MUST win over zEnv FILE defaults — even across a hot `z reload`.
+# Without this, a fresh loader built during reload would snapshot the
+# ALREADY-injected env in __init__ and wrongly treat every zEnv value as a launch
+# override, making reload silently ignore edited zEnv files. SSOT for the
 # launch-precedence rule across boot AND reload.
 _LAUNCH_ENV_KEYS = frozenset(os.environ.keys())
 
@@ -202,6 +231,11 @@ class zEnv:
 
         if not any_loaded:
             self._log("[INFO]  No zEnv config files found in workspace")
+
+        # Publish the tenant-isolation manifest — refreshed after every load so
+        # child-spawning drivers always see the current set (boot AND reload).
+        if _EXPORTED_KEYS:
+            os.environ[ZENV_EXPORTED_KEYS_VAR] = json.dumps(sorted(_EXPORTED_KEYS))
 
         return any_loaded
 
@@ -336,6 +370,7 @@ class zEnv:
             self._log(f"  {key}: <kept launch override> (zEnv file value ignored)")
             return
         os.environ[key] = raw_value
+        _EXPORTED_KEYS.add(key)  # tenant-isolation manifest (see ZENV_EXPORTED_KEYS_VAR)
         self._log(f"  {key}: {self._redacted(key, raw_value)}")
 
     def _inject_to_environ(self, config: Dict[str, Any]) -> None:

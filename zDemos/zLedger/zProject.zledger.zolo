@@ -20,9 +20,14 @@ zProject:
     #  absent keys leave the zApps columns alone (dashboard edits survive). <#
     tagline:    Live search · soft-delete · aggregates — the golden data-table reference
     tags:       [tools, data, reference]
+    #> the feed-card photo — ships as its own multipart part beside the bundle
+    #  (served blob, not app code), lands as zApps.cover_key. Omit it and the
+    #  server generates a slug-seeded default (a card photo is a requirement). <#
+    cover:      cover.png
     ignore:
         - zEnv.development.zolo
         - zRaven
         - logs
         - "*.db-journal"
         - zShots
+        - cover.png   #> rides the multipart, not the app/ slice <#

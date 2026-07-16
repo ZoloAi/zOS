@@ -24,6 +24,7 @@ this SDK's). The driver returns an :class:`Instance` value object whose
 from __future__ import annotations
 
 import abc
+import json
 import os
 import shutil
 import socket
@@ -321,6 +322,18 @@ class LocalProcessDriver(ComputeDriver):
         log_path = log_dir / f"instance_{port}.log"
 
         child_env = os.environ.copy()
+        # Tenant isolation: strip every key the HOST's zEnv files exported
+        # (ZENV_EXPORTED_KEYS is the manifest config_zenv publishes). Without
+        # this, the host's declarative env (ZNAVBAR chrome, flags, RBAC
+        # defaults…) leaks into the tenant — and, because inherited keys land
+        # in the child's launch-env snapshot, would even OVERRIDE the tenant's
+        # own zEnv files. The child re-derives its config from ITS bundle; the
+        # only host-injected keys are the per-instance ones set right below.
+        try:
+            for leaked in json.loads(child_env.pop("ZENV_EXPORTED_KEYS", "[]")):
+                child_env.pop(leaked, None)
+        except (ValueError, TypeError):
+            pass  # malformed manifest — never block a wake over it
         child_env[_ENV_HTTP_HOST] = app.host
         child_env[_ENV_HTTP_PORT] = str(port)
         child_env[_ENV_WS_HOST] = app.host
