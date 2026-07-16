@@ -15,6 +15,7 @@ zProject:
     slug:       zledger
     name:       zLedger
     spark:      zSpark.zLedger.zolo
+    version:    1.0.0
     visibility: public
     #> feed-card meta — manifest-authoritative on every push (zpush.py);
     #  absent keys leave the zApps columns alone (dashboard edits survive). <#
@@ -24,10 +25,13 @@ zProject:
     #  (served blob, not app code), lands as zApps.cover_key. Omit it and the
     #  server generates a slug-seeded default (a card photo is a requirement). <#
     cover:      cover.png
+    #> golden-demo convention (zHello/zSciCalc/zQuiz): SHIP the zRaven test
+    #  file as teaching material, prune only run artifacts. <#
     ignore:
         - zEnv.development.zolo
-        - zRaven
-        - logs
+        - logs/*
+        - zRaven/output/*
+        - zRaven/zShots/*
         - "*.db-journal"
-        - zShots
+        - .zpush_*
         - cover.png   #> rides the multipart, not the app/ slice <#
