@@ -12,6 +12,7 @@ from .utils import HandlerUtils
 from .html_injectors import (
     _build_nav_html_safe,
     _inject_zui_head,
+    _inject_seo_body,
     _inject_seo_meta,
     _inject_title,
     _inject_watermark,
@@ -69,6 +70,12 @@ class PageRouteHandlersMixin:
             request_path=getattr(self.handler, 'path', None),
             request_proto=_proto,
             logger=self.logger,
+        )
+        # SEO body outline (issue #24 Phase A) — crawlable h1/description/nav
+        # anchors inside <zVaF>; the client's renderBlock wipes it at hydration.
+        html_content = _inject_seo_body(
+            html_content, page_title, zVaFile_meta,
+            nav_html=nav_html, logger=self.logger,
         )
         html_content = _inject_title(html_content, page_title, self.logger)
         html_content = _inject_watermark(html_content, zos, self.logger)

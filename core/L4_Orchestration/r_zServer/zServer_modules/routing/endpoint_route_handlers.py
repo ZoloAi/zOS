@@ -161,6 +161,12 @@ class EndpointRouteHandlersMixin:
 
         # Not ready within the wake window — ask the client to retry (interstitial
         # with auto-poll is the planned polish; a 503 keeps the contract honest).
+        # Log the WHY (state + driver error) — the styled 503 page swallows the
+        # message, so without this line a failed wake is undiagnosable from logs.
+        if self.logger:
+            self.logger.warning(
+                f"[RouteDispatcher] zProxy '{slug}' not ready → 503 "
+                f"(state={target.state}, url={target.url!r}, error={target.error!r})")
         return self._serve_error(503, f"App is starting ({target.state}) — retry shortly")
 
     def _handle_zapi_route(self, route: dict):

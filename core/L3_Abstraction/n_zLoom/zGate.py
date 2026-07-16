@@ -64,7 +64,12 @@ class zGate:  # noqa: N801 — subsystem facade
             return None
         if "zGate" in container:
             return container["zGate"]
-        if "zRBAC" in container:  # noqa: transitional bridge — remove in Phase 3E
+        # noqa: transitional bridge — remove in Phase 3E. A None-valued zRBAC is
+        # NOT a gate: the server-file parser stamps `zRBAC: None` on every route
+        # entry (vafile_server), so key-presence alone would mark ALL routes as
+        # gated (empty gate {} evaluates open, but public/gated discrimination —
+        # e.g. the sitemap projection — would see everything as private).
+        if container.get("zRBAC") is not None:
             self._warn_legacy("zRBAC")
             return self.lower_zrbac(container["zRBAC"])
         return None

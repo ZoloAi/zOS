@@ -377,6 +377,20 @@ class RouteDispatcher(PageRouteHandlersMixin, EndpointRouteHandlersMixin):
             self.logger.framework.debug(f"[RouteDispatcher] Attempting to match route: {clean_path}")
             self.logger.framework.debug(f"[RouteDispatcher] Router has {len(self.router.auto_discovered_routes)} auto-discovered routes")
 
+        # Built-in SEO endpoints (issue #24 Phase A) — checked BEFORE the route
+        # match because a wildcard/catch-all route would otherwise swallow them
+        # into the styled 404. An app's OWN explicit route for either path
+        # (route_map or auto-discovered static) still shadows the default.
+        if clean_path in ('/robots.txt', '/sitemap.xml'):
+            _explicit = (clean_path in (self.router.route_map or {})
+                         or clean_path in (self.router.auto_discovered_routes or {}))
+            if not _explicit:
+                from .seo_endpoints import serve_robots, serve_sitemap
+                zos = getattr(self.router, 'zos', None)
+                if clean_path == '/robots.txt':
+                    return serve_robots(self.handler)
+                return serve_sitemap(self.handler, self.router, zos, logger=self.logger)
+
         # Match route (without query parameters)
         route = self.router.match_route(clean_path)
         if not route:

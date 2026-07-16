@@ -210,6 +210,49 @@ def _inject_seo_meta(html_content, page_title, app_brand, zVaFile_meta,
     return html_content.replace('</head>', seo_html + '</head>', 1)
 
 
+def _inject_seo_body(html_content, page_title, zVaFile_meta, nav_html=None, logger=None):
+    """Stamp a crawlable outline INSIDE ``<zVaF>`` (SEO body seam, issue #24 Phase A).
+
+    The shell body is otherwise empty — content paints over the Bifrost WS —
+    so document-first consumers (Bing, social/link-preview bots, LLM crawlers)
+    see no text and no anchors. This stamps the minimum truthful outline from
+    state the render tail ALREADY resolved (nothing is invented, no second
+    renderer):
+
+        page title            → <h1>
+        zMeta.zDescription    → <p>
+        RBAC-filtered navbar  → real <a href> anchors (same build_nav_html
+                                output the zui-config blob already carries)
+
+    LIFECYCLE: the outline is wrapped in ``<noscript>`` — a JS-running browser
+    NEVER renders it (hydrated content mounts into a child container and does
+    not clear zVaF's own children, so an unwrapped outline would sit above the
+    live page forever). Document-first consumers (crawlers, link-preview bots,
+    LLM fetchers) parse noscript content as ordinary markup, so the title,
+    description and nav anchors stay fully crawlable.
+    No-op when the shell has no ``<zVaF>`` mount or nothing to say.
+    """
+    marker = '<zVaF>'
+    if marker not in html_content:
+        return html_content
+
+    parts = []
+    if page_title:
+        parts.append(f'<h1>{html.escape(str(page_title), quote=False)}</h1>')
+    description = (zVaFile_meta or {}).get('zDescription')
+    if description:
+        parts.append(f'<p>{html.escape(str(description), quote=False)}</p>')
+    if nav_html:
+        parts.append(str(nav_html))
+    if not parts:
+        return html_content
+
+    outline = '<noscript data-zseo="outline">' + ''.join(parts) + '</noscript>'
+    if logger:
+        logger.debug(f'[RouteDispatcher] SEO body outline injected ({len(parts)} parts)')
+    return html_content.replace(marker, marker + outline, 1)
+
+
 def _inject_title(html_content, page_title, logger=None):
     """Write the computed page title into the rendered ``<title>`` (SSOT).
 
