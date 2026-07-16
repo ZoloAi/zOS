@@ -192,11 +192,12 @@ class QueryOps:
 
         result = self.zos.data.handle_request(zdata, context)
 
-        # limit lives at options.limit on the legacy form but at the zData TOP
-        # LEVEL on the explicit read form (action: read, limit: 1) — honor both,
-        # or an explicit-form limit:1 spool stays a 1-element LIST and every
-        # %data.<spool>.<field> token misses (list segments only nav by index).
-        limit = zdata.get("options", {}).get("limit") or zdata.get("limit")
+        # ONLY options.limit (legacy/declarative form) unwraps — an explicit-form
+        # spool (action: read, limit: 1) stays a 1-element LIST by long-standing
+        # grammar; golden demos navigate it by index (%data.poll.0.question).
+        # Unwrapping top-level limit:1 broke them all (baseline 2026-07-16) —
+        # explicit-form callers index .0. and deep_nav resolves the rest.
+        limit = zdata.get("options", {}).get("limit")
         if isinstance(result, list) and limit == 1 and len(result) > 0:
             final_result = result[0]
         else:
