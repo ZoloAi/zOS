@@ -78,14 +78,18 @@ def deep_nav(root: Any, dotted: Any) -> Any:
         return None
     # An auto_join read (18_data_advanced.md "columns") returns rows whose keys are
     # table-qualified LITERALS ("Posts.title"), not nested dicts — a bare %item.title
-    # would otherwise require every caller to know a row came from a join. Try the
-    # WHOLE remaining path as one literal key first; a plain (non-joined) dict is
+    # would otherwise require every caller to know a row came from a join. At EVERY
+    # dict hop, try the whole remaining path as one literal key first (not just the
+    # top level — a joined row can sit one level deep, e.g. a limit-1 spool unwrap:
+    # %data.subs_sel_row.zSubscriptions.plan). A plain (non-joined) dict is
     # exceedingly unlikely to also carry a literal dotted key, so this never shadows
     # genuine nested access below.
-    if isinstance(node, dict) and dotted in node:
-        return node[dotted]
-    for part in str(dotted).split("."):
+    parts = str(dotted).split(".")
+    for i, part in enumerate(parts):
         if isinstance(node, dict):
+            remaining = ".".join(parts[i:])
+            if remaining in node:
+                return node[remaining]
             node = node.get(part)
         elif isinstance(node, list) and part.isdigit():
             idx = int(part)

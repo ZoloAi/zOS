@@ -192,7 +192,11 @@ class QueryOps:
 
         result = self.zos.data.handle_request(zdata, context)
 
-        limit = zdata.get("options", {}).get("limit")
+        # limit lives at options.limit on the legacy form but at the zData TOP
+        # LEVEL on the explicit read form (action: read, limit: 1) — honor both,
+        # or an explicit-form limit:1 spool stays a 1-element LIST and every
+        # %data.<spool>.<field> token misses (list segments only nav by index).
+        limit = zdata.get("options", {}).get("limit") or zdata.get("limit")
         if isinstance(result, list) and limit == 1 and len(result) > 0:
             final_result = result[0]
         else:
