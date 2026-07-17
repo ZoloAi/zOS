@@ -253,6 +253,18 @@ class LifecycleManager:
                 self.stop()
             except Exception as exc:  # pylint: disable=broad-except
                 self.logger.debug(f"[zSwap] stop during handoff raised (continuing): {exc}")
+            # Drain REAL in-flight work, not just a fixed nap: a push mid-zRelease
+            # can outlive any constant grace, and exiting under it drops the push.
+            # The reload gate counts dispatches — wait (bounded) for zero, then
+            # apply the short constant grace for socket-level stragglers.
+            from .reload_gate import get_gate  # pylint: disable=import-outside-toplevel
+            gate = get_gate()
+            drain_deadline = _time.time() + 60.0
+            while gate.in_flight and _time.time() < drain_deadline:
+                _time.sleep(0.25)
+            if gate.in_flight:
+                _emit(f"[zSwap] {gate.in_flight} request(s) still in flight after drain "
+                      "window — exiting anyway (green is serving new traffic).")
             if drain_timeout and drain_timeout > 0:
                 _time.sleep(drain_timeout)
 
@@ -341,12 +353,30 @@ class LifecycleManager:
             _emit(RELOAD_PRINT_INITIATED)
             self.logger.framework.debug(RELOAD_LOG_START)
 
-            # 1. Bust the loader's parsed-file cache FIRST so the rebuild re-reads
-            #    edited zViews/route files instead of serving stale parsed dicts.
-            cache_cleared = self._bust_loader_cache()
+            # 0. QUIESCE: reload runs on the MAIN thread while requests run in
+            #    the server thread(s). Busting the loader cache / swapping the
+            #    route table under an in-flight request (a push mid-zRelease, a
+            #    zProxy wake) wedges that request on half-swapped state. Take
+            #    the gate's write side: block new requests, drain in-flight
+            #    ones (bounded), and ABORT — never race — if they won't drain.
+            from .reload_gate import get_gate  # pylint: disable=import-outside-toplevel
+            with get_gate().quiesce() as quiescent:
+                if not quiescent:
+                    busy = get_gate().in_flight
+                    msg = (f"server busy ({busy} request(s) in flight — e.g. a push "
+                           f"or app wake); reload skipped, retry when idle")
+                    _emit(RELOAD_PRINT_ABORTED.format(fail=SHUTDOWN_STATUS_FAIL, detail=msg))
+                    _emit(RELOAD_PRINT_ABORTED_TAIL.format(warn=RELOAD_WARN_GLYPH))
+                    self.logger.warning(RELOAD_LOG_ABORTED, msg)
+                    return {"ok": False, "routes": 0, "zapis": 0, "error": msg}
 
-            # 2. Rebuild the route table off to the side, then atomic swap (fail-safe).
-            result = self.route_manager.reload()
+                # 1. Bust the loader's parsed-file cache FIRST so the rebuild
+                #    re-reads edited zViews/route files instead of stale dicts.
+                cache_cleared = self._bust_loader_cache()
+
+                # 2. Rebuild the route table off to the side, then atomic swap
+                #    (fail-safe).
+                result = self.route_manager.reload()
 
             if not result.get("ok"):
                 _emit(RELOAD_PRINT_ABORTED.format(fail=SHUTDOWN_STATUS_FAIL, detail=result.get("error")))

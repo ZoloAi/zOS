@@ -229,12 +229,26 @@ class RouteDispatcher(PageRouteHandlersMixin, EndpointRouteHandlersMixin):
         anonymous from the boot default with deep-copied per-caller slices and
         dropped afterwards. Degrades to the shared session if the registry is
         unavailable.
+
+        The whole dispatch holds a READ slot on the reload gate: a ``z reload``
+        (SIGHUP, main thread) busts the loader cache + swaps the route table —
+        racing an in-flight request (a push mid-zRelease, a zProxy wake) wedges
+        the request thread on half-swapped state. The gate makes the reload
+        wait for us instead (see lifecycle/reload_gate.py).
         """
-        token, sid = self._enter_request_session()
-        try:
-            return self._dispatch_routed_request()
-        finally:
-            self._exit_request_session(token, sid)
+        from ..lifecycle.reload_gate import get_gate  # pylint: disable=import-outside-toplevel
+
+        with get_gate().request() as admitted:
+            if not admitted:
+                # A reload held the gate past the wait window — never dispatch
+                # against a table mid-swap; ask the client to retry.
+                return self.handler.send_error(
+                    503, "Server reloading — retry shortly")
+            token, sid = self._enter_request_session()
+            try:
+                return self._dispatch_routed_request()
+            finally:
+                self._exit_request_session(token, sid)
 
     def _enter_request_session(self):
         """Seed + bind a per-request session unit; return (token, sid) for cleanup.
