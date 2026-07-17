@@ -211,6 +211,12 @@ class EndpointRouteHandlersMixin:
                 self.logger.info(f"[RouteDispatcher] zProxy '{slug}' not visible → 404")
             return self._serve_error(404, "App not available")
 
+        # A `?zwake=1` request is the interstitial's status poll — same wake
+        # path, JSON answer. Detected before the wake so both flows share one
+        # resolve below.
+        from urllib.parse import parse_qs, urlparse  # pylint: disable=import-outside-toplevel
+        is_poll = "zwake" in parse_qs(urlparse(self.handler.path).query)
+
         try:
             # Front door is a control-plane job — delegate to zHost. zServer only
             # performs the 302 / interstitial; it no longer imports the compute engine.
@@ -219,13 +225,29 @@ class EndpointRouteHandlersMixin:
             from zos_plugin import tenant_id  # pylint: disable=import-outside-toplevel
             app_identity = tenant_id(slug, scope_handle)
             serve_path = getattr(self.router, 'serve_path', None)
+            # SHORT wake budget on purpose: a hot app answers in well under a
+            # second and 302s with no flash; a cold one comes back `waking` and
+            # gets the interstitial, whose polls re-enter here — the driver
+            # holds the booting child across polls (never reaps mid-boot), so
+            # the boot finishes in the background regardless of poll cadence.
+            # Polls get an even shorter budget: wake calls serialize per app,
+            # so short holds keep the (small) server thread pool breathing.
             target = zos.zhost.resolve_proxy(
                 app_identity, row.get(spark_field), workspace_dir=serve_path,
+                timeout=2.0 if is_poll else 4.0,
                 build=row.get(build_field) if build_field else None)
         except Exception as exc:  # pylint: disable=broad-except
             if self.logger:
                 self.logger.error(f"[RouteDispatcher] zProxy wake failed for '{slug}': {exc}")
+            if is_poll:
+                return self._serve_wake_status(state="error", error="wake failed")
             return self._serve_error(502, "App failed to start")
+
+        if is_poll:
+            return self._serve_wake_status(
+                state=target.state,
+                url=target.url if (target.ready and target.url) else None,
+                error=target.error)
 
         if target.ready and target.url:
             if self.logger:
@@ -236,15 +258,104 @@ class EndpointRouteHandlersMixin:
             self.handler.end_headers()
             return
 
-        # Not ready within the wake window — ask the client to retry (interstitial
-        # with auto-poll is the planned polish; a 503 keeps the contract honest).
-        # Log the WHY (state + driver error) — the styled 503 page swallows the
-        # message, so without this line a failed wake is undiagnosable from logs.
+        if target.state == "error":
+            if self.logger:
+                self.logger.warning(
+                    f"[RouteDispatcher] zProxy '{slug}' failed → 502 "
+                    f"(error={target.error!r})")
+            return self._serve_error(502, "App failed to start")
+
+        # Waking — serve the interstitial: an immediate page that polls this
+        # same URL (`?zwake=1`) and redirects itself the moment the app (and,
+        # in prod, its just-minted certificate) actually serves. The visitor
+        # sees a "waking up" state, never a hung tab or a browser SSL error.
         if self.logger:
-            self.logger.warning(
-                f"[RouteDispatcher] zProxy '{slug}' not ready → 503 "
-                f"(state={target.state}, url={target.url!r}, error={target.error!r})")
-        return self._serve_error(503, f"App is starting ({target.state}) — retry shortly")
+            self.logger.info(
+                f"[RouteDispatcher] zProxy '{slug}' waking → interstitial "
+                f"(state={target.state})")
+        return self._serve_wake_interstitial(row.get("name") or slug)
+
+    def _serve_wake_status(self, state: str, url=None, error=None):
+        """JSON answer for the interstitial's `?zwake=1` poll."""
+        import json as _json  # pylint: disable=import-outside-toplevel
+        body = _json.dumps({
+            "ready": bool(url),
+            "state": state,
+            "url": url,
+            "error": error,
+        }).encode("utf-8")
+        self.handler.send_response(200)
+        self.handler.send_header("Content-Type", "application/json")
+        self.handler.send_header("Content-Length", len(body))
+        self.handler.send_header("Cache-Control", "no-store")
+        self.handler.end_headers()
+        self.handler.wfile.write(body)
+
+    def _serve_wake_interstitial(self, app_name: str):
+        """The scale-from-zero waiting room — polls `?zwake=1`, then redirects.
+
+        Served 200 (not 503) so browsers render it plainly and never surface a
+        scary error page for what is a NORMAL cold start. Gives up after ~2.5
+        minutes with a reload hint — longer than any sane boot, short enough
+        that a genuinely wedged app doesn't spin forever.
+        """
+        import html as _html  # pylint: disable=import-outside-toplevel
+        name = _html.escape(str(app_name))
+        body = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{name} — waking up</title>
+<style>
+  body {{ margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+         background:#0d1117; color:#e6edf3; font:16px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }}
+  .card {{ text-align:center; padding:2rem; }}
+  .spin {{ width:44px; height:44px; margin:0 auto 1.2rem; border-radius:50%;
+          border:3px solid #21262d; border-top-color:#3fb950; animation:r 0.9s linear infinite; }}
+  @keyframes r {{ to {{ transform:rotate(360deg); }} }}
+  h1 {{ font-size:1.25rem; font-weight:600; margin:0 0 .4rem; }}
+  p {{ color:#8b949e; margin:0; font-size:.9rem; }}
+</style></head>
+<body><div class="card">
+  <div class="spin"></div>
+  <h1>{name} is waking up</h1>
+  <p id="msg">Scale-from-zero: your app is booting. This takes a few seconds.</p>
+</div>
+<script>
+(function () {{
+  var started = Date.now(), LIMIT = 150000;
+  function poll() {{
+    fetch(location.pathname + '?zwake=1', {{cache: 'no-store'}})
+      .then(function (r) {{ return r.json(); }})
+      .then(function (s) {{
+        if (s.ready && s.url) {{ location.replace(s.url); return; }}
+        if (s.state === 'error') {{
+          document.getElementById('msg').textContent =
+            'The app failed to start. Reload to try again.';
+          return;
+        }}
+        next();
+      }})
+      .catch(next);
+  }}
+  function next() {{
+    if (Date.now() - started > LIMIT) {{
+      document.getElementById('msg').textContent =
+        'Still starting — reload the page to keep waiting.';
+      return;
+    }}
+    setTimeout(poll, 1500);
+  }}
+  poll();
+}})();
+</script></body></html>"""
+        data = body.encode("utf-8")
+        self.handler.send_response(200)
+        self.handler.send_header("Content-Type", "text/html; charset=utf-8")
+        self.handler.send_header("Content-Length", len(data))
+        self.handler.send_header("Cache-Control", "no-store")
+        self.handler.end_headers()
+        self.handler.wfile.write(data)
 
     def _handle_zapi_route(self, route: dict):
         """

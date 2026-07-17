@@ -61,6 +61,19 @@ class FrontDoorMixin:
                 # Publish under the BARE slug — the subdomain is the app's public
                 # identity; the versioned key is driver-internal only.
                 public_url = ingress.publish(app_id, inst.port, inst.ws_port)
+                # First publish of a hostname mints its certificate on demand —
+                # a 302 issued before the handshake works lands the visitor on
+                # a browser SSL error. Hold "ready" until TLS actually serves;
+                # not-yet is a WAKING answer (the interstitial keeps polling),
+                # never a broken redirect. Budget rides the caller's timeout so
+                # a short interstitial poll stays short.
+                if not ingress.tls_servable(app_id, timeout=min(timeout, 5.0)):
+                    return ProxyTarget(
+                        app_id=app_id,
+                        state="waking",
+                        url=None,
+                        error="ingress: certificate not servable yet",
+                    )
                 return ProxyTarget(
                     app_id=app_id,
                     state=inst.state,

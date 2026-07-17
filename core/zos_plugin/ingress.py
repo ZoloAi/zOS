@@ -31,6 +31,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import socket
+import ssl
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -163,6 +166,34 @@ class IngressConfig:
             "terminal": True,
         }
         self._admin("POST", f"/config/apps/http/servers/{server}/routes", route)
+
+    # -- TLS readiness ---------------------------------------------------------
+
+    def tls_servable(self, app_id: str, timeout: float = 15.0) -> bool:
+        """True once the app's hostname completes a VERIFIED TLS handshake.
+
+        First publish of a hostname triggers on-demand ACME issuance, which
+        takes seconds — a 302 issued before the cert exists lands the visitor
+        on a browser SSL error (found live: cold zRM wake). This probe does
+        exactly what the visitor's browser will do (SNI + chain + hostname
+        verification) against the local proxy, so "True" means the redirect
+        is actually followable. Budget via ``ZHOST_INGRESS_TLS_TIMEOUT``.
+        """
+        host = self.hostname(app_id)
+        try:
+            budget = float(os.getenv("ZHOST_INGRESS_TLS_TIMEOUT") or timeout)
+        except ValueError:
+            budget = timeout
+        ctx = ssl.create_default_context()
+        deadline = time.time() + budget
+        while time.time() < deadline:
+            try:
+                with socket.create_connection(("127.0.0.1", 443), timeout=3) as raw:
+                    with ctx.wrap_socket(raw, server_hostname=host):
+                        return True
+            except (ssl.SSLError, OSError):
+                time.sleep(0.5)
+        return False
 
     def publish(self, app_id: str, http_port: int, ws_port: int) -> str:
         """Point ``<slug>.<domain>`` (HTTP + WS legs) at a woken instance.

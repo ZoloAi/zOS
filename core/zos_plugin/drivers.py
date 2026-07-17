@@ -541,8 +541,20 @@ class LocalProcessDriver(ComputeDriver):
     def wake(self, app: AppSpec, timeout: float = 25.0) -> Instance:
         with self._wake_lock(app.app_id):
             rec = self._instances.get(app.app_id)
-            if rec and self._alive(rec) and _port_open(rec["host"], rec["port"]):
-                return self._to_instance(app.app_id, rec, STATE_RUNNING)
+            if rec and self._alive(rec):
+                if _port_open(rec["host"], rec["port"]):
+                    return self._to_instance(app.app_id, rec, STATE_RUNNING)
+                # Alive but port not open = STILL BOOTING. Wait for it within
+                # this call's budget — never reap a healthy child mid-boot, or
+                # a reload/second tab during a slow wake restarts the boot from
+                # zero (found live: zRM's cold start vs an impatient refresh).
+                deadline = time.time() + timeout
+                while time.time() < deadline and self._alive(rec):
+                    if _port_open(rec["host"], rec["port"]):
+                        return self._to_instance(app.app_id, rec, STATE_RUNNING)
+                    time.sleep(0.25)
+                if self._alive(rec):
+                    return self._to_instance(app.app_id, rec, STATE_WAKING)
             if rec is not None:
                 # Dead/unreachable leftover — reap before replacing so a crashed
                 # child's record never strands an open log fh or zombie entry.
