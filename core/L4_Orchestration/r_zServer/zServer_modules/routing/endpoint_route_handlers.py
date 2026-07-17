@@ -81,6 +81,10 @@ class EndpointRouteHandlersMixin:
                     spark_field: spark_path         # column holding the boot path
                     visibility_field: status        # optional — omit to serve any row
                     visibility_value: live          # paired with visibility_field
+                    build_field: active_build_id    # optional — versions the driver
+                                                    # key (slug#<build>, zRelease's
+                                                    # vocabulary) so repushes retarget
+                                                    # the front door to the new build
 
         Visibility: when ``visibility_field`` is set, only rows where it equals
         ``visibility_value`` resolve; anything else 404s (a paused/unknown app never
@@ -102,6 +106,11 @@ class EndpointRouteHandlersMixin:
             return self._serve_error(500, "Proxy route misconfigured (no registry table)")
         key = cfg.get("key", "slug")
         spark_field = cfg.get("spark_field", "spark_path")
+        # Optional: registry column carrying the active build id. When declared,
+        # the wake is keyed `slug#<build>` — the SAME driver vocabulary zRelease
+        # uses — so a repush pointer-flip retargets the front door to the new
+        # build instead of holding a stale bare-slug record (SSOT key unification).
+        build_field = cfg.get("build_field")
         # Visibility gate — declarative field/value (SSOT on the route, not baked in).
         # Default OFF: no visibility_field → any matching row resolves. A platform
         # sets both to gate on its own status vocabulary (e.g. status == live).
@@ -144,7 +153,9 @@ class EndpointRouteHandlersMixin:
             # Front door is a control-plane job — delegate to zHost. zServer only
             # performs the 302 / interstitial; it no longer imports the compute engine.
             serve_path = getattr(self.router, 'serve_path', None)
-            target = zos.zhost.resolve_proxy(slug, row.get(spark_field), workspace_dir=serve_path)
+            target = zos.zhost.resolve_proxy(
+                slug, row.get(spark_field), workspace_dir=serve_path,
+                build=row.get(build_field) if build_field else None)
         except Exception as exc:  # pylint: disable=broad-except
             if self.logger:
                 self.logger.error(f"[RouteDispatcher] zProxy wake failed for '{slug}': {exc}")
