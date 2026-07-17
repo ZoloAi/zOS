@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zolo-os"
-version = "1.6.18"
+version = "1.6.19"
 description = "Zolo Operating System - A full-stack application framework with declarative configuration, layered architecture, and rich subsystems"
 authors = [
     {name = "Gal Nachshon", email = "gal@zolo.media"}
