@@ -57,11 +57,21 @@ _SLUG_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
 
 
 def slugify(app_id: str) -> str:
-    """Coerce an app id into a valid DNS label (lowercase, [a-z0-9-])."""
-    slug = re.sub(r"[^a-z0-9-]+", "-", str(app_id).lower()).strip("-")
-    if not _SLUG_RE.match(slug):
-        raise ValueError(f"app id {app_id!r} cannot form a DNS label ({slug!r})")
-    return slug
+    """Coerce an app id into a valid DNS name fragment.
+
+    A NAMESPACED identity (``<app>.<owner>``, claim-your-username) is dot-
+    separated labels — each label is coerced/validated on its own and the dots
+    survive, so the fragment nests as subdomain levels (``zblog.gal.<domain>``).
+    A wildcard DNS record matches any depth (RFC 4592) and Caddy issues certs
+    per exact hostname, so no infra change rides on the number of labels.
+    """
+    labels = []
+    for part in str(app_id).lower().split("."):
+        label = re.sub(r"[^a-z0-9-]+", "-", part).strip("-")
+        if not _SLUG_RE.match(label):
+            raise ValueError(f"app id {app_id!r} cannot form a DNS name ({part!r})")
+        labels.append(label)
+    return ".".join(labels)
 
 
 @dataclass(frozen=True)

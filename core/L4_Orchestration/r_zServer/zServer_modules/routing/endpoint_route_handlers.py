@@ -78,6 +78,8 @@ class EndpointRouteHandlersMixin:
                                                     # schema-at-a-time), same reason
                                                     # zLogin declares `model`
                     key: slug                       # url param → row lookup column
+                    param: appname                  # optional — URL param NAME when it
+                                                    # differs from the lookup column
                     spark_field: spark_path         # column holding the boot path
                     visibility_field: status        # optional — omit to serve any row
                     visibility_value: live          # paired with visibility_field
@@ -85,6 +87,29 @@ class EndpointRouteHandlersMixin:
                                                     # key (slug#<build>, zRelease's
                                                     # vocabulary) so repushes retarget
                                                     # the front door to the new build
+
+        OWNER-SCOPED lookup (claim-your-username) — app names are per-owner, so the
+        route carries the owner's public handle as a second param and the row lookup
+        is (handle → owner id) THEN (owner id + slug). Declared, never baked in::
+
+            /users/%username/%appname:
+                type: zProxy
+                zProxy:
+                    table: zApps
+                    key: slug
+                    param: appname
+                    scope_param: username           # URL param carrying the handle
+                    scope_table: zCard              # handle registry table
+                    scope_model: @.models.zSchema.zCard
+                    scope_key: username             # column matching the handle
+                    scope_id: user_id               # column carrying the owner's id
+                    owner_field: owner_id           # app-table column filtered by it
+                    ...                             # spark/build/visibility as above
+
+        When scoped, the tenant's PUBLIC identity becomes ``<slug>.<handle>``
+        (zos_plugin.release.tenant_id — the shared vocabulary): the driver keys,
+        blue/green instance table and ingress hostname (``zblog.gal.<domain>``)
+        all ride it, so two owners shipping the same app name never collide.
 
         Visibility: when ``visibility_field`` is set, only rows where it equals
         ``visibility_value`` resolve; anything else 404s (a paused/unknown app never
@@ -118,22 +143,59 @@ class EndpointRouteHandlersMixin:
         vis_value = cfg.get("visibility_value")
 
         params = route.get("_route_params") or {}
-        slug = params.get(key)
+        slug = params.get(cfg.get("param") or key)
         if not slug:
             return self._serve_error(404, "No app identifier")
+
+        # Owner scope (claim-your-username) — resolve the handle to an owner id
+        # BEFORE the app lookup, so the slug only matches within that owner's
+        # namespace. All vocabulary is the route's (scope_* / owner_field).
+        scope_param = cfg.get("scope_param")
+        scope_handle = params.get(scope_param) if scope_param else None
+        if scope_param and not scope_handle:
+            return self._serve_error(404, "No owner identifier")
+
+        def _connect(model_handle):
+            try:
+                zos.data.load_schema(zos.loader.handle(model_handle))
+            except Exception as exc:  # pylint: disable=broad-except
+                if self.logger:
+                    self.logger.warning(f"[RouteDispatcher] zProxy schema connect warning: {exc}")
+
+        owner_id = None
+        if scope_handle:
+            scope_table = cfg.get("scope_table")
+            scope_key = cfg.get("scope_key", "username")
+            scope_id = cfg.get("scope_id", "user_id")
+            if not scope_table:
+                if self.logger:
+                    self.logger.error("[RouteDispatcher] zProxy scope_param without scope_table")
+                return self._serve_error(500, "Proxy route misconfigured (no scope table)")
+            try:
+                _connect(cfg.get("scope_model") or f"@.models.zSchema.{scope_table}")
+                handle_rows = zos.data.select(table=scope_table,
+                                              where={scope_key: str(scope_handle).lower()})
+            except Exception as exc:  # pylint: disable=broad-except
+                if self.logger:
+                    self.logger.error(f"[RouteDispatcher] zProxy scope read failed: {exc}")
+                return self._serve_error(500, "Registry unavailable")
+            handle_row = next(iter(handle_rows or []), None)
+            owner_id = (handle_row or {}).get(scope_id)
+            if owner_id in (None, ""):
+                if self.logger:
+                    self.logger.info(f"[RouteDispatcher] zProxy owner '{scope_handle}' unknown → 404")
+                return self._serve_error(404, "App not available")
 
         try:
             # Per-request zos.data starts unconnected (zData is schema-at-a-time);
             # connect the registry's schema before the read — the same reason
             # zLogin/zpush connect their model first. `model` on the route wins;
             # the conventional @.models.zSchema.<table> handle is the fallback.
-            model = cfg.get("model") or f"@.models.zSchema.{table}"
-            try:
-                zos.data.load_schema(zos.loader.handle(model))
-            except Exception as exc:  # pylint: disable=broad-except
-                if self.logger:
-                    self.logger.warning(f"[RouteDispatcher] zProxy schema connect warning: {exc}")
-            rows = zos.data.select(table=table, where={key: slug})
+            _connect(cfg.get("model") or f"@.models.zSchema.{table}")
+            where = {key: slug}
+            if owner_id is not None:
+                where[cfg.get("owner_field", "owner_id")] = owner_id
+            rows = zos.data.select(table=table, where=where)
         except Exception as exc:  # pylint: disable=broad-except
             if self.logger:
                 self.logger.error(f"[RouteDispatcher] zProxy registry read failed: {exc}")
@@ -152,9 +214,13 @@ class EndpointRouteHandlersMixin:
         try:
             # Front door is a control-plane job — delegate to zHost. zServer only
             # performs the 302 / interstitial; it no longer imports the compute engine.
+            # Scoped routes wake under the NAMESPACED identity (<slug>.<handle>,
+            # tenant_id vocabulary) — driver keys and the ingress hostname ride it.
+            from zos_plugin import tenant_id  # pylint: disable=import-outside-toplevel
+            app_identity = tenant_id(slug, scope_handle)
             serve_path = getattr(self.router, 'serve_path', None)
             target = zos.zhost.resolve_proxy(
-                slug, row.get(spark_field), workspace_dir=serve_path,
+                app_identity, row.get(spark_field), workspace_dir=serve_path,
                 build=row.get(build_field) if build_field else None)
         except Exception as exc:  # pylint: disable=broad-except
             if self.logger:

@@ -68,7 +68,7 @@ from .session_store import (
     register_session_store, get_session_store, DEFAULT_SESSION_TTL,
 )
 from .release import (
-    ReleaseManager, ReleaseResult, instance_key,
+    ReleaseManager, ReleaseResult, instance_key, tenant_id,
 )
 
 __version__ = "0.8.0"
@@ -83,7 +83,7 @@ __all__ = [
     "register_bundle_store", "get_bundle_store",
     "SessionStore", "InMemorySessionStore", "RedisSessionStore",
     "register_session_store", "get_session_store", "DEFAULT_SESSION_TTL",
-    "ReleaseManager", "ReleaseResult", "instance_key",
+    "ReleaseManager", "ReleaseResult", "instance_key", "tenant_id",
 ]
 
 _logger = logging.getLogger("zos.plugin")

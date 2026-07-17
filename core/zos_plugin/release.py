@@ -66,6 +66,21 @@ def instance_key(slug: str, build_id: Any) -> str:
     return f"{slug}#{normalize_build_id(build_id)}"
 
 
+def tenant_id(slug: str, namespace: Any = None) -> str:
+    """The app's PUBLIC identity under owner namespacing (claim-your-username).
+
+    ``<slug>.<namespace>`` — dot-joined so the identity IS the ingress hostname
+    fragment (``zblog.gal`` → ``zblog.gal.<domain>``, one label per segment).
+    This is the ONE vocabulary shared by every layer that names a tenant: the
+    front door's wake, zpush's blue/green keys, the driver instance table and
+    the ingress publish — construct it here, nowhere else, or a repush stops
+    finding the instance the proxy woke. No namespace → the bare slug,
+    exactly the pre-namespace behaviour.
+    """
+    ns = str(namespace or "").strip()
+    return f"{slug}.{ns}" if ns else str(slug)
+
+
 @dataclass
 class ReleaseResult:
     """Outcome of a rollout — enough for the caller to update the registry/UI."""
