@@ -54,7 +54,7 @@ except ImportError:
             raise ImportError(
                 "zEngine runtime unavailable (Python ABI mismatch or missing zguard).\n"
                 "Fix: z patch\n"
-                "Docs: http://127.0.0.1:9090/zStack/zOS"
+                "Docs: https://zolo.media/zStack/zOS"
             )
 
     SUBSYSTEM_NAME = "zEngine"

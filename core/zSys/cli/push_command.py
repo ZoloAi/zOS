@@ -22,7 +22,7 @@ def handle_push_command(boot_logger, args, verbose: bool = False) -> int:
             "\n[FAIL] `zolo push` runtime unavailable "
             "(Python ABI mismatch or missing zguard).\n"
             "       Fix: z patch\n"
-            "       Docs: http://127.0.0.1:9090/zStack/zOS\n"
+            "       Docs: https://zolo.media/zStack/zOS\n"
         )
         return 1
     return run_push(boot_logger, args, verbose=verbose)

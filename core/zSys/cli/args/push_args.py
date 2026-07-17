@@ -37,7 +37,7 @@ def add_subparser(subparsers) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--url",
-        help="zCloud base URL (default: http://localhost:9000)",
+        help="zCloud base URL (default: https://zolo.media; ZOLO_ZCLOUD_URL also overrides)",
     )
     parser.add_argument(
         "--token",

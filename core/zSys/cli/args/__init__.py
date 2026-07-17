@@ -33,7 +33,7 @@ _LAUNCH_EPILOG = (
     f"  {Colors.zInfo}zolo <app>{Colors.RESET}         zSpark.<app>.zolo in the current dir\n"
     f"  {Colors.zInfo}zolo <path>.zolo{Colors.RESET}   a zSpark file by path (relative or absolute)\n"
     f"  {Colors.zInfo}zolo <path>.py{Colors.RESET}     a Python file, run in the zOS context\n"
-    f"\n{Colors.DIM}Learn more at http://127.0.0.1:9090/zStack/zOS{Colors.RESET}\n"
+    f"\n{Colors.DIM}Learn more at https://zolo.media/zStack/zOS{Colors.RESET}\n"
 )
 
 # Import command modules (order here is cosmetic; --help order is set in create_parser)

@@ -84,7 +84,10 @@ CONTEXT_ALL = "all"
 CONTEXT_DUAL = "dual"
 
 # Default Values (Authentication)
-DEFAULT_SERVER_URL = "http://localhost:5000"
+# Auth-server base for remote flows (zGuard's zownership device flow reads this
+# as its fallback). Production registrar is zolo.media; dev overrides via
+# `z login --server` / ZOLO_REGISTRAR_URL — never by editing this constant.
+DEFAULT_SERVER_URL = "https://zolo.media"
 # Generic identity-ledger fallback. Apps declare their own table via
 # ZAUTH_USER_MODEL in zEnv (e.g. zCloud → @.models.zSchema.zOS_Registry);
 # zOS never bakes an app-specific schema path here.
