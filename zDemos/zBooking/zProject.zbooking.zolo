@@ -1,0 +1,25 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#
+# zProject — distribution manifest for `zolo push` (see zLedger's for the
+# annotated reference). Ships everything minus ignore; zCloud wakes `spark`.
+
+zProject:
+    slug:       zbooking
+    name:       zBooking
+    spark:      zSpark.zBooking.zolo
+    version:    1.0.0
+    visibility: public
+    tagline:    Book a slot — availability derived live, conflicts stopped by the schema
+    tags:       [scheduling, data, reference]
+    cover:      cover.png
+    #> golden-demo convention (zHello/zSciCalc/zQuiz/zLedger): SHIP the zRaven
+    #  test file as teaching material, prune only run artifacts. Data/ ships —
+    #  the seeded slot board IS the demo. <#
+    ignore:
+        - logs/*
+        - zRaven/output/*
+        - zRaven/zShots/*
+        - zVersions/*
+        - "*.db-journal"
+        - .zpush_*
+        - cover.png   #> rides the multipart, not the app/ slice <#

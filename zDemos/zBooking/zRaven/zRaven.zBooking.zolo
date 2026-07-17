@@ -24,6 +24,16 @@ Tests:
                 selector: body
                 contains: Jamie Rivera
 
+    # Structural lock (raven --hint convention, golden demos): prove _zClass
+    # actually lands in the rendered DOM — screenshots can miss a silently
+    # dropped class, and every zBooking-* brush rule would die with it.
+    Assert_Title_Class:
+        zAssert:
+            dom:
+                selector: .zBooking-title
+                property: className
+                contains: zBooking-title
+
     # ── Open Slots: derived read — the seeded booking's slot must be hidden ──
     Click_Open_Slots:
         zClick:
