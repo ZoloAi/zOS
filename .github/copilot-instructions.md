@@ -1,5 +1,9 @@
 Zolo: declarative | llm-native | string-first
 verify: run only `z raven --run`; !pipe !redirect !grep; zRaven owns output/logs; console is truth; fix first failure only
+    !wrap: the command is `z raven --run <name>` VERBATIM from the app dir — never `2>&1`, never `| tail`/`| head`,
+        never `nohup`/`&`/timeout wrappers, never a sandboxed/isolated shell; zRaven writes its own
+        zRaven/output/ (zRaven.last_run.log, .last_raven_result, runs.csv) — read THOSE after the run,
+        don't capture the stream
     !hand_drive: never test a CRUD/action flow by hand (manual `z zSpark` click-through, hand-rolled
         Playwright/browser scripts) — a manual boot has none of --run's Data/ isolate+restore, so hand
         clicks write straight to real seed data and leave it polluted; encode the flow as a zRaven step
@@ -257,6 +261,7 @@ zmodal: a modal is a glance, not a move — forward with auto-back built in
     contract — trail-INVISIBLE: no crumb, route never moves, zBack after return acts like the detour never happened
         completion — target finishes (zDialog onSubmit returns / content walks off its last key) → auto-return, caller resumes
         dismiss    — a zBack inside the modal closes it (same return path); pure-content modals gate on `Press Enter to close`
+        auto-dismiss — a modal-carried zDialog declaring `onSuccess: zDelta($Block)` closes ITSELF on a green submit and re-walks the block (→ Forms `onsuccess`); without it, Bifrost dismissal stays local (backdrop/ESC/×)
         fired from a `~Menu*` anchor → returns to that menu (drill-in/step-out)
     zLoom — read-only both ways: a $/@ target's file-root zSpool is pre-woven (modal renders data like a page would)
         zModal lives ONLY in zUI pages — never in zLoom/ files (data+shape only, no events)
@@ -515,6 +520,7 @@ zdialog: the first event that COLLECTS
     title    — the form's heading
     fields   — the things to collect (see fields)
     onSubmit — the action run when the form is submitted (see result)
+    onSuccess— OPTIONAL follow-up fired only on a GREEN result (see onsuccess)
     runs the whole exchange: zCLI asks field by field, the browser shows one real form — same block, both surfaces
 
 fields: each entry is a bare key or a small dict
@@ -552,12 +558,62 @@ result: onSubmit returns a RESULT — success or failure
     average_joe: green line when it works, red line with your words still in the box when it doesn't — nothing breaks, nothing lost
     log_severity: a business failure (success:false) is an EXPECTED outcome — surface it inline, never a console error (that's reserved for a real exception)
 
+onsuccess: the form's "and then" — a follow-up zEvent fired only on a GREEN result
+    `onSuccess: zDelta($Block)` — a SIBLING of onSubmit; a successful submit dismisses the hosting
+        modal by itself and re-walks the target block (the same self-hop a Refresh button fires) —
+        the page updates live, zero manual close/refresh clicks
+    failure — nothing fires: the red line renders, the form stays armed for an in-place retry
+        (the follow-up can never leak on a failed submit)
+    trust   — the target registers SERVER-side beside onSubmit in the dialog registry; the response
+        only echoes the block name and the CLIENT re-fires its own zDelta — the server never pushes
+        unsolicited content
+    kin     — zLogin/zLogout carry `onSuccess: zLink(...)` (a REDIRECT → Identity); a plain zDialog's
+        onSuccess is the in-place cousin (`zDelta`) — same key, the zEvent names the move
+    scope   — Bifrost today; zCLI ignores the key (a terminal re-walk of the dialog's own block would
+        re-prompt every field — loop-unsafe until designed)
+    pattern — write-then-reread: onSubmit stamps state (a zVar, a row), the re-walked block's own
+        declarative read picks it up fresh — zCloud zRM's Subscriptions toolbar (Search/Clear/Grant/
+        Edit dialogs, all `onSuccess: zDelta($Subscriptions)`) is the worked example
+
+live: `zLive: true` — an AMBIENT form: typing IS the submit (search-as-you-type)
+    the flag flips three behaviors at once, nothing else about the dialog changes:
+    no button — the Submit button is not rendered; every debounced keystroke (300ms; `zLive: <ms>`
+        to tune) fires onSubmit quietly — green stays silent, a red failure still renders inline
+    never gates — the chunk engine walks PAST a live dialog (an ambient filter repeats forever by
+        design; gating it would stand every sibling below it — the very table it filters)
+    scoped repaint — its `onSuccess: zDelta($Block)` re-walks ONLY that block's on-page container
+        (no history entry, no scroll reset) — the search input sits OUTSIDE the target, so focus
+        and the half-typed term survive every repaint
+    layout — author the live dialog as a SIBLING of the content it filters, never inside the
+        zDelta target (a repaint that swallows its own search bar eats the user's focus)
+    fields-less + zLive — a one-click AMBIENT confirm ("Clear filter"): same quiet repeat-forever
+        contract, rendered as a plain button
+    in-flight keystrokes coalesce client-side (one submit at a time per dialog, last term wins);
+        zCLI ignores the key (a terminal prompt is already gated — live has no meaning there)
+
+zvar_submit: `onSubmit: {zVar: {<var>: zConv.<field>}}` — a DECLARATIVE session-var write, no zfunc
+    the zero-plugin filter pattern: the WRITE side stamps `zVars` through the dispatch SSOT; the
+        READ side is the target block's own `search: %<var>` / `where: {col: %<var>}` — one token,
+        so the label, the query, and the box can never drift
+    repeatable — a zVar submit NEVER consumes the dialog registration (a filter re-stamps per
+        keystroke by design); one-shot actions (zData inserts) still retire on success
+    always green — a session write cannot business-fail; empty value = clear (`{zVar: {q: }}`)
+    unset token — a `search: %<var>` that finds no session value resolves to NOTHING → the read
+        stays UNFILTERED (first render shows everything, before any term exists)
+golden — `zGuard/zLedger` (zDemo-bound): live search bar (`zLive` + `zVar` + scoped
+    `zDelta($Main.Ledger)`), one-click Clear (fields-less zLive confirm), modal New/Void/Restore
+    all `onSuccess: zDelta($Main.Ledger)` — table, stats, aggregates, and voided list repaint
+    together; zero plugins, raven-proven on csv AND sqlite
+
 onward: onSubmit is a DOORWAY — the same hook, bigger jobs
     onSubmit is always a dict — ONE key naming the subsystem, never a bare `&.` call
     `onSubmit: { zFunc: &.calc.add(zConv.a, zConv.b) }` — the simplest action, a plugin call
     zWizard  — carry the answers into a multi-step flow
     Identity — sign someone in / change the session (also what lets a submit navigate to a new page or refresh the navbar)
     zData    — save the answers as a row (see schema): `{ zData: {action: insert, model: @...} }`
+        insert needs `data:` — `data: zConv` writes the WHOLE form dict (field names == column
+        names); without it the insert has nothing to write and fails red
+    zVar     — stamp the answers into session vars (see zvar_submit) — the filter/live pattern
     rule: zDialog's grammar never changes — only the action on the other end gets bigger
 
 schema: let a zSchema write the fields
@@ -700,11 +756,12 @@ migrations: evolve the shape without losing data — edit the zSchema to what it
         4 diff         — new table→CREATE · new col→ADD · removed→DROP · changed type→MODIFY · `renamed_from:`→RENAME · `indexes:`→CREATE/DROP INDEX · `constraints:` by kind; rows preserved
         5 apply        — run change set (unless `--dry-run`); a new col's `backfill:` fills in the SAME txn; logged to `__zmigration_<table>`
     rename   — `renamed_from: qty` → true RENAME COLUMN (sql in place, csv header); harmless to leave in
-    backfill — populate a new column at birth, computed in zOS layer (same on every backend), idempotent (only cols ADDED this run, only EMPTY cells)
+    backfill — populate a new column at birth, computed in zOS layer (same on every backend), idempotent (only cols ADDED this run; fills EMPTY cells + cells still at the DDL-pre-filled `default:` — sql ADD COLUMN pre-fills existing rows, so default+backfill stay true companions)
         `backfill: free` (literal) · `%name` (copy a column) · `{concat: [%first, " ", %last]}`; needs single-col pk; companion to `default:` (constant) vs backfill (derived)
     indexes  — add/remove an `indexes:` entry → next migrate CREATE/DROP by name (reads live indexes; declared+existing = no-op; pk/unique auto left alone; csv no-op)
     constraints — `constraints:` by kind: unique folds into index pipeline (idempotent, csv no-op); fk/check need ALTER TABLE ADD/DROP (postgres native, sqlite guards w/ message, csv no-op)
     backend_change — change `Data_Type` → zData MOVES data: export all tables to in-memory rows, open new adapter, recreate from schema, coerce, bulk-insert, validate counts (indexes don't ride — re-declare + migrate)
+        shared_label RULE — FK-related tables split across schema files MUST declare the SAME `Data_Label:` — each file otherwise lands in its own `{label}.db`, where a cross-file FK is unenforceable and multi-table plugin reads crash (`no such table`); the mover warns when it sees a cross-file FK
     cli      — `z migrate <app> --dry-run` (preview) · `--plan`/`--sql` (print DDL) · `--schema <name>` · `--auto-approve` · `--history` · `--rollback` · `--version <vX>`
         rollback — csv-first (restores each table from last backup); sql `--rollback` is a non-destructive guard (recover from DB backup or re-declare + migrate forward)
     rule     — golden habit: `--dry-run`/`--plan` before you ever apply
@@ -1103,6 +1160,11 @@ drive_dual: dual-mode primitives — ONE step, both runners (write once, no fork
                                zBifrost: click `button[data-zkey='Option']` (the zUI option/action key)
     zFill: {field: value}    — zCLI: per field assert prompt → submit value; tuned values survive --gen
                                zBifrost: per field set `[name='field']`, then click the form's Submit button
+                               onSuccess dialogs — a zDialog declaring `onSuccess: zDelta($Block)` dismisses its
+                               modal ITSELF on a green submit: pair the zFill with a sibling
+                               `zWait: {selector: .zModal-overlay, state: hidden}` (the vanish IS the proof — never
+                               zClick `.zModal-close` after it), then anchor the next assert on re-walked content
+                               (`:has-text` zWait) so it can't race the streamed repaint
     zSubmit: value           — scalar only here (a dict zSubmit is the zBifrost-only WS-gate form, see drive_web)
                                zCLI: type at the prompt; `$Var` refs resolve from captures — zBifrost: same $Var resolution, no browser action
 
@@ -1430,7 +1492,7 @@ proven: exercised by a fresh isolated app (`Tests/zRBAC_app`, Bifrost)
         request against someone else's row still bounces even if the button were somehow clicked
 
 routing_gotcha: a gated page needs its OWN route to actually redirect in Bifrost
-    rule    — `onDenied`/zLogin `onSuccess`/zLogout `onSuccess` are always a `zLink` — Bifrost resolves it to a router URL, never an in-page swap
+    rule    — `onDenied`/zLogin `onSuccess`/zLogout `onSuccess` are always a `zLink` — Bifrost resolves it to a router URL, never an in-page swap (identity moves the SESSION, so the page must move too; a plain zDialog's `onSuccess` is the opposite tool — an in-place `zDelta` re-walk → Forms `onsuccess`)
     trap    — Login/Vault/Logout as BLOCKS inside the home zVaFile share ITS one URL (14_server.md "one file = one URL"); a redirect to another block in the SAME file resolves back to `/` and silently re-renders the home block instead
     fix     — give each gated page its OWN `zUI.<Page>.zolo` file in `zViews/` so the router auto-discovers a real URL (`/Login`, `/Vault`, `/Logout`) for the zLink to land on — the pattern `zDemos/zTeamVault` and `Tests/zRBAC_app` both use
 
@@ -1473,8 +1535,13 @@ faces: one block, two renders — never branch on zMode
     rule    — TERMINAL IS THE TRUTH; the browser is the skin
 
 rbac: panels gate themselves
-    how  — a `zRBAC` block at the panel's root: `authenticated: true` | `require_role: zAdmin`
-    rail — panels a visitor can't reach are DROPPED before the rail draws
+    how  — a `zGate:` block at the panel's root (`authed: true` | `role: [zAdmin]`; legacy `zRBAC:` auto-lowers)
+    rail — SESSION-gated panels (role/authed) a visitor can't reach are DROPPED before the rail
+        draws — on BOTH surfaces (zCLI always did; Bifrost since zGuard 1.0.9 — rail gotcha below)
+    value gates — a panel-root gate over the panel's own spool (`%data.<reel>.<field>: {zIN: [...]}`)
+        is DEFERRED at rail time (spool unbound there — the tab stays) and enforced at panel-content
+        render, bind-before-gate on EVERY path, default panel's first paint included (1.0.9)
+    split — rail visibility = session gates; panel content = value gates; a mixed gate defers whole
     real — data access underneath is enforced regardless; rail filtering is the polite front
 
 custom: two style levers that NEVER overlap
@@ -1504,6 +1571,27 @@ gotcha: a panel's own same-file `zDelta` (a Refresh button, `action: zDelta($Pan
     fix      — the server marks `is_dashboard_panel = True` whenever resolution actually
         FALLS BACK to the stamped panel file (not just when the click's own payload says
         so) — first caught by `zDemos/zRM`'s zDash capstone (Add-then-Refresh)
+
+gotcha: over Bifrost the rail used to draw EVERY panel, gates or not (zOS #11, fixed zGuard 1.0.9)
+    why      — the walker ships the authored zDash event to the client verbatim (special-event
+        extraction), so the CLI engine's `_filter_accessible_panels` never ran on that path —
+        drop-before-rail existed but was unreachable in exactly the mode the docs describe it for;
+        content gates still held at click time, so the leak was tab NAMES only
+    fix      — `_filter_zdash_sidebar` gates each listed panel's root via `zos.zgate.check` (the SAME
+        SSOT every page gate uses) at BOTH the expansion seam and the extractor before the event
+        ships; `default` is recomputed off the kept list; per-panel fail-open mirrors the CLI
+    caveat   — a `%`-token gate would fail CLOSED here (token starves before the spool binds — a
+        subscriber would lose their own Billing tab), so the rail filter DEFERS any predicate that
+        references a `%` token to content render; only session gates decide rail membership
+
+gotcha: block-level `%data.*` gates were SKIPPED on the DEFAULT panel's first paint (zOS #12, fixed zGuard 1.0.9)
+    why      — the initial HTTP render reached the chunk gate BEFORE the panel's `zMeta.zSpool`
+        bind (the zPick path binds first) — the `%data` token starved, the render gate failed OPEN
+        by design, and both sibling blocks shipped; content interpolation still painted (it runs at
+        a later seam), which is what made the skip look selective
+    fix      — chunk gates now evaluate against the walker's block_context (the same surface the
+        content interpolation reads) instead of a clobber-prone session stash; a genuinely starved
+        token still fails open but logs at WARNING, so an ordering regression can't hide again
 
 gotcha: a standalone (non-`%item`) `zBtn` with `action: {zModal: {...}}` — anywhere, not just in a
     zDash panel — silently swallowed its click in Bifrost
@@ -1553,7 +1641,8 @@ spool: where a live value comes from — the reel a `%` thread pulls off
         only runs on the dict shape; a string `where` ships the literal token text and the read silently returns
         nothing (no error, just an empty reel) — `zDemos/zBlog`'s Profile page is the worked example
     freshness — a `zMeta.zSpool` is re-resolved on EVERY landed render (boot, zLink, zDelta alike) — a list-backed
-        reel always reflects a write made moments earlier on a DIFFERENT screen, same session
+        reel always reflects a write made moments earlier on a DIFFERENT screen, same session; a zDialog's
+        `onSuccess: zDelta($Block)` (Forms) rides this same freshness — submit stamps, the re-walk re-reads
     golden   — `zDemos/zBooking`'s My_Bookings: a `zList` reel joining 3 tables, freshly re-read after a `zDelta`
         hop away and back (New_Booking's own insert) — zero plugins, availability itself is a `zNotExists` read
         (see Advanced Queries), conflict validation a plain `unique: true` (see Data CRUD)
@@ -1628,6 +1717,7 @@ queries: harder questions — across tables, summarized, ranked, in steps
 filters_deep: the full zFilters dialect (Read leaf gave a taste)
     string — `age zBETWEEN 30 zAND 35 zAND score > 88` · presence `zKNOWN`/`zNULL` · parens for precedence `(country = USA zOR country = Ireland) zAND score > 85`
     dict   — each field a line, every line an AND: zAbove · zBelow · zIs · zIN: [..] · zBetween: [a,b] · zNull · zKnown · zIncludes · zStarts · zEnds
+    flat   — the unary tokens also work BARE: `zFilters: {deleted_at: zNull}` == `{deleted_at: {zNull: true}}` — same condensed spelling `where:` accepts
     ex     — `zFilters: {age: {zBetween: [25,40]}, country: {zIN: [Italy, USA]}, occupation: {zIncludes: eng}}`
 
 joins: stitch related rows into one result
@@ -1638,8 +1728,9 @@ joins: stitch related rows into one result
 
 aggregate: many rows → one answer — `action: aggregate`
     function — count · count_distinct · sum · avg · min · max · median · stddev · variance · group_concat (string_agg); non-count takes `field:`
-    group_by — `<field>` (one per group) · `[country, occupation]` (per combination) · `alias:` names the computed column
+    group_by — `<field>` (one per group) · `[country, occupation]` (per combination) · `alias:` names the computed column · `order_by: date DESC` sorts the GROUPED output (group col sorts by key, alias/anything else by value)
     filter   — `having: total > 1` (by aggregate) · `where: <expr>` (which rows count) · `distinct: true`
+    where_dialect — `where:` dicts speak the SAME zFilters rules as `zFilters:` (`where: {deleted_at: {zNull: true}}` and flat `{deleted_at: zNull}` both compile to IS NULL) — one vocabulary, aggregate/window/read/update/delete alike
     shape    — NO `group_by` → the whole reel resolves to a bare SCALAR (`%data.cart_subtotal`), never a `.0.<alias>`
         row; add `group_by` and it flips to a LIST of `{<group_field>, <alias>}` rows like any other read — the
         `alias:` key only matters once it's a row you're pulling a named field off of
@@ -1651,6 +1742,7 @@ window: an answer per row, keep every row — `action: window`
     rank/offset — row_number · rank · dense_rank · percent_rank · cume_dist · ntile (+buckets: 4) · lag/lead (+field:, offset: 1)
     value/agg OVER — first_value · last_value · nth_value · avg/sum/count/min/max (running with order_by)
     scope — partition_by: (within group) · order_by: score DESC · alias: (new column) · frame: ROWS BETWEEN 2 PRECEDING AND CURRENT ROW (UNBOUNDED/n FOLLOWING work)
+    fields — `fields: [name, score, rank]` is the OUTPUT projection (alias included) — applied AFTER the compute, never forwarded to the source read
 
 subquery: nest a `zData` inside `where` — one query answers another
     IN     — `where: {country: {zData: {action: read, ..., where: score > 90, distinct: true}}}` (inner runs first)
@@ -1677,6 +1769,13 @@ set: stack two whole result sets — `action: set`
 search: a ranked search box over rows
     `search: italy engineer` + `search_fields: [name, country, occupation]` + `search_mode: any | all | phrase`
     zOS tokenizes+scores, best first; surface rank with the `_score` field in `fields:`
+    live token — `search: %<var>` resolves from session zVars at query time; a MISS/empty stays
+        UNFILTERED (first render shows everything) — pair with a `zLive` dialog's
+        `onSubmit: {zVar: {<var>: zConv.q}}` for a zero-plugin search-as-you-type table (07_forms live)
+golden — `zGuard/zLedger` (zDemo-bound): ONE ledger exercising the live-search token, flat-token
+    soft-delete partition (`zFilters: {deleted_at: zNull}` live / `zKnown` voided), a group_by
+    aggregate sorted by alias, a running-balance window with the alias in `fields:`, restore via
+    `set: {deleted_at: zNull}` — raven-proven identical on csv and (post-migration) sqlite
 
 advanced_writes: batches, returns, referential rules — same declared style + validation as CRUD
 
@@ -1690,6 +1789,8 @@ upsert: insert-or-update per row — `action: upsert`
     `conflict_fields: [...]` (or `conflict_key:`) decides the match; pairs with a list (bulk) + `returning:`
 
 update_advanced: more than a flat value in `set:`
+    zNull — the write-side NULL literal: `set: {deleted_at: zNull}` stores SQL NULL (un-archive, clear a stamp) — mirrors the token's zFilters read-side meaning; works in `values:`/`data:` too (a literal string "zNull" as data is forfeited, same reserved-token tradeoff as reads)
+    temporal_iso — `date`/`datetime` values normalize to ISO (`YYYY-MM-DD [HH:MM:SS]`) before storage — `&zNow` in write position resolves (bare or `custom_format=` kwargs) and machine-pref shapes are re-canonicalized so `order_by` on the column stays lexicographic; ISO date-only into a `datetime` column widens to midnight
     zCase — per-row, first match: `set: {role: {zCase: [{when: score zABOVE 8, then: admin}, {when: score zABOVE 5, then: editor}], else: viewer}}` (when speaks zFilters; no else → unmatched keep value)
     computed — `{$inc: n}` · `{$dec: n}` · `{$mul: n}` · `{$div: n}` · `{zExpr: price * qty}` (math over the row's own columns, never code)
         from a plugin — `data.update(table, {field: {"$inc": n}}, where)` also resolves it (12_zfunc.md `data`)
@@ -1698,7 +1799,7 @@ update_advanced: more than a flat value in `set:`
 
 delete_advanced: remove by relationship, not just id
     on_delete — deleting a parent checks every child `fk:` field: cascade (children first) · restrict (block while children exist) · set_null/set_default (re-point); multi-hop recurses the fk chain
-    soft — `soft_delete: true` routes `action: delete` to stamp `deleted_at` (same call site, no data lost)
+    soft — `soft_delete: true` routes `action: delete` to stamp `deleted_at` (same call site, no data lost); table-level flag, invisible to migrations (never diffed as a column); restore = `action: update` + `set: {deleted_at: zNull}`
     subquery — `where: {user_id: {zData: {action: read, ..., where: active = false}}}`
     cross-table — `using: {model, on, where}` (delete from A by a match in B)
     time purge — `where: joined_date zBELOW zNow()` · capture with `returning: true`

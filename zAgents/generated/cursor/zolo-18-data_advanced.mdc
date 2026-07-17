@@ -11,6 +11,7 @@ queries: harder questions — across tables, summarized, ranked, in steps
 filters_deep: the full zFilters dialect (Read leaf gave a taste)
     string — `age zBETWEEN 30 zAND 35 zAND score > 88` · presence `zKNOWN`/`zNULL` · parens for precedence `(country = USA zOR country = Ireland) zAND score > 85`
     dict   — each field a line, every line an AND: zAbove · zBelow · zIs · zIN: [..] · zBetween: [a,b] · zNull · zKnown · zIncludes · zStarts · zEnds
+    flat   — the unary tokens also work BARE: `zFilters: {deleted_at: zNull}` == `{deleted_at: {zNull: true}}` — same condensed spelling `where:` accepts
     ex     — `zFilters: {age: {zBetween: [25,40]}, country: {zIN: [Italy, USA]}, occupation: {zIncludes: eng}}`
 
 joins: stitch related rows into one result
@@ -62,6 +63,13 @@ set: stack two whole result sets — `action: set`
 search: a ranked search box over rows
     `search: italy engineer` + `search_fields: [name, country, occupation]` + `search_mode: any | all | phrase`
     zOS tokenizes+scores, best first; surface rank with the `_score` field in `fields:`
+    live token — `search: %<var>` resolves from session zVars at query time; a MISS/empty stays
+        UNFILTERED (first render shows everything) — pair with a `zLive` dialog's
+        `onSubmit: {zVar: {<var>: zConv.q}}` for a zero-plugin search-as-you-type table (07_forms live)
+golden — `zGuard/zLedger` (zDemo-bound): ONE ledger exercising the live-search token, flat-token
+    soft-delete partition (`zFilters: {deleted_at: zNull}` live / `zKnown` voided), a group_by
+    aggregate sorted by alias, a running-balance window with the alias in `fields:`, restore via
+    `set: {deleted_at: zNull}` — raven-proven identical on csv and (post-migration) sqlite
 
 advanced_writes: batches, returns, referential rules — same declared style + validation as CRUD
 

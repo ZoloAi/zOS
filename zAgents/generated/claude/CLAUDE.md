@@ -1,5 +1,9 @@
 Zolo: declarative | llm-native | string-first
 verify: run only `z raven --run`; !pipe !redirect !grep; zRaven owns output/logs; console is truth; fix first failure only
+    !wrap: the command is `z raven --run <name>` VERBATIM from the app dir — never `2>&1`, never `| tail`/`| head`,
+        never `nohup`/`&`/timeout wrappers, never a sandboxed/isolated shell; zRaven writes its own
+        zRaven/output/ (zRaven.last_run.log, .last_raven_result, runs.csv) — read THOSE after the run,
+        don't capture the stream
     !hand_drive: never test a CRUD/action flow by hand (manual `z zSpark` click-through, hand-rolled
         Playwright/browser scripts) — a manual boot has none of --run's Data/ isolate+restore, so hand
         clicks write straight to real seed data and leave it polluted; encode the flow as a zRaven step

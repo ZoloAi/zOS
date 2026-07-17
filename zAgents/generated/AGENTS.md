@@ -1,5 +1,9 @@
 Zolo: declarative | llm-native | string-first
 verify: run only `z raven --run`; !pipe !redirect !grep; zRaven owns output/logs; console is truth; fix first failure only
+    !wrap: the command is `z raven --run <name>` VERBATIM from the app dir — never `2>&1`, never `| tail`/`| head`,
+        never `nohup`/`&`/timeout wrappers, never a sandboxed/isolated shell; zRaven writes its own
+        zRaven/output/ (zRaven.last_run.log, .last_raven_result, runs.csv) — read THOSE after the run,
+        don't capture the stream
     !hand_drive: never test a CRUD/action flow by hand (manual `z zSpark` click-through, hand-rolled
         Playwright/browser scripts) — a manual boot has none of --run's Data/ isolate+restore, so hand
         clicks write straight to real seed data and leave it polluted; encode the flow as a zRaven step
@@ -571,12 +575,45 @@ onsuccess: the form's "and then" — a follow-up zEvent fired only on a GREEN re
         declarative read picks it up fresh — zCloud zRM's Subscriptions toolbar (Search/Clear/Grant/
         Edit dialogs, all `onSuccess: zDelta($Subscriptions)`) is the worked example
 
+live: `zLive: true` — an AMBIENT form: typing IS the submit (search-as-you-type)
+    the flag flips three behaviors at once, nothing else about the dialog changes:
+    no button — the Submit button is not rendered; every debounced keystroke (300ms; `zLive: <ms>`
+        to tune) fires onSubmit quietly — green stays silent, a red failure still renders inline
+    never gates — the chunk engine walks PAST a live dialog (an ambient filter repeats forever by
+        design; gating it would stand every sibling below it — the very table it filters)
+    scoped repaint — its `onSuccess: zDelta($Block)` re-walks ONLY that block's on-page container
+        (no history entry, no scroll reset) — the search input sits OUTSIDE the target, so focus
+        and the half-typed term survive every repaint
+    layout — author the live dialog as a SIBLING of the content it filters, never inside the
+        zDelta target (a repaint that swallows its own search bar eats the user's focus)
+    fields-less + zLive — a one-click AMBIENT confirm ("Clear filter"): same quiet repeat-forever
+        contract, rendered as a plain button
+    in-flight keystrokes coalesce client-side (one submit at a time per dialog, last term wins);
+        zCLI ignores the key (a terminal prompt is already gated — live has no meaning there)
+
+zvar_submit: `onSubmit: {zVar: {<var>: zConv.<field>}}` — a DECLARATIVE session-var write, no zfunc
+    the zero-plugin filter pattern: the WRITE side stamps `zVars` through the dispatch SSOT; the
+        READ side is the target block's own `search: %<var>` / `where: {col: %<var>}` — one token,
+        so the label, the query, and the box can never drift
+    repeatable — a zVar submit NEVER consumes the dialog registration (a filter re-stamps per
+        keystroke by design); one-shot actions (zData inserts) still retire on success
+    always green — a session write cannot business-fail; empty value = clear (`{zVar: {q: }}`)
+    unset token — a `search: %<var>` that finds no session value resolves to NOTHING → the read
+        stays UNFILTERED (first render shows everything, before any term exists)
+golden — `zGuard/zLedger` (zDemo-bound): live search bar (`zLive` + `zVar` + scoped
+    `zDelta($Main.Ledger)`), one-click Clear (fields-less zLive confirm), modal New/Void/Restore
+    all `onSuccess: zDelta($Main.Ledger)` — table, stats, aggregates, and voided list repaint
+    together; zero plugins, raven-proven on csv AND sqlite
+
 onward: onSubmit is a DOORWAY — the same hook, bigger jobs
     onSubmit is always a dict — ONE key naming the subsystem, never a bare `&.` call
     `onSubmit: { zFunc: &.calc.add(zConv.a, zConv.b) }` — the simplest action, a plugin call
     zWizard  — carry the answers into a multi-step flow
     Identity — sign someone in / change the session (also what lets a submit navigate to a new page or refresh the navbar)
     zData    — save the answers as a row (see schema): `{ zData: {action: insert, model: @...} }`
+        insert needs `data:` — `data: zConv` writes the WHOLE form dict (field names == column
+        names); without it the insert has nothing to write and fails red
+    zVar     — stamp the answers into session vars (see zvar_submit) — the filter/live pattern
     rule: zDialog's grammar never changes — only the action on the other end gets bigger
 
 schema: let a zSchema write the fields
@@ -1680,6 +1717,7 @@ queries: harder questions — across tables, summarized, ranked, in steps
 filters_deep: the full zFilters dialect (Read leaf gave a taste)
     string — `age zBETWEEN 30 zAND 35 zAND score > 88` · presence `zKNOWN`/`zNULL` · parens for precedence `(country = USA zOR country = Ireland) zAND score > 85`
     dict   — each field a line, every line an AND: zAbove · zBelow · zIs · zIN: [..] · zBetween: [a,b] · zNull · zKnown · zIncludes · zStarts · zEnds
+    flat   — the unary tokens also work BARE: `zFilters: {deleted_at: zNull}` == `{deleted_at: {zNull: true}}` — same condensed spelling `where:` accepts
     ex     — `zFilters: {age: {zBetween: [25,40]}, country: {zIN: [Italy, USA]}, occupation: {zIncludes: eng}}`
 
 joins: stitch related rows into one result
@@ -1731,6 +1769,13 @@ set: stack two whole result sets — `action: set`
 search: a ranked search box over rows
     `search: italy engineer` + `search_fields: [name, country, occupation]` + `search_mode: any | all | phrase`
     zOS tokenizes+scores, best first; surface rank with the `_score` field in `fields:`
+    live token — `search: %<var>` resolves from session zVars at query time; a MISS/empty stays
+        UNFILTERED (first render shows everything) — pair with a `zLive` dialog's
+        `onSubmit: {zVar: {<var>: zConv.q}}` for a zero-plugin search-as-you-type table (07_forms live)
+golden — `zGuard/zLedger` (zDemo-bound): ONE ledger exercising the live-search token, flat-token
+    soft-delete partition (`zFilters: {deleted_at: zNull}` live / `zKnown` voided), a group_by
+    aggregate sorted by alias, a running-balance window with the alias in `fields:`, restore via
+    `set: {deleted_at: zNull}` — raven-proven identical on csv and (post-migration) sqlite
 
 advanced_writes: batches, returns, referential rules — same declared style + validation as CRUD
 
