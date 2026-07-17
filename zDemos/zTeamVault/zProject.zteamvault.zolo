@@ -1,0 +1,32 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#
+# zProject — distribution manifest for `zolo push` (see zLedger's for the
+# annotated reference). Ships everything minus ignore; zCloud wakes `spark`.
+
+zProject:
+    slug:       zteamvault
+    name:       zTeamVault
+    spark:      zSpark.zTeamVault.zolo
+    version:    1.0.0
+    visibility: public
+    tagline:    A team secrets vault — zLogin + zGate RBAC with a server-side auth bounce
+    tags:       [auth, rbac, reference]
+    cover:      cover.png
+    #> golden-demo convention: SHIP the zRaven test file as teaching material
+    #  (the ONLY golden demo combining zLogin + zGate + browser assertions),
+    #  prune only run artifacts. Data/ ships: the seeded Users.csv carries
+    #  bcrypt HASHES only (demo creds admin/member@teamvault.io / vault123,
+    #  documented on the page itself) and the Vault_Items secrets are mock
+    #  strings — nothing real. seed_users.py ships as the teaching example
+    #  for regenerating hashed seed identities. zEnv.base.zolo ships — it
+    #  carries ZAUTH_LOGIN_ROUTE, the app-level denial door every
+    #  authed:true gate without its own onDenied falls back to. <#
+    ignore:
+        - logs/*
+        - zRaven/output/*
+        - zRaven/zShots/*
+        - zVersions/*
+        - _zSpark.*
+        - "*.db-journal"
+        - .zpush_*
+        - cover.png   #> rides the multipart, not the app/ slice <#

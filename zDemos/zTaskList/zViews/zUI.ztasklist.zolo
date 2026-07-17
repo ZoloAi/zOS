@@ -65,9 +65,11 @@ Main:
                                                     model:  @.models.zSchema.Tasks
                                                     where:  id = %item.id
 
+    #> icon labels are whitespace-join ("bi-plus-lg Add Task") — a literal
+    #  "+" between icon and text renders as a stray glyph (see controls.md) <#
     Add:
         zBtn:
-            label:  bi-plus-lg + Add Task
+            label:  bi-plus-lg Add Task
             color:  primary
             _zClass: zTaskList-add
             action: zDelta($Add_View)
@@ -78,7 +80,7 @@ Main:
     #  same fix zPoll's Refresh relies on <#
     Refresh:
         zBtn:
-            label:  bi-arrow-clockwise + Refresh
+            label:  bi-arrow-clockwise Refresh
             color:  secondary
             _zClass: zTaskList-refresh
             action: zDelta($Main)

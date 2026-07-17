@@ -164,7 +164,7 @@ Main:
     #  itself" shape zTeamVault's GoVault uses, 15_rbac.md "proven") <#
     NewSite:
         zBtn:
-            label:  bi-plus-lg + New Site
+            label:  bi-plus-lg New Site
             color:  primary
             _zClass: zRM-newsite-btn
             action: zDelta($Add_Site)

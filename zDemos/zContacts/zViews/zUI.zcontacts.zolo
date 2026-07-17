@@ -60,21 +60,21 @@ Main:
 
     Add:
         zBtn:
-            label:  bi-plus-lg + Add Contact
+            label:  bi-plus-lg Add Contact
             color:  primary
             _zClass: zContacts-add
             action: zDelta($Add_Contact)
 
     ManageCompanies:
         zBtn:
-            label:  bi-building + Manage Companies
+            label:  bi-building Manage Companies
             color:  secondary
             _zClass: zContacts-manage
             action: zDelta($Companies)
 
     ViewDirectory:
         zBtn:
-            label:  bi-diagram-3 + Company Directory
+            label:  bi-diagram-3 Company Directory
             color:  secondary
             _zClass: zContacts-manage
             action: zDelta($Directory)
@@ -141,7 +141,7 @@ Companies:
 
     Add:
         zBtn:
-            label:  bi-plus-lg + Add Company
+            label:  bi-plus-lg Add Company
             color:  primary
             _zClass: zContacts-add
             action: zDelta($Add_Company)

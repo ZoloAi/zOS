@@ -3,7 +3,7 @@
 zSpark:
     title:     zBlog
     zMode:     zBifrost
-    zLog:      DEBUG
+    zLog:      INFO
     zLogPath:  @.logs
     zVaFolder: @.zViews
     zVaFile:   zUI.zblog

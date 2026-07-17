@@ -1,0 +1,40 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#
+# zProject — distribution manifest for `zolo push` (see zLedger's for the
+# annotated reference). Ships everything minus ignore; zCloud wakes `spark`.
+
+zProject:
+    slug:       zdarkroom
+    name:       zDarkroom
+    spark:      zSpark.zDarkroom.zolo
+    version:    1.0.0
+    visibility: public
+    tagline:    A photo darkroom — real PIL transforms with measured before/after stats
+    tags:       [media, plugins, zRequirements, reference]
+    cover:      cover.png
+    #> golden-demo convention: SHIP the zRaven test file + upload_bank/ as
+    #  teaching material, prune only run artifacts. Data/ ships (seed jobs ARE
+    #  the demo); static/originals + static/processed ship (the seed
+    #  before/after pairs the CSV zPaths point at).
+    #
+    #  zEnv.base.zolo MUST ship — it carries `zRequirements: [Pillow>=10.0]`,
+    #  the ONLY demo exercising the app-scoped dependency gate: the hosted
+    #  child refuses to boot until Pillow is importable in its interpreter
+    #  (boot verifies, never installs; `z requirements` is the one writer).
+    #
+    #  Raven's process/delete flow cleans its own files (delete_processed
+    #  unlinks both sides), but interrupted runs can strand ceramic_mug/
+    #  sample_photo copies under static/ — ignore those, never the seeds. <#
+    ignore:
+        - logs/*
+        - zRaven/output/*
+        - zRaven/zShots/*
+        - zVersions/*
+        - _zSpark.*
+        - "*.db-journal"
+        - .zpush_*
+        - cover.png   #> rides the multipart, not the app/ slice <#
+        - static/originals/ceramic_mug*
+        - static/processed/ceramic_mug*
+        - static/originals/sample_photo*
+        - static/processed/sample_photo*

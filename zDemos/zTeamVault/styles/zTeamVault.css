@@ -1,0 +1,116 @@
+/* zTeamVault.css — loaded via zMeta.zBrush: [zTeamVault] -> /styles/zTeamVault.css
+   Teaching goal: auth/RBAC (zLogin + zGate) — the theme sells the story: a dark
+   "secure vault" navy with a gold key accent, distinct from zPoll's bright
+   violet, zShop's white storefront, and zDarkroom's amber safelight. */
+
+:root {
+    --ztv-bg: #0e1420;
+    --ztv-panel: #171f30;
+    --ztv-ink: #e8ecf5;
+    --ztv-muted: #8b96ad;
+    --ztv-line: rgba(140, 160, 200, 0.14);
+    --ztv-gold: #d9a441;
+    --ztv-gold-ink: #1a1206;
+    --ztv-teal: #3ec6a8;
+    --ztv-shadow: 0 12px 34px rgba(4, 8, 18, 0.55);
+}
+
+body {
+    background:
+        radial-gradient(1100px 500px at 70% -10%, rgba(62, 198, 168, 0.07), transparent 60%),
+        var(--ztv-bg);
+    color: var(--ztv-ink);
+}
+
+#zVaF-content {
+    max-width: 720px;
+    margin: 48px auto;
+    padding: 0 16px;
+}
+
+#zVaF-content h1 {
+    background: linear-gradient(135deg, var(--ztv-gold), #f2cf87);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+
+.zTeamVault-intro {
+    color: var(--ztv-muted);
+    max-width: 560px;
+}
+
+.zTeamVault-intro code {
+    color: var(--ztv-teal);
+}
+
+/* ~Actions* numbered menu — zbase renders option rows; lift them into panels */
+.zMenu-option,
+.zPick-option {
+    background: var(--ztv-panel);
+    border: 1px solid var(--ztv-line);
+    border-radius: 12px;
+    box-shadow: var(--ztv-shadow);
+}
+
+.zTeamVault-signin-btn,
+.zTeamVault-govault-btn,
+.zTeamVault-signout-btn,
+.zTeamVault-back-btn {
+    border-radius: 10px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    padding: 10px 22px;
+    border: none;
+}
+
+.zTeamVault-signin-btn {
+    background: linear-gradient(135deg, var(--ztv-gold), #c08c2c);
+    color: var(--ztv-gold-ink);
+}
+
+.zTeamVault-signin-btn:hover {
+    filter: brightness(1.1);
+}
+
+.zTeamVault-govault-btn {
+    background: transparent;
+    color: var(--ztv-teal);
+    border: 1.5px solid var(--ztv-teal);
+}
+
+.zTeamVault-govault-btn:hover {
+    background: var(--ztv-teal);
+    color: #06231c;
+}
+
+.zTeamVault-signout-btn,
+.zTeamVault-back-btn {
+    background: var(--ztv-panel);
+    color: var(--ztv-muted);
+    border: 1px solid var(--ztv-line);
+}
+
+.zTeamVault-signout-btn:hover,
+.zTeamVault-back-btn:hover {
+    color: var(--ztv-ink);
+    border-color: var(--ztv-muted);
+}
+
+/* zLogin form + the Vault's auto-drawn zData table inherit zbase's dark
+   table styling; give the form panel the same vault treatment */
+form {
+    background: var(--ztv-panel);
+    border: 1px solid var(--ztv-line);
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: var(--ztv-shadow);
+}
+
+@media (max-width: 640px) {
+    #zVaF-content {
+        margin: 24px auto;
+    }
+}

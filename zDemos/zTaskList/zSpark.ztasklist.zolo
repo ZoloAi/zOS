@@ -13,5 +13,5 @@ zSpark:
 
 zInfo:
     description: Golden reference — canonical zData CRUD (insert/read/update/delete)
-    tags: [zData, zSchema, zDialog, zTable]
+    tags: [zData, zSchema, zDialog, zList]
     author: zAgents

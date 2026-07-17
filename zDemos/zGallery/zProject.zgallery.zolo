@@ -1,0 +1,30 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#
+# zProject — distribution manifest for `zolo push` (see zLedger's for the
+# annotated reference). Ships everything minus ignore; zCloud wakes `spark`.
+
+zProject:
+    slug:       zgallery
+    name:       zGallery
+    spark:      zSpark.zGallery.zolo
+    version:    1.0.0
+    visibility: public
+    tagline:    A photo gallery — media grid, file upload, and per-row edit/delete
+    tags:       [media, upload, reference]
+    cover:      cover.png
+    #> golden-demo convention: SHIP the zRaven test file + upload_bank/ as
+    #  teaching material, prune only run artifacts. Data/ ships (seed rows ARE
+    #  the demo); static/photos ships (the seed images the CSV zPaths point
+    #  at). Raven's upload/delete flow cleans its own file (delete_photo
+    #  unlinks), but interrupted runs can strand desert_dune_N copies —
+    #  ignore those, never the seeds. <#
+    ignore:
+        - logs/*
+        - zRaven/output/*
+        - zRaven/zShots/*
+        - zVersions/*
+        - _zSpark.*
+        - "*.db-journal"
+        - .zpush_*
+        - cover.png   #> rides the multipart, not the app/ slice <#
+        - static/photos/desert_dune*

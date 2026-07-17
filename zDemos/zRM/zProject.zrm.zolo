@@ -1,0 +1,36 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#
+# zProject — distribution manifest for `zolo push` (see zLedger's for the
+# annotated reference). Ships everything minus ignore; zCloud wakes `spark`.
+
+zProject:
+    slug:       zrm
+    name:       zRM
+    spark:      zSpark.zRM.zolo
+    version:    1.0.0
+    visibility: public
+    tagline:    Reach Management — a mini hosting dashboard with accounts, sites, and app wake
+    tags:       [hosting, auth, dashboard, reference]
+    cover:      cover.png
+    #> golden-demo convention: SHIP the six zRaven flow files + upload_bank/
+    #  as teaching material (this is the only demo exercising zProxy wake,
+    #  password reset, and email verify), prune only run artifacts. Data/
+    #  ships: Users.csv carries bcrypt hashes and deliberate seeded tokens
+    #  (Frank's verify/reset fixtures the ravens depend on — mock accounts,
+    #  nothing real). Data/zmigrations/ ships (the Posts->Sites pivot IS the
+    #  migration teaching story). static/ ships only the default avatar/cover
+    #  seeds — raven-uploaded new_avatar_* copies are run artifacts, ignored.
+    #  The five _zSpark.*.zolo dev flows stay in the repo as the dev_spark
+    #  teaching set but never ship — scratch tooling, not app. <#
+    ignore:
+        - logs/*
+        - zRaven/output/*
+        - zRaven/zShots/*
+        - zVersions/*
+        - _zSpark.*
+        - "*.db-journal"
+        - .zpush_*
+        - cover.png   #> rides the multipart, not the app/ slice <#
+        - plugins/__pycache__/*
+        - static/avatars/new_avatar*
+        - static/covers/new_avatar*

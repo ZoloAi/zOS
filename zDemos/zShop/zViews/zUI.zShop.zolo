@@ -25,7 +25,7 @@ Main:
             _zClass: zShop-nav-cart
             ViewCart:
                 zBtn:
-                    label:  bi-bag + Cart
+                    label:  bi-bag Cart
                     color:  secondary
                     _zClass: zShop-nav-cart-btn
                     action: zDelta($Cart)
@@ -87,7 +87,7 @@ Main:
                     #  zBooking/zBlog use for every other one-click mutation <#
                     AddToCart:
                         zBtn:
-                            label:  bi-cart-plus + Add to Cart
+                            label:  bi-cart-plus Add to Cart
                             color:  primary
                             _zClass: zShop-add-btn
                             action:
@@ -119,7 +119,7 @@ Cart:
             _zClass: zShop-nav-cart
             NavCartBtn:
                 zBtn:
-                    label:  bi-bag + Cart
+                    label:  bi-bag Cart
                     color:  secondary
                     _zClass: zShop-nav-cart-btn-active
                     action: zDelta($Cart)
@@ -148,7 +148,7 @@ Cart:
 
                     Remove:
                         zBtn:
-                            label:  bi-x-circle + Remove
+                            label:  bi-x-circle Remove
                             color:  danger
                             _zClass: zShop-remove-btn
                             action:
@@ -170,7 +170,7 @@ Cart:
 
     Checkout:
         zBtn:
-            label:  bi-credit-card + Checkout
+            label:  bi-credit-card Checkout
             color:  primary
             _zClass: zShop-checkout-btn
             action: zDelta($Checkout)
@@ -198,7 +198,7 @@ Checkout:
             _zClass: zShop-nav-cart
             NavCartBtn:
                 zBtn:
-                    label:  bi-bag + Cart
+                    label:  bi-bag Cart
                     color:  secondary
                     _zClass: zShop-nav-cart-btn
                     action: zDelta($Cart)

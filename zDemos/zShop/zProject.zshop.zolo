@@ -1,0 +1,30 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+#
+# zProject — distribution manifest for `zolo push` (see zLedger's for the
+# annotated reference). Ships everything minus ignore; zCloud wakes `spark`.
+
+zProject:
+    slug:       zshop
+    name:       zShop
+    spark:      zSpark.zShop.zolo
+    version:    1.0.0
+    visibility: public
+    tagline:    A storefront — cart, zWizard checkout, and live zKnot totals, zero plugins
+    tags:       [commerce, zWizard, reference]
+    cover:      cover.png
+    #> golden-demo convention: SHIP the zRaven test file as teaching material,
+    #  prune only run artifacts. Data/ ships (seed products ARE the demo; the
+    #  seed cart/orders start empty), Data/zmigrations/ ships with it (the
+    #  applied CartItems/Orders migrations are part of the teaching story),
+    #  static/products ships (the product photos the CSV zPaths point at).
+    #  No plugins/ and no upload_bank here — zShop is the zero-plugin,
+    #  zero-file-input demo by design. <#
+    ignore:
+        - logs/*
+        - zRaven/output/*
+        - zRaven/zShots/*
+        - zVersions/*
+        - _zSpark.*
+        - "*.db-journal"
+        - .zpush_*
+        - cover.png   #> rides the multipart, not the app/ slice <#
