@@ -31,6 +31,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -90,6 +91,17 @@ class AppSpec:
         if not s.endswith(".zolo"):
             s = f"zSpark.{s}.zolo" if not s.startswith("zSpark.") else f"{s}.zolo"
         return s
+
+    @property
+    def public_id(self) -> str:
+        """The app's PUBLIC identity — the bare slug.
+
+        ``app_id`` may carry zRelease's versioned driver key (``slug#<build>``)
+        so blue and green coexist in the instance table. Anything public-facing
+        (ingress subdomain, advertised WS origin) must use the bare slug: the
+        version suffix is driver-internal vocabulary, never a hostname.
+        """
+        return self.app_id.split("#", 1)[0]
 
     @classmethod
     def coerce(cls, app: Any) -> "AppSpec":
@@ -274,8 +286,84 @@ class LocalProcessDriver(ComputeDriver):
         # the live (blue) instance the front resolves to is never disturbed.
         self._staged: Dict[str, Dict[str, Any]] = {}
         self._runtime = Path(runtime_dir or os.path.join(tempfile.gettempdir(), "zhost"))
+        # Per-app wake serialization: two simultaneous first-visitors to a cold
+        # app must not BOTH spawn a child (the loser's process would leak,
+        # holding a port until host restart). The lock is per instance-key so
+        # concurrent wakes of DIFFERENT apps never serialize each other.
+        self._wake_locks: Dict[str, threading.Lock] = {}
+        self._wake_locks_guard = threading.Lock()
+        # The instance table lives in THIS process — a host restart forgets every
+        # child while the children (own session groups) keep running: orphans
+        # holding ports + stale ingress upstreams. Each spawn drops a pidfile;
+        # a fresh driver sweeps them, reaping anything still alive from a
+        # previous host life. Best-effort by design (never blocks a boot).
+        try:
+            self._sweep_orphans()
+        except Exception:  # pylint: disable=broad-except
+            pass
+
+    def _wake_lock(self, app_id: str) -> threading.Lock:
+        with self._wake_locks_guard:
+            lock = self._wake_locks.get(app_id)
+            if lock is None:
+                lock = self._wake_locks[app_id] = threading.Lock()
+            return lock
 
     # -- internals ----------------------------------------------------------
+
+    # Markers that identify a child as OURS before an orphan kill: a pidfile pid
+    # can be recycled by the OS, so a sweep only ever signals a process whose
+    # command line still looks like a zolo child (never an innocent bystander).
+    _CHILD_CMD_MARKERS = ("zolo", "zOS.main", "zSpark.")
+
+    def _pidfile(self, app_id: str, port: int) -> Path:
+        return self._runtime / app_id / f"instance_{port}.pid"
+
+    def _sweep_orphans(self) -> None:
+        """Reap children a previous host life left behind (POSIX best-effort).
+
+        The driver's instance table is in-process, but children run in their own
+        session groups and survive a host crash/restart. Every spawn drops a
+        pidfile under the runtime dir; a fresh driver walks them, SIGTERMs any
+        pid that is still alive AND still looks like a zolo child, and clears
+        the files. Windows lacks killpg/ps -o command semantics — stale files
+        are cleared there but processes are left alone.
+        """
+        if not self._runtime.is_dir():
+            return
+        for pidfile in self._runtime.glob("*/instance_*.pid"):
+            try:
+                pid = int(pidfile.read_text().strip() or 0)
+            except (OSError, ValueError):
+                pid = 0
+            if pid > 0 and os.name != "nt" and self._looks_like_child(pid):
+                try:
+                    os.killpg(os.getpgid(pid), 15)
+                except (ProcessLookupError, PermissionError, OSError):
+                    try:
+                        os.kill(pid, 15)
+                    except OSError:
+                        pass
+            try:
+                pidfile.unlink()
+            except OSError:
+                pass
+
+    @classmethod
+    def _looks_like_child(cls, pid: int) -> bool:
+        """True only when ``pid`` is alive and its command line marks a zolo child."""
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return False
+        try:
+            out = subprocess.run(
+                ["ps", "-p", str(pid), "-o", "command="],
+                capture_output=True, text=True, timeout=5, check=False,
+            ).stdout or ""
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return any(marker in out for marker in cls._CHILD_CMD_MARKERS)
 
     def _zolo_argv(self, spark_file: str) -> list:
         override = os.environ.get("ZHOST_ZOLO_BIN")
@@ -340,8 +428,11 @@ class LocalProcessDriver(ComputeDriver):
         child_env[_ENV_WS_PORT] = str(ws_port)
         # Published tenants (ZHOST_INGRESS_DOMAIN set) additionally advertise the
         # ingress WS port + their own subdomain origin; binds above stay private.
+        # ALWAYS the bare slug: app_id may be zRelease's versioned key
+        # (slug#build) and the subdomain/origin is the app's public identity —
+        # slugify would otherwise mint a wrong `slug-build.<domain>` origin.
         from .ingress import ingress_child_env  # pylint: disable=import-outside-toplevel
-        child_env.update(ingress_child_env(app.app_id))
+        child_env.update(ingress_child_env(app.public_id))
 
         log_fh = open(log_path, "ab", buffering=0)  # noqa: SIM115 (kept for child lifetime)
         # Own process group so _stop_proc can take down the whole tree:
@@ -359,8 +450,15 @@ class LocalProcessDriver(ComputeDriver):
             **group_kw,
         )
 
+        pidfile = self._pidfile(app.app_id, port)
+        try:
+            pidfile.write_text(str(proc.pid))
+        except OSError:
+            pidfile = None  # never fail a wake over bookkeeping
+
         rec = {
             "proc": proc, "log": log_fh, "log_path": str(log_path),
+            "pidfile": str(pidfile) if pidfile else None,
             "host": app.host, "port": port, "ws_port": ws_port,
             "pid": proc.pid, "started_at": time.time(),
         }
@@ -372,6 +470,11 @@ class LocalProcessDriver(ComputeDriver):
                     log_fh.close()
                 except OSError:
                     pass
+                if pidfile:
+                    try:
+                        pidfile.unlink()
+                    except OSError:
+                        pass
                 return Instance(app_id=app.app_id, state=STATE_ERROR, pid=proc.pid,
                                 error=f"instance exited early (code {proc.returncode}); "
                                       f"see {log_path}"), None
@@ -413,6 +516,12 @@ class LocalProcessDriver(ComputeDriver):
                 log_fh.close()
             except OSError:
                 pass
+        pidfile = rec.get("pidfile")
+        if pidfile:
+            try:
+                os.unlink(pidfile)
+            except OSError:
+                pass
         return stopped
 
     def _drain_and_stop(self, rec: Dict[str, Any], drain_timeout: float) -> bool:
@@ -430,13 +539,19 @@ class LocalProcessDriver(ComputeDriver):
     # -- contract -----------------------------------------------------------
 
     def wake(self, app: AppSpec, timeout: float = 25.0) -> Instance:
-        rec = self._instances.get(app.app_id)
-        if rec and self._alive(rec) and _port_open(rec["host"], rec["port"]):
-            return self._to_instance(app.app_id, rec, STATE_RUNNING)
-        inst, rec = self._spawn(app, timeout)
-        if rec is not None:
-            self._instances[app.app_id] = rec
-        return inst
+        with self._wake_lock(app.app_id):
+            rec = self._instances.get(app.app_id)
+            if rec and self._alive(rec) and _port_open(rec["host"], rec["port"]):
+                return self._to_instance(app.app_id, rec, STATE_RUNNING)
+            if rec is not None:
+                # Dead/unreachable leftover — reap before replacing so a crashed
+                # child's record never strands an open log fh or zombie entry.
+                self._instances.pop(app.app_id, None)
+                self._stop_proc(rec)
+            inst, rec = self._spawn(app, timeout)
+            if rec is not None:
+                self._instances[app.app_id] = rec
+            return inst
 
     def sleep(self, app_id: str) -> bool:
         rec = self._instances.pop(app_id, None)

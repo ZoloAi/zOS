@@ -164,6 +164,22 @@ class ReleaseManager:
             result.reason = f"flip failed: {exc}"
             return result
 
+        # 3b. Ingress re-point (prod): the registry pointer moved, but the
+        # reverse proxy still dials blue's port — a direct-subdomain visitor
+        # would hit a dead upstream once blue stops below. Re-publish the BARE
+        # slug at green's ports now (same rule as resolve_proxy/commit_green).
+        # Best-effort: the front door re-publishes on the next /app/<slug> wake.
+        if inst.port:
+            try:
+                from .ingress import IngressConfig  # pylint: disable=import-outside-toplevel
+                ingress = IngressConfig.from_env()
+                if ingress:
+                    ingress.publish(slug, inst.port, inst.ws_port)
+                    self._log("info", f"[zRelease] {slug}: ingress re-pointed → green ports")
+            except Exception as exc:  # pylint: disable=broad-except
+                self._log("warning", f"[zRelease] {slug}: ingress re-point failed ({exc}); "
+                                    f"front door will re-publish on next wake")
+
         # 4+5. Drain-out blue, then stop it. Failure here is non-fatal: green is
         # already live and pointed-to; a lingering blue is a leak, not an outage.
         if previous_build_id is not None and previous_build_id != build_id:

@@ -173,7 +173,10 @@ def commit_green(
             inst = driver.status(spec.app_id)
             if inst.port:
                 try:
-                    ingress.publish(spec.app_id, inst.port, inst.ws_port)
+                    # Publish under the BARE slug — app_id may carry the
+                    # versioned driver key (slug#build); the subdomain is the
+                    # app's public identity (same rule as resolve_proxy).
+                    ingress.publish(spec.public_id, inst.port, inst.ws_port)
                 except Exception as exc:  # pylint: disable=broad-except
                     if log:
                         log.error("[zSwap] Ingress re-publish failed for '%s': %s",
