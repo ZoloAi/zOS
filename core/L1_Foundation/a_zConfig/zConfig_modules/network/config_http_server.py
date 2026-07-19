@@ -87,6 +87,13 @@ DEFAULT_CORS_ORIGIN = ""
 # Environment Variables
 ENV_VAR_HTTP_HOST = "HTTP_HOST"            # Host floor (.zEnv / ops)
 ENV_VAR_HTTP_PORT = "HTTP_PORT"            # Port floor (.zEnv / ops)
+# Platform-managed marker (zOS #28). Set by the hosting compute driver when it
+# spawns a tenant child with per-instance ports. When present, the injected
+# HTTP/WS host+port env vars BEAT zSpark pins: on a local machine the author's
+# spark is king (their ports, their business), but a hosted instance's network
+# identity belongs to the platform — a pinned port would boot the child
+# somewhere the driver never polls (eternal "waking", found live: zhornet).
+ENV_VAR_ZHOST_MANAGED = "ZHOST_MANAGED"
 ENV_VAR_ZSERVER_ENABLED = "ZSERVER_ENABLED"  # Enable floor (.zEnv / ops)
 ENV_VAR_HTTP_SSL_ENABLED = "HTTP_SSL_ENABLED"
 ENV_VAR_HTTP_SSL_CERT = "HTTP_SSL_CERT"
@@ -183,6 +190,17 @@ class HttpServerConfig:
         default_port = int(env_http_port) if env_http_port else DEFAULT_PORT
         self.host = http_config.get(_KEY_HOST, default_host)
         self.port = http_config.get(_KEY_PORT, default_port)
+        # Platform-managed instance (zOS #28): the driver's injected host/port
+        # win over any spark pin — local boots have no marker and keep the
+        # spark-king cascade above untouched.
+        if os.getenv(ENV_VAR_ZHOST_MANAGED, "").strip().lower() in TRUTHY_VALUES:
+            if env_http_port and self.port != int(env_http_port):
+                self.logger.warning(
+                    f"{_LOG_PREFIX} zServer.port {self.port} overridden by the "
+                    f"hosting platform → {env_http_port} ({ENV_VAR_ZHOST_MANAGED})")
+                self.port = int(env_http_port)
+            if env_http_host and self.host != env_http_host:
+                self.host = env_http_host
         self.serve_path = http_config.get(_KEY_SERVE_PATH, DEFAULT_SERVE_PATH)
         self.routes_file = http_config.get(_KEY_ROUTES_FILE, DEFAULT_ROUTES_FILE)
         # enabled cascade (king → floor): zSpark.zServer.enabled → ZSERVER_ENABLED

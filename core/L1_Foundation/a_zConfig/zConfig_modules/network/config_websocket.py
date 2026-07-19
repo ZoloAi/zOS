@@ -218,6 +218,25 @@ class WebSocketConfig:
                 self.logger.framework.debug(f"{_LOG_PREFIX} zSocket settings from zSpark: {list(zspark_ws.keys())}")
                 websocket_config.update(zspark_ws)  # zSpark overrides everything else
 
+        # Platform-managed instance (zOS #28): the compute driver's injected
+        # host/port win over any zSpark/zEnv pin — a hosted child's network
+        # identity belongs to the platform (the driver polls the injected port;
+        # a pinned one boots the child somewhere it's never found). Local boots
+        # carry no ZHOST_MANAGED marker, so the spark-king cascade is untouched.
+        if os.getenv("ZHOST_MANAGED", "").strip().lower() in _TRUTHY_VALUES:
+            if env_port:
+                try:
+                    injected = int(env_port)
+                    if websocket_config.get(_KEY_PORT) not in (None, injected):
+                        self.logger.warning(
+                            f"{_LOG_PREFIX} zSocket.port {websocket_config[_KEY_PORT]} "
+                            f"overridden by the hosting platform → {injected} (ZHOST_MANAGED)")
+                    websocket_config[_KEY_PORT] = injected
+                except ValueError:
+                    pass
+            if env_host:
+                websocket_config[_KEY_HOST] = env_host
+
         # 3. Apply defaults for any missing values.
         #    HOST fallback follows the zServer leg (one host per app, two ports):
         #    when zSocket/WEBSOCKET_HOST give no host, inherit the HTTP host the

@@ -426,6 +426,10 @@ class LocalProcessDriver(ComputeDriver):
         child_env[_ENV_HTTP_PORT] = str(port)
         child_env[_ENV_WS_HOST] = app.host
         child_env[_ENV_WS_PORT] = str(ws_port)
+        # Platform-managed marker (zOS #28): tells the child's port cascade the
+        # injected host/ports above BEAT any zSpark/zEnv pin the bundle carries.
+        # Local dev boots never set this — the author's spark stays king there.
+        child_env["ZHOST_MANAGED"] = "1"
         # Published tenants (ZHOST_INGRESS_DOMAIN set) additionally advertise the
         # ingress WS port + their own subdomain origin; binds above stay private.
         # ALWAYS the bare slug: app_id may be zRelease's versioned key
