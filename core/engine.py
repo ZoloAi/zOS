@@ -743,7 +743,10 @@ class zOS:  # pylint: disable=invalid-name
                     # Silent blocking mode: Just wait for Ctrl+C
                     self.logger.framework.debug("[zCLI] Blocking on zServer (silent mode)")
                     self.raven.start()   # no-op if not enabled
-                    if self.zspark_obj.get("zDesktop"):
+                    # ZOS_DESKTOP env: the Zolo.app launcher's seam — a double-clicked
+                    # .zolo opens natively even when the spark never declared zDesktop.
+                    # Spark keeps the final say when present; env only ADDS the window.
+                    if self.zspark_obj.get("zDesktop") or os.getenv("ZOS_DESKTOP"):
                         return self._run_zdesktop_main()
                     return self.server.wait()
                 # else: fall through to Priority 3 — walker or raven drives, server stays as daemon

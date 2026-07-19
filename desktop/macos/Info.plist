@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>              <string>Zolo</string>
+    <key>CFBundleDisplayName</key>       <string>Zolo</string>
+    <key>CFBundleIdentifier</key>        <string>media.zolo.desktop</string>
+    <key>CFBundleVersion</key>           <string>1</string>
+    <key>CFBundleShortVersionString</key><string>1.0.0</string>
+    <key>CFBundleExecutable</key>        <string>ZoloLauncher</string>
+    <key>CFBundleIconFile</key>          <string>Zolo</string>
+    <key>CFBundlePackageType</key>       <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>    <string>12.0</string>
+    <key>NSHighResolutionCapable</key>   <true/>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <!-- localhost only: zDesktop apps serve on 127.0.0.1 over plain HTTP -->
+        <key>NSAllowsLocalNetworking</key><true/>
+    </dict>
+
+    <!-- ═══ .zolo filetype ownership — the whole point (zOS #33) ═══ -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>      <string>Zolo Source File</string>
+            <key>CFBundleTypeRole</key>      <string>Viewer</string>
+            <key>CFBundleTypeIconFile</key>  <string>ZoloFile</string>
+            <key>LSHandlerRank</key>         <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>media.zolo.source</string>
+            </array>
+        </dict>
+    </array>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>   <string>media.zolo.source</string>
+            <key>UTTypeDescription</key>  <string>Zolo Source File</string>
+            <key>UTTypeIconFile</key>     <string>ZoloFile</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.plain-text</string>
+                <string>public.source-code</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>zolo</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
+</dict>
+</plist>
