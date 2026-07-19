@@ -25,7 +25,7 @@ def _run_window(url: str, title: str) -> None:
     except ImportError:
         print(
             "\n[zDesktop] pywebview not installed. "
-            "Run: pip install 'zOS[desktop]'\n"
+            "Run: pip install 'zolo-os[webview]'\n"
         )
         return
 
