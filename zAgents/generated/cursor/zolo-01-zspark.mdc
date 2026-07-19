@@ -32,7 +32,7 @@ seek_as_need: !boot-critical — pull the reference when you reach the key
     zSocket   — WebSocket leg the Bifrost bridge rides (legacy alias: websocket) -> zBifrost ref
     zCanvas   — app-wide canvas applied across pages -> zUI ref
     zPersist  — create Apps/{title}/ user-data dir -> Config ref
-    zRaven*   — bind a test suite (zRaven, zRavenTimeout, zRavenPort…); !add during dev (noisy auto-run) -> 04_raven
+    zRaven*   — bind a test suite (zRaven, zRavenTimeout, zRavenPort…); !add during dev (noisy auto-run) -> 13_testing
     plugins   — list of .py loaded at boot -> plugins ref
 
 retired: dropped keys — printed as a deprecation warning if still set

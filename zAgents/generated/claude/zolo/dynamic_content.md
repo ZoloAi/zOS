@@ -14,6 +14,11 @@ the_sigil: the whole subsystem is one character — `%`, read by POSITION
     value  `%token`  → a live VALUE, woven at render time (spool · dye · knot)
     key    `%name:`  → a reusable SHAPE, woven at load time (pattern · shuttle)
     miss   — a token that finds nothing is LEFT LITERAL in text (a visible clue) / resolves to nothing in a decision — never a crash
+    !spoolless_file — a zUI file whose zMeta declares NO `zSpool` skips the weave pass for CONTENT entirely: every
+        `%session.*`/`%auth.*` in zText/labels renders as the literal token, while the SAME tokens in `zGate:`
+        predicates still resolve (gates don't ride the weave) — a page gating fine but printing `%auth.username`
+        raw is THIS, not a session bug; fix = declare any real reel (`zSpool: [<reel>]`), even one the page
+        barely uses (proven zCloud Foundations + zBlog-vs-landing, 2026-07)
     single_pass — a token INSIDE a resolved value is never re-scanned (user data can't smuggle a second token — safe by construction)
 
 spool: where a live value comes from — the reel a `%` thread pulls off

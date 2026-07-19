@@ -36,7 +36,7 @@ front_door: the ONE place a concrete platform shows up — how a URL picks an ap
         `/app/%slug: { type: zProxy, zProxy: { table: <your registry>, key: slug, spark_field: spark_path } }` — `table` REQUIRED (no default)
         visibility  — OPT-IN: add `visibility_field: status` + `visibility_value: live` → only matching rows resolve (a paused/unknown slug 404s); omit → any matching row resolves
     example       — zCloud's registry is the `zApps` table, keyed by slug, gated on `status: live` — an EXAMPLE, not the model; a normal app author never writes a zProxy route
-    push          — pushed apps land via a `BundleStore` (unpacks to `<workspace>/_hosted/<slug>/`, same wake path); storage moves bytes, the platform owns policy — zCloud-specific, later
+    push          — pushed apps land via a `BundleStore` (unpacks to `<workspace>/_hosted/<slug>/`, same wake path); storage moves bytes, the platform owns policy — the author-side verb + manifest → 23_shipping
     status        — ALPHA: a preview of where hosting heads, not a stable surface
 
 where_it_lives: the engine is in the SDK, not the web server

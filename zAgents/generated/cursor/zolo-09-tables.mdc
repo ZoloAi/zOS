@@ -50,5 +50,5 @@ canonical_classes: written by Bifrost (zbase theme) — your global override sur
     rule: _zClass/_zColumn tag ONE table from .zolo | override a canonical class = restyle EVERY table
 
 seek_as_need: !needed to draw a table — pull when you reach it
-    zData — fetches/validates live rows, hands result to zTable -> 03_data ref
+    zData — fetches/validates live rows, hands result to zTable -> 08_data_crud ref
     rule: one clean split — zTable draws the grid, zData brings the rows

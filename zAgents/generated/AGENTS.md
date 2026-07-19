@@ -102,6 +102,9 @@ next_step_rule:
         clear_dev_flow: this `_zSpark.<flow>.zolo` has served its purpose (already committed) — suggest
             `z raven --clear` to drop the scratch spark/raven/shots from the working tree (see 13_testing
             zclear); pick this once a dev flow is done being iterated on, not while still in active use
+        ship_it: the app is green, shot-reviewed, and meant for others — write `zProject.<name>.zolo`
+            + `zolo push --dry-run` then `zolo push` (see 23_shipping); pick this only when the USER's
+            stated goal is a hosted/shared app, never as a default
     rules:
         ALWAYS end a completed segment with this pattern — never silently stop
         ONE suggestion only — do not list options, pick the most logical next step
@@ -143,7 +146,7 @@ seek_as_need: !boot-critical — pull the reference when you reach the key
     zSocket   — WebSocket leg the Bifrost bridge rides (legacy alias: websocket) -> zBifrost ref
     zCanvas   — app-wide canvas applied across pages -> zUI ref
     zPersist  — create Apps/{title}/ user-data dir -> Config ref
-    zRaven*   — bind a test suite (zRaven, zRavenTimeout, zRavenPort…); !add during dev (noisy auto-run) -> 04_raven
+    zRaven*   — bind a test suite (zRaven, zRavenTimeout, zRavenPort…); !add during dev (noisy auto-run) -> 13_testing
     plugins   — list of .py loaded at boot -> plugins ref
 
 retired: dropped keys — printed as a deprecation warning if still set
@@ -819,7 +822,7 @@ canonical_classes: written by Bifrost (zbase theme) — your global override sur
     rule: _zClass/_zColumn tag ONE table from .zolo | override a canonical class = restyle EVERY table
 
 seek_as_need: !needed to draw a table — pull when you reach it
-    zData — fetches/validates live rows, hands result to zTable -> 03_data ref
+    zData — fetches/validates live rows, hands result to zTable -> 08_data_crud ref
     rule: one clean split — zTable draws the grid, zData brings the rows
 
 ---
@@ -1015,6 +1018,9 @@ where_&_looks: the search order for a bare `&.name`
 arguments: pass values in the ()
     text `&.demo.greet('zOS')` · number `&.demo.report(6, 7)` · live data `%data.x` · a prior return `zHat[Step]`
     rule — simple literals for a one-off; `%data`/`zHat` when the value comes from the page
+    !deep_data_arg — a DEEP dotted `%data.<reel>.<idx>.<field>` as a call ARGUMENT arrives as the LITERAL token
+        string, not the value (`int('%data.character.0.id')` crashes) — CONFIRMED BROKEN (zDnD); pass the row
+        another way (`%item.<field>` inside a loop, a zVar, or read it inside the plugin via injected `data`)
 
 return_value: what comes back is reusable
     a return is captured as zHat — weave it into a later step or into text (a print stays behind, only return travels)
@@ -1623,6 +1629,11 @@ the_sigil: the whole subsystem is one character — `%`, read by POSITION
     value  `%token`  → a live VALUE, woven at render time (spool · dye · knot)
     key    `%name:`  → a reusable SHAPE, woven at load time (pattern · shuttle)
     miss   — a token that finds nothing is LEFT LITERAL in text (a visible clue) / resolves to nothing in a decision — never a crash
+    !spoolless_file — a zUI file whose zMeta declares NO `zSpool` skips the weave pass for CONTENT entirely: every
+        `%session.*`/`%auth.*` in zText/labels renders as the literal token, while the SAME tokens in `zGate:`
+        predicates still resolve (gates don't ride the weave) — a page gating fine but printing `%auth.username`
+        raw is THIS, not a session bug; fix = declare any real reel (`zSpool: [<reel>]`), even one the page
+        barely uses (proven zCloud Foundations + zBlog-vs-landing, 2026-07)
     single_pass — a token INSIDE a resolved value is never re-scanned (user data can't smuggle a second token — safe by construction)
 
 spool: where a live value comes from — the reel a `%` thread pulls off
@@ -2025,7 +2036,7 @@ front_door: the ONE place a concrete platform shows up — how a URL picks an ap
         `/app/%slug: { type: zProxy, zProxy: { table: <your registry>, key: slug, spark_field: spark_path } }` — `table` REQUIRED (no default)
         visibility  — OPT-IN: add `visibility_field: status` + `visibility_value: live` → only matching rows resolve (a paused/unknown slug 404s); omit → any matching row resolves
     example       — zCloud's registry is the `zApps` table, keyed by slug, gated on `status: live` — an EXAMPLE, not the model; a normal app author never writes a zProxy route
-    push          — pushed apps land via a `BundleStore` (unpacks to `<workspace>/_hosted/<slug>/`, same wake path); storage moves bytes, the platform owns policy — zCloud-specific, later
+    push          — pushed apps land via a `BundleStore` (unpacks to `<workspace>/_hosted/<slug>/`, same wake path); storage moves bytes, the platform owns policy — the author-side verb + manifest → 23_shipping
     status        — ALPHA: a preview of where hosting heads, not a stable surface
 
 where_it_lives: the engine is in the SDK, not the web server
@@ -2033,3 +2044,45 @@ where_it_lives: the engine is in the SDK, not the web server
     zserver_role— zServer exposes ONLY the thin `zProxy` front door that hands a request UP to this layer (never runs instances itself)
     boundary    — authoring plugins? the compute/proxy facades are the same SDK you write handlers against (Extending › Plugins)
     recap       — 1) two planes (serve one vs run many) · 2) one driver (wake/sleep/status, swappable) · 3) scale from zero (sleep→wake→redirect) · 4) blue-green (stage/commit/abort) · 5) the front door (a registry-backed route picks the app — platform-specific, alpha)
+
+---
+
+zShipping: how an app LEAVES the machine | one manifest (`zProject.<name>.zolo`) beside the spark answers what-is-this / what-ships / who-wakes-it | `zolo login` signs the MACHINE in once, `zolo push` ships under that identity | everything under the folder ships minus `ignore`; zCloud wakes `spark`
+
+manifest: `zProject.<name>.zolo` — the distribution manifest, sibling of the spark
+    slug:       ledger              — REQUIRED: the public handle; the app's hosted address (`/users/<you>/<slug>`) + card identity — your username claims the namespace, so slugs never collide globally
+    spark:      zSpark.zLedger.zolo — REQUIRED: the boot file zCloud wakes on the other side (the same spark you run locally)
+    name:       zLedger             — display name on the feed card
+    version:    1.0.0               — your own release label (for readers; not enforced)
+    visibility: public | unlisted | private — who finds it hosted: feed / by-link / yours
+        seed_only — a FIRST-push seed; after that the owner's dashboard toggle rules — a re-push never flips visibility back
+    tagline / tags / cover — the FEED CARD (photo + one-line pitch + filing): manifest-authoritative per push, but an ABSENT key leaves the zApps column alone (dashboard edits survive a meta-less re-push); omit `cover` → server generates a slug-seeded default
+        cover rides the multipart BESIDE the bundle (a served blob, never app code) — list it in `ignore` so it stays out of the app/ slice
+    ignore:     [logs/*, zRaven/output/*, "*.db-journal"] — what never ships; shell wildcards, matched on the full relative path AND each segment (a bare `__pycache__` prunes at any depth)
+        always_pruned — `.git` · `__pycache__` · `*.pyc` · `.DS_Store` ship NEVER, no matter what
+    include:    [docs/spec.pdf]     — dormant extras packed as attachments/ alongside the app — stored, never executed; a missing path FAILS the bundle
+    rule — required = slug + spark; everything else defaults sensibly or is card dressing
+
+what_ships: pack light, but ship the TEACHING
+    golden_convention — SHIP the zRaven test file (+ seed scripts/upload_bank) as teaching material; prune only RUN artifacts (zRaven/output/*, zShots/*, zVersions/*, logs/*, `_zSpark.*` dev flows, `.zpush_*`)
+    Data/ SHIPS when the seeds ARE the demo (a pre-seeded ledger/blog is the product); machine-local env files (`zEnv.development.zolo` carrying an absolute dev mount) NEVER ship — hosted instances must fall back to the pinned CDN client
+    zEnv.base MUST ship when it carries `zRequirements:` — the hosted child refuses to boot until the deps are importable (boot verifies, never installs → 01_zspark)
+
+login: `zolo login` — sign the MACHINE in, once (git-/gh-style; no app/instance required)
+    interactive — `zolo login <email>` prompts for the password, verifies against the platform ledger, PERSISTS the identity (zOwnership) — clears the watermark, scopes every later push
+    token       — `z login --token <PAT>` — non-interactive; the PAT comes from the account page / the desktop launcher handoff / the Foundations install command
+    single_key  — ONE live PAT per account: minting/logging-in ROTATES it, killing the previously issued key (an installed machine's stored PAT dies when a new one is minted — by design, not a bug)
+    scope       — this is the INSTANCE OWNER (Tier-1), not an app's own users — that's zLogin/zGate → 15_rbac three_whos
+
+push: `zolo push` — the verb; bundle the slice, upload, come up hosted
+    resolve  — bare `zolo push` finds the lone manifest in cwd · `zolo push <name>` picks by manifest name · a folder arg resolves the manifest inside it
+    identity — authenticated by the machine's persisted PAT (`zolo login`); `--token <PAT>` overrides for one push; not signed in → clean FAIL naming the fix
+    flags    — `--dry-run` full file plan, nothing uploads (ALWAYS run it before a first ship) · `--slug <s>` one-push slug override · `--url <base>` target zCloud (default https://zolo.media; `ZOLO_ZCLOUD_URL` env too) · `-v` every shipped file
+    builds   — each push is a NEW build; the previous is kept server-side, so a bad ship rolls back instead of ruining your day
+    server   — zCloud upserts the zApps row bound to your account (owner_id), unpacks the slice, wakes `spark` via the hosting control plane (wake/sleep/status → 22_hosting)
+    rule     — the manifest is written ONCE; from then on shipping is one word
+
+seek_as_need: !authoring a manifest — only if extending the pipeline
+    resolver+bundle — zguard/push/project_resolver.py (manifest contract, required keys) · bundle.py (_DEFAULT_IGNORE, segment matching, attachments/)
+    upload    — zguard/push/command.py (PAT resolve → multipart Bearer POST); server side — zCloud plugins/zpush.py (upsert + seed semantics)
+    cli seam  — core/zSys/cli/push_command.py (public shim; no zguard → "run z patch") + args/push_args.py

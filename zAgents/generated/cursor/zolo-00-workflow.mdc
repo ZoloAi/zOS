@@ -106,6 +106,9 @@ next_step_rule:
         clear_dev_flow: this `_zSpark.<flow>.zolo` has served its purpose (already committed) — suggest
             `z raven --clear` to drop the scratch spark/raven/shots from the working tree (see 13_testing
             zclear); pick this once a dev flow is done being iterated on, not while still in active use
+        ship_it: the app is green, shot-reviewed, and meant for others — write `zProject.<name>.zolo`
+            + `zolo push --dry-run` then `zolo push` (see 23_shipping); pick this only when the USER's
+            stated goal is a hosted/shared app, never as a default
     rules:
         ALWAYS end a completed segment with this pattern — never silently stop
         ONE suggestion only — do not list options, pick the most logical next step

@@ -102,6 +102,9 @@ next_step_rule:
         clear_dev_flow: this `_zSpark.<flow>.zolo` has served its purpose (already committed) — suggest
             `z raven --clear` to drop the scratch spark/raven/shots from the working tree (see 13_testing
             zclear); pick this once a dev flow is done being iterated on, not while still in active use
+        ship_it: the app is green, shot-reviewed, and meant for others — write `zProject.<name>.zolo`
+            + `zolo push --dry-run` then `zolo push` (see 23_shipping); pick this only when the USER's
+            stated goal is a hosted/shared app, never as a default
     rules:
         ALWAYS end a completed segment with this pattern — never silently stop
         ONE suggestion only — do not list options, pick the most logical next step
@@ -135,3 +138,4 @@ topic_refs:
     zTerminal — a code sample with Copy and (when ZTERMINAL_MODE allows) inline Run + streamed output. Reach for showing runnable or copyable code → read ~/.claude/zolo/terminal.md
     zProgress — a labelled bar or spinner: current/total → determinate bar, no total → spinner; can live-climb inside a zWizard. Reach for showing how-far-along → read ~/.claude/zolo/progress.md
     Hosting — zOS control plane above zServer: a ComputeDriver (wake/sleep/status) runs a fleet, scale-from-zero, blue-green deploy. Reach for multi-app or deployment platform work → read ~/.claude/zolo/hosting.md
+    Shipping — zProject manifest + zolo login/push: one file names the app, one word ships it to zCloud under the machine's signed-in identity. Reach for when an app leaves the machine → read ~/.claude/zolo/shipping.md

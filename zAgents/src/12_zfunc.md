@@ -19,6 +19,9 @@ where_&_looks: the search order for a bare `&.name`
 arguments: pass values in the ()
     text `&.demo.greet('zOS')` · number `&.demo.report(6, 7)` · live data `%data.x` · a prior return `zHat[Step]`
     rule — simple literals for a one-off; `%data`/`zHat` when the value comes from the page
+    !deep_data_arg — a DEEP dotted `%data.<reel>.<idx>.<field>` as a call ARGUMENT arrives as the LITERAL token
+        string, not the value (`int('%data.character.0.id')` crashes) — CONFIRMED BROKEN (zDnD); pass the row
+        another way (`%item.<field>` inside a loop, a zVar, or read it inside the plugin via injected `data`)
 
 return_value: what comes back is reusable
     a return is captured as zHat — weave it into a later step or into text (a print stays behind, only return travels)
