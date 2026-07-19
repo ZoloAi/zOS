@@ -433,6 +433,18 @@ class LocalProcessDriver(ComputeDriver):
         # slugify would otherwise mint a wrong `slug-build.<domain>` origin.
         from .ingress import ingress_child_env  # pylint: disable=import-outside-toplevel
         child_env.update(ingress_child_env(app.public_id))
+        # Per-build tenant dependencies (zOS #26): zpush installs the app's
+        # declared zRequirements into <build>/zpackages (pip --target) at push
+        # time — the platform venv stays clean and each build carries its own
+        # deps snapshot (blue/green isolation for free). Prepending it here
+        # means the child's import system AND its boot gate (importlib.metadata
+        # scans sys.path) see the tenant's packages, with tenant pins beating
+        # the platform venv inside the tenant process only.
+        zpackages = folder / "zpackages"
+        if zpackages.is_dir():
+            child_env["PYTHONPATH"] = (
+                str(zpackages) + os.pathsep + child_env["PYTHONPATH"]
+                if child_env.get("PYTHONPATH") else str(zpackages))
 
         log_fh = open(log_path, "ab", buffering=0)  # noqa: SIM115 (kept for child lifetime)
         # Own process group so _stop_proc can take down the whole tree:
