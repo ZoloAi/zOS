@@ -48,8 +48,42 @@ if [[ "${1:-}" == "--sign" || "${1:-}" == "--notarize" ]]; then
     codesign --force --deep --options runtime --sign "$IDENTITY" "$APP"
     codesign --verify --strict "$APP" && say "signature verified"
 
-    say "packing Zolo.dmg"
-    hdiutil create -volname Zolo -srcfolder "$APP" -ov -format UDZO dist/Zolo.dmg >/dev/null
+    say "packing Zolo.dmg (styled: background + /Applications drag target)"
+    STAGE=dist/dmg-stage
+    rm -rf "$STAGE" && mkdir -p "$STAGE/.background"
+    cp -R "$APP" "$STAGE/"
+    ln -s /Applications "$STAGE/Applications"
+    cp assets/dmg_background.png "$STAGE/.background/background.png"
+
+    # RW image first so Finder can persist the layout (.DS_Store), then compress.
+    hdiutil create -volname Zolo -srcfolder "$STAGE" -ov -format UDRW dist/Zolo-rw.dmg >/dev/null
+    MOUNT=$(hdiutil attach dist/Zolo-rw.dmg -readwrite -noverify -noautoopen | awk -F'\t' '/\/Volumes\//{print $3}')
+    osascript <<OSA
+tell application "Finder"
+    tell disk "Zolo"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set the bounds of container window to {200, 120, 860, 520}
+        set viewOptions to the icon view options of container window
+        set arrangement of viewOptions to not arranged
+        set icon size of viewOptions to 110
+        set background picture of viewOptions to file ".background:background.png"
+        set position of item "Zolo.app" of container window to {165, 235}
+        set position of item "Applications" of container window to {495, 235}
+        close
+        open
+        update without registering applications
+        delay 1
+        close
+    end tell
+end tell
+OSA
+    sync
+    hdiutil detach "$MOUNT" >/dev/null
+    hdiutil convert dist/Zolo-rw.dmg -format UDZO -o dist/Zolo.dmg -ov >/dev/null
+    rm -f dist/Zolo-rw.dmg && rm -rf "$STAGE"
     # The dmg needs its OWN signature — notarization staples it either way, but
     # Gatekeeper's install check (spctl -t install) rejects an unsigned container.
     codesign --force --sign "$IDENTITY" dist/Zolo.dmg
