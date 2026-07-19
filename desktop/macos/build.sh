@@ -50,6 +50,9 @@ if [[ "${1:-}" == "--sign" || "${1:-}" == "--notarize" ]]; then
 
     say "packing Zolo.dmg"
     hdiutil create -volname Zolo -srcfolder "$APP" -ov -format UDZO dist/Zolo.dmg >/dev/null
+    # The dmg needs its OWN signature — notarization staples it either way, but
+    # Gatekeeper's install check (spctl -t install) rejects an unsigned container.
+    codesign --force --sign "$IDENTITY" dist/Zolo.dmg
 
     if [[ "${1:-}" == "--notarize" ]]; then
         say "notarizing (this takes a few minutes)"
