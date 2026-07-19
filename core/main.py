@@ -54,10 +54,20 @@ def _auto_patch_if_needed() -> None:
         try:
             subprocess.run(["uv", "--version"], capture_output=True, check=True)
         except (FileNotFoundError, subprocess.CalledProcessError):
-            subprocess.run(
-                "curl -LsSf https://astral.sh/uv/install.sh | sh", shell=True
-            )
-            os.environ["PATH"] = str(Path.home() / ".local" / "bin") + ":" + os.environ.get("PATH", "")
+            # Per-OS official installers — curl|sh is POSIX-only and printed
+            # "'sh' is not recognized" on Windows (zOS #30).
+            if sys.platform == "win32":
+                subprocess.run(
+                    ["powershell", "-NoProfile", "-ExecutionPolicy", "ByPass",
+                     "-Command", "irm https://astral.sh/uv/install.ps1 | iex"])
+                os.environ["PATH"] = (
+                    str(Path.home() / ".local" / "bin") + os.pathsep
+                    + os.environ.get("PATH", ""))
+            else:
+                subprocess.run(
+                    "curl -LsSf https://astral.sh/uv/install.sh | sh", shell=True
+                )
+                os.environ["PATH"] = str(Path.home() / ".local" / "bin") + ":" + os.environ.get("PATH", "")
         result = subprocess.run([
             "uv", "tool", "install",
             "--python", python_spec,

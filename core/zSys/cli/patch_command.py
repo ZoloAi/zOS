@@ -13,6 +13,7 @@ Also called from PostInstallCommand in setup.py after pip install.
 """
 
 import os
+import platform
 import subprocess
 import sys
 import sysconfig
@@ -51,10 +52,18 @@ def _uv_installed() -> bool:
 
 def _install_uv():
     print("\n[z patch] Installing uv (fast Python version manager)...")
-    result = subprocess.run(
-        "curl -LsSf https://astral.sh/uv/install.sh | sh",
-        shell=True,
-    )
+    # Per-OS official installers: the curl|sh line is POSIX-only — on Windows
+    # it exploded with "'sh' is not recognized" (zOS #30). PowerShell path uses
+    # astral's own irm|iex flow.
+    if platform.system() == "Windows":
+        cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "ByPass",
+               "-Command", "irm https://astral.sh/uv/install.ps1 | iex"]
+        result = subprocess.run(cmd)
+    else:
+        result = subprocess.run(
+            "curl -LsSf https://astral.sh/uv/install.sh | sh",
+            shell=True,
+        )
     if result.returncode != 0:
         print("[z patch] ERROR: uv install failed. Install manually: https://docs.astral.sh/uv/")
         return False

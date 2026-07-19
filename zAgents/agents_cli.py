@@ -142,6 +142,23 @@ def _inject_claude_global(force: bool):
     return "Claude Code (global)"
 
 
+def _workspace_writable(workspace: Path) -> bool:
+    """True when we can actually create files in the workspace.
+
+    A real write probe, not os.access(): Windows ACLs make access() lie, and
+    the canonical failure is PowerShell-as-admin defaulting cwd to
+    C:\\WINDOWS\\System32 — golden users land there constantly (zOS #31).
+    Project injections must SKIP politely in that case, never traceback.
+    """
+    probe = workspace / ".zagents-write-probe.tmp"
+    try:
+        probe.touch()
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
 def _has_cursor_ancestor(workspace: Path, max_levels: int = 4) -> bool:
     """Return True if this workspace or any ancestor (up to max_levels) contains a .cursor/ folder.
 
@@ -166,6 +183,14 @@ def _detect_and_inject(workspace: Path, force: bool):
     result = _inject_claude_global(force)
     if result:
         injected.append(result)
+
+    # Everything below writes into the WORKSPACE — guard it once, here.
+    if not _workspace_writable(workspace):
+        print(f"  [zAgents] {workspace} is not writable (system folder?) — "
+              "project files skipped.")
+        print("  [zAgents] cd into your project folder and re-run: z agents")
+        return injected
+
     result = _inject_cursor(workspace, force)
     if result:
         injected.append(result)
