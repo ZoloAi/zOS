@@ -20,11 +20,18 @@ ICON_SRC="../../../zLSP/zlsp/editors/vscode/marketplace-package/icons/zolo_filet
 
 say() { printf '\033[1m→ %s\033[0m\n' "$*"; }
 
-# ── 1. compile ────────────────────────────────────────────────────────────────
-say "compiling ZoloLauncher.swift"
+# ── 1. compile — UNIVERSAL (this is a public download; half the Mac installed
+#      base is still Intel, and an arm64-only slice greets them with
+#      "you can't open the application") ──────────────────────────────────────
+say "compiling ZoloLauncher.swift (arm64 + x86_64 → universal)"
 rm -rf dist && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-swiftc -O -o "$APP/Contents/MacOS/ZoloLauncher" ZoloLauncher.swift \
-    -framework Cocoa -framework WebKit
+for arch in arm64 x86_64; do
+    swiftc -O -target "${arch}-apple-macos12.0" -o "dist/ZoloLauncher-${arch}" \
+        ZoloLauncher.swift -framework Cocoa -framework WebKit
+done
+lipo -create dist/ZoloLauncher-arm64 dist/ZoloLauncher-x86_64 \
+    -output "$APP/Contents/MacOS/ZoloLauncher"
+rm -f dist/ZoloLauncher-arm64 dist/ZoloLauncher-x86_64
 cp Info.plist "$APP/Contents/Info.plist"
 
 # ── 2. icons — app icon + document icon from the canonical filetype art ──────
