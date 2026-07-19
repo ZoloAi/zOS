@@ -4,10 +4,12 @@
 #
 # What it does (and nothing more):
 #   1. Confirms this OS/arch is a supported zOS platform
-#   2. Finds a CPython 3.10-3.12 (the range zGuard ships binaries for)
+#   2. Finds a CPython 3.10-3.12 (the range zGuard ships binaries for) —
+#      or provisions Python 3.12 via uv when none exists (fresh-PC path)
 #   3. Creates an isolated venv at %USERPROFILE%\.zolo\venv
 #   4. Installs zolo-os from PyPI into it
 #   5. Adds the venv Scripts dir to your user PATH (for the `z` CLI)
+#   6. Gives .zolo files an identity (icon + double-click open), per-user
 #
 # Re-running is safe: the venv is reused and zolo-os is upgraded in place.
 
@@ -28,24 +30,55 @@ if ($arch -notin @("AMD64", "ARM64")) {
 Say "-> platform: Windows/$arch - supported"
 
 # -- 2. find CPython 3.10-3.12 --------------------------------------------------
+# $Py ends up as a launcher spec ("py -3.12"), a bare command ("python"), or a
+# full interpreter path (the uv rescue below) — which may contain spaces.
+# All invocations go through this ONE helper (the old Split(" ") slice broke
+# on single-token candidates and can't survive spaced paths).
+function Invoke-Py {
+    param([string]$Spec, [string[]]$PyArgs)
+    if ($Spec -like "py -*") { & py $Spec.Split(" ")[1] @PyArgs }
+    else                     { & $Spec @PyArgs }
+}
+
 $Py = $null
 foreach ($cand in @("py -3.12", "py -3.11", "py -3.10", "python")) {
     try {
-        $parts = $cand.Split(" ")
-        $ver = & $parts[0] @($parts[1..($parts.Length-1)] + @("-c", "import sys; print('%d.%d' % sys.version_info[:2])")) 2>$null
+        $ver = Invoke-Py $cand @("-c", "import sys; print('%d.%d' % sys.version_info[:2])") 2>$null
         if ($ver -in @("3.10", "3.11", "3.12")) { $Py = $cand; break }
     } catch { continue }
 }
+# No suitable CPython? Provision one with uv (standalone builds, no admin) —
+# the fresh-PC path: store-Python is often 3.13/3.14, above zGuard's ceiling,
+# and "go install Python 3.12" is exactly the wall this installer removes.
+# (The same rescue z patch itself performs — kept here so the FIRST install
+# never needs a human to fix Python.)
 if (-not $Py) {
-    Fail "no CPython 3.10-3.12 found. Install one from https://www.python.org/downloads/ (check 'Add to PATH') and re-run."
+    Say "-> no CPython 3.10-3.12 found - provisioning Python 3.12 via uv"
+    $uv = Join-Path $env:USERPROFILE ".local\bin\uv.exe"
+    if (-not (Test-Path $uv)) {
+        $uvCmd = Get-Command uv -ErrorAction SilentlyContinue
+        if ($uvCmd) { $uv = $uvCmd.Source }
+        else {
+            try {
+                Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression | Out-Null
+            } catch {
+                Fail "could not install uv. Install Python 3.10-3.12 manually (https://www.python.org/downloads/) and re-run."
+            }
+            if (-not (Test-Path $uv)) { Fail "uv installed but not found at $uv - open a NEW terminal and re-run this installer." }
+        }
+    }
+    & $uv python install 3.12 | Out-Null
+    if ($LASTEXITCODE -ne 0) { Fail "uv could not install Python 3.12 - re-run, or install Python manually and re-run." }
+    $found = (& $uv python find 3.12 2>$null | Select-Object -First 1)
+    if (-not $found -or -not (Test-Path $found)) { Fail "uv installed Python 3.12 but it can't be located - re-run this installer." }
+    $Py = "$found"
 }
 Say "-> python: $Py"
 
 # -- 3. venv --------------------------------------------------------------------
 if (-not (Test-Path (Join-Path $Scripts "pip.exe"))) {
     Say "-> creating venv: $Venv"
-    $parts = $Py.Split(" ")
-    & $parts[0] @($parts[1..($parts.Length-1)] + @("-m", "venv", $Venv))
+    Invoke-Py $Py @("-m", "venv", $Venv)
 } else {
     Say "-> reusing venv: $Venv"
 }
@@ -79,6 +112,38 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     } else {
         Say "WARN git not found - your AI partner will want it: https://git-scm.com/download/win"
     }
+}
+
+# -- 7. .zolo file identity -------------------------------------------------------
+# Parity with the macOS app bundle's UTI: icon + double-click open, per-user
+# (HKCU — no admin, no machine-wide writes). Double-click hands the file to
+# the venv z.exe with ZOS_DESKTOP=1 via a tiny shim (a registry command can't
+# set env vars itself). NON-FATAL: cosmetics must never fail an install.
+try {
+    $icon = Join-Path $ZoloHome "zolo.ico"
+    if (-not (Test-Path $icon)) {
+        Invoke-WebRequest -UseBasicParsing -OutFile $icon `
+            https://raw.githubusercontent.com/ZoloAi/zOS/main/desktop/windows/assets/zolo.ico
+    }
+
+    $shim = Join-Path $ZoloHome "zolo-open.cmd"
+    @(
+        "@echo off"
+        "set ZOS_DESKTOP=1"
+        "cd /d ""%~dp1"""
+        """$Scripts\z.exe"" ""%~nx1"""
+    ) | Set-Content -Path $shim -Encoding ASCII
+
+    New-Item -Path "HKCU:\Software\Classes\.zolo" -Force | Out-Null
+    Set-ItemProperty -Path "HKCU:\Software\Classes\.zolo" -Name "(default)" -Value "Zolo.File"
+    New-Item -Path "HKCU:\Software\Classes\Zolo.File\DefaultIcon" -Force | Out-Null
+    Set-ItemProperty -Path "HKCU:\Software\Classes\Zolo.File\DefaultIcon" -Name "(default)" -Value $icon
+    New-Item -Path "HKCU:\Software\Classes\Zolo.File\shell\open\command" -Force | Out-Null
+    Set-ItemProperty -Path "HKCU:\Software\Classes\Zolo.File\shell\open\command" -Name "(default)" `
+        -Value """$shim"" ""%1"""
+    Say "-> .zolo files: icon + double-click open registered (this user)"
+} catch {
+    Say "WARN .zolo file association skipped ($($_.Exception.Message)) - zOS itself is unaffected"
 }
 
 $version = & (Join-Path $Scripts "z.exe") --version 2>$null

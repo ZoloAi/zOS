@@ -40,7 +40,21 @@ for cand in python3.12 python3.11 python3.10 python3; do
         fi
     fi
 done
-[ -n "$PY" ] || fail "no CPython 3.10–3.12 found. Install one (e.g. https://www.python.org/downloads/ or your package manager) and re-run."
+# No suitable CPython? Provision one with uv (standalone builds, no admin, no
+# Xcode) — this is the path a fresh Mac takes: Apple's CLT python3 is 3.9,
+# below zGuard's floor, and "go install Python" is exactly the wall the
+# desktop installer exists to remove.
+if [ -z "$PY" ]; then
+    say "→ no CPython 3.10–3.12 found — provisioning Python 3.12 via uv"
+    if ! command -v "$HOME/.local/bin/uv" >/dev/null 2>&1 && ! command -v uv >/dev/null 2>&1; then
+        curl -fsSL https://astral.sh/uv/install.sh | sh >/dev/null 2>&1 \
+            || fail "could not install uv. Install Python 3.10–3.12 manually (https://www.python.org/downloads/) and re-run."
+    fi
+    UV="$(command -v uv || echo "$HOME/.local/bin/uv")"
+    "$UV" python install 3.12 >/dev/null 2>&1 || fail "uv could not install Python 3.12 — re-run, or install Python manually and re-run."
+    PY="$("$UV" python find 3.12 2>/dev/null)"
+    [ -n "$PY" ] && [ -x "$PY" ] || fail "uv installed Python 3.12 but it can't be located — re-run this installer."
+fi
 say "→ python: $PY ($("$PY" -V 2>&1))"
 
 # ── 3. venv ───────────────────────────────────────────────────────────────────
