@@ -65,6 +65,22 @@ if ($userPath -notlike "*$Scripts*") {
     Say "-> added to user PATH: $Scripts"
 }
 
+# -- 6. git courtesy bootstrap ----------------------------------------------------
+# zOS never needs git, but Claude Code / Cursor workflows assume it. Bootstrap
+# via winget (ships with Win 10/11); NON-FATAL - never fail the zOS install.
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Say "-> git not found - installing via winget (your AI partner will want it)"
+        try {
+            winget install --id Git.Git -e --silent --accept-package-agreements --accept-source-agreements | Out-Null
+        } catch {
+            Say "WARN git install failed - grab it later from https://git-scm.com/download/win"
+        }
+    } else {
+        Say "WARN git not found - your AI partner will want it: https://git-scm.com/download/win"
+    }
+}
+
 $version = & (Join-Path $Scripts "z.exe") --version 2>$null
 Say ""
 Say "OK installed: $version"

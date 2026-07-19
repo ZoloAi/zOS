@@ -76,6 +76,31 @@ mkdir -p "$BIN_DIR"
 ln -sf "$VENV/bin/z" "$BIN_DIR/z"
 ln -sf "$VENV/bin/zolo" "$BIN_DIR/zolo" 2>/dev/null || true
 
+# ── 6. git courtesy bootstrap ─────────────────────────────────────────────────
+# zOS itself never needs git — but the golden path is "paste a prompt into
+# Claude Code / Cursor", and those partners assume it. On a fresh Mac the first
+# `git` call pops the Command Line Tools dialog; on Linux it may be absent.
+# Bootstrap it here, NON-FATALLY: a git hiccup must never fail a zOS install.
+case "$OS" in
+    Darwin)
+        if ! xcode-select -p >/dev/null 2>&1; then
+            say "→ git: macOS Command Line Tools not installed — opening Apple's installer"
+            say "  (one dialog; zOS is already installed either way)"
+            xcode-select --install >/dev/null 2>&1 || true
+        fi
+        ;;
+    Linux)
+        if ! command -v git >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+                say "→ installing git (apt)"
+                sudo apt-get install -y -qq git >/dev/null 2>&1 || true
+            else
+                say "⚠ git not found — your AI partner will want it: sudo apt install git"
+            fi
+        fi
+        ;;
+esac
+
 VERSION="$("$VENV/bin/z" --version 2>/dev/null || true)"
 say ""
 say "✓ installed: ${VERSION:-zolo-os}"
