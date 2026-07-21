@@ -98,6 +98,31 @@ if ($userPath -notlike "*$Scripts*") {
     Say "-> added to user PATH: $Scripts"
 }
 
+# -- 5b. stale z sweep ------------------------------------------------------------
+# A prior bare `pip install zolo-os` into some other Python (store 3.13/3.14,
+# an all-users python.org install, ...) leaves z.exe/zolo.exe shims that can
+# SHADOW ours forever: machine PATH outranks user PATH on Windows, so
+# prepending our Scripts dir is not enough. Evict them.
+$env:Path = "$Scripts;" + [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+foreach ($name in @("z", "zolo")) {
+    foreach ($stale in @(Get-Command $name -CommandType Application -All -ErrorAction SilentlyContinue)) {
+        $src = $stale.Source
+        if (-not $src -or $src -like "$Scripts*") { continue }
+        Say "-> found another $name from a previous pip install: $src"
+        try {
+            # uninstall from that interpreter if we can find it (removes all its shims)
+            $stalePy = Join-Path (Split-Path (Split-Path $src)) "python.exe"
+            if (Test-Path $stalePy) { & $stalePy -m pip uninstall --quiet --yes zolo-os 2>$null | Out-Null }
+            if (Test-Path $src) { Remove-Item $src -Force -ErrorAction Stop }
+            Say "   removed - the fresh zOS now answers to $name"
+        } catch {
+            Say "WARN could not remove it (an admin-installed Python?). Run this once in an"
+            Say "     Administrator terminal, then reopen your terminal:"
+            Say "     & `"$stalePy`" -m pip uninstall -y zolo-os"
+        }
+    }
+}
+
 # -- 6. git courtesy bootstrap ----------------------------------------------------
 # zOS never needs git, but Claude Code / Cursor workflows assume it. Bootstrap
 # via winget (ships with Win 10/11); NON-FATAL - never fail the zOS install.
