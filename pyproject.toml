@@ -11,9 +11,11 @@ authors = [
 ]
 readme = "README.md"
 license = {text = "MIT"}
-# Ceiling matters as much as the floor: zGuard ships binaries for cp310-cp312
-# only, so a 3.13 install would boot-fail at provisioning. Enforce at pip time.
-requires-python = ">=3.10,<3.13"
+# Ceiling matters as much as the floor: zGuard ships binaries for cp310-cp313
+# only, so a 3.14 install would boot-fail at provisioning. Enforce at pip time.
+# WATCHFUL FLAG (zGuard#9): this ceiling and zGuard's CIBW_BUILD matrix must
+# always move together — never lift one without the other.
+requires-python = ">=3.10,<3.14"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

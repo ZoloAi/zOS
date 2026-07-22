@@ -17,7 +17,7 @@ Three-way branch, decided fresh each boot (cheap after the first — the
                          cache.
 
 If the running platform/Python ABI isn't one zOS ships a build for at all
-(e.g. cp313, or an unsupported OS/arch), none of the above can help --
+(e.g. cp314, or an unsupported OS/arch), none of the above can help --
 `is_supported()` returns False and the caller (patch_command.py / main.py)
 falls back to reinstalling onto a Python version we do support.
 """
@@ -42,7 +42,9 @@ RAW_BASE = "https://raw.githubusercontent.com/ZoloAi/zOS/main/zguard_bin"
 # command would be a real latency tax for no practical benefit.
 _RECHECK_INTERVAL_SECONDS = 24 * 60 * 60
 
-SUPPORTED_PY_TAGS = ("cp310", "cp311", "cp312")
+# WATCHFUL FLAG (zGuard#9): must mirror zGuard's CIBW_BUILD wheel matrix and
+# zOS's requires-python ceiling in pyproject.toml — the three move together.
+SUPPORTED_PY_TAGS = ("cp310", "cp311", "cp312", "cp313")
 SUPPORTED_PLATFORM_TAGS = ZGUARD_PLATFORM_TAGS
 
 # ── Provenance (SSOT) ─────────────────────────────────────────────────────────

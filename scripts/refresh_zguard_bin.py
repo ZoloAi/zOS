@@ -90,6 +90,20 @@ def main() -> int:
         return 2
     source_sha = sys.argv[2] if len(sys.argv) == 3 else None
     wheel_root = Path(sys.argv[1]).expanduser()
+    if source_sha is None:
+        # zGuard#2: CI ships a SOURCE_SHA file inside each per-OS artifact
+        # folder — auto-discover it instead of requiring the argv. All copies
+        # must agree; a mismatch means the folder mixes artifacts from
+        # different runs, which would silently mislabel provenance.
+        found = {p.read_text().strip() for p in wheel_root.rglob("SOURCE_SHA")}
+        found.discard("")
+        if len(found) > 1:
+            raise SystemExit(f"MIXED SOURCE_SHA across artifacts: {sorted(found)} — refusing.")
+        if found:
+            source_sha = found.pop()
+            print(f"provenance: SOURCE_SHA {source_sha} (from CI artifact)")
+        else:
+            print("provenance: no SOURCE_SHA in artifacts and none given — images will lack it.")
     wheels = sorted(wheel_root.rglob("zguard-*.whl"))
     if not wheels:
         print(f"no zguard wheels under {wheel_root}")

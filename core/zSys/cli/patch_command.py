@@ -29,7 +29,7 @@ from zSys.cli.zguard_provision import (
 
 # Python version to reinstall onto when the running interpreter's ABI has no
 # zguard build at all (see zguard_provision.SUPPORTED_PY_TAGS).
-_FALLBACK_PYTHON_SPEC = "3.12"
+_FALLBACK_PYTHON_SPEC = "3.13"
 
 
 def _dev_mode() -> bool:

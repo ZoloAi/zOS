@@ -48,7 +48,7 @@ def _auto_patch_if_needed() -> None:
             return
         # No zguard build for this ABI/platform — auto-patch onto one we ship
         import subprocess  # pylint: disable=import-outside-toplevel
-        python_spec = "3.12"
+        python_spec = "3.13"
         print(f"\n[zOS] No zguard build for {platform_tag or 'this platform'}/{py_tag} "
               f"— auto-patching to Python {python_spec} via uv...")
         try:
