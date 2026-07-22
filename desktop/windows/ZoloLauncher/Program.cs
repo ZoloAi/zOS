@@ -127,12 +127,24 @@ namespace Zolo
             win.Show();
             Append(log, "-> Setting up Zolo on this PC (a few minutes; nothing to do)...\r\n\r\n");
 
+            // Absolute path + neutral CWD (first field trial, urina's PC):
+            // a bare "powershell.exe" resolves through PATH — hijackable and,
+            // worse, AV/policy layers judge the spawn by its full story. The
+            // canonical System32 path with %TEMP% as CWD is the least alarming
+            // shape an unsigned exe can ask for. Sysnative dodges the WOW64
+            // System32->SysWOW64 redirect if the launcher ever runs 32-bit.
+            var sys32 = Environment.GetFolderPath(Environment.SpecialFolder.System);
+            var ps = Path.Combine(sys32, "WindowsPowerShell", "v1.0", "powershell.exe");
+            if (!File.Exists(ps))
+                ps = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+                                  "Sysnative", "WindowsPowerShell", "v1.0", "powershell.exe");
             var proc = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = "powershell.exe",
+                    FileName = File.Exists(ps) ? ps : "powershell.exe",
                     Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"" + InstallCmd + "\"",
+                    WorkingDirectory = Path.GetTempPath(),
                     UseShellExecute = false, CreateNoWindow = true,
                     RedirectStandardOutput = true, RedirectStandardError = true,
                 },
@@ -158,6 +170,9 @@ namespace Zolo
             catch (Exception ex)
             {
                 Append(log, "[x] Couldn't start the installer: " + ex.Message + "\r\n");
+                Append(log, "[!] This usually means antivirus or a security policy blocked " +
+                            "PowerShell. Add an exception for Zolo (or pause the antivirus), " +
+                            "then open Zolo again.\r\n");
                 done(false);
             }
         }
