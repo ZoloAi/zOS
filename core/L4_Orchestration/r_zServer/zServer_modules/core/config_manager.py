@@ -41,6 +41,10 @@ class ConfigManager:
         self.port = config.port
         self.host = config.host
         self.routes_file = config.routes_file
+        # Pinned vs zOS-decides (port hunting, zOS#43). Default True: anything
+        # that can't prove it's huntable is treated as pinned — fail loud, never
+        # wander off a port someone may be pointing at.
+        self.port_pinned = getattr(config, "port_pinned", True)
 
         # Server runner that BINDS the socket (dev/waitress) — resolved SSOT
         # in HttpServerConfig (zSpark.zServer.type → ZSERVER_TYPE → dev). To serve via

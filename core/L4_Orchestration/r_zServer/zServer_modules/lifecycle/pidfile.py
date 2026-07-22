@@ -23,7 +23,9 @@ import time
 
 _RUNTIME_SUBDIR = "zos"
 _INSTANCES_SUBDIR = "instances"
-_FIELDS = ("pid", "port", "title", "cwd", "mode", "started_at")
+# ws_port (zOS#43): the app's OTHER half — with port hunting, neither leg is
+# guessable anymore, so the registry records both. "" when the app runs no WS.
+_FIELDS = ("pid", "port", "ws_port", "title", "cwd", "mode", "started_at")
 
 
 def _instances_dir() -> str:
@@ -47,7 +49,7 @@ def _is_alive(pid: int) -> bool:
     return pid_alive(pid)
 
 
-def register_instance(port=None, title=None, cwd=None, mode=None) -> int:
+def register_instance(port=None, title=None, cwd=None, mode=None, ws_port=None) -> int:
     """Record THIS process as a running zServer. Returns the pid."""
     pid = os.getpid()
     cwd = cwd or os.getcwd()
@@ -55,6 +57,7 @@ def register_instance(port=None, title=None, cwd=None, mode=None) -> int:
     values = {
         "pid": pid,
         "port": port if port is not None else "",
+        "ws_port": ws_port if ws_port is not None else "",
         "title": title,
         "cwd": cwd,
         "mode": mode or "",

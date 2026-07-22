@@ -30,9 +30,12 @@ def create_default_env_config(path: Path, _env_data: Dict[str, Any], verbose: bo
                     "external_host": "localhost",
                     "external_port": 56891,
                 },
+                # websocket host/port deliberately NOT stamped here (zOS#43):
+                # writing the code defaults into the machine file made every
+                # port read as an authored pin, which killed port hunting and
+                # broke the zServer host-inherit fallback. Authored pins belong
+                # in zSpark zSocket / project zEnv / WEBSOCKET_PORT.
                 "websocket": {
-                    "host": "127.0.0.1",
-                    "port": 8765,
                     "require_auth": False,
                     "allowed_origins": [],
                     "token": "",

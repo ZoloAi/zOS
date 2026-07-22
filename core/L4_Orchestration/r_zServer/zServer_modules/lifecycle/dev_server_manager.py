@@ -10,6 +10,9 @@ Handles:
 - Development mode lifecycle (start, stop, status)
 """
 
+import errno
+import os
+import socket
 import threading
 import functools
 from http.server import HTTPServer
@@ -22,9 +25,43 @@ class _ReusePortHTTPServer(HTTPServer):
     green instance on the SAME port while blue still serves. The kernel load-balances
     new connections across both SO_REUSEPORT listeners until blue drains and exits,
     leaving green sole owner — no ``Address already in use`` during the handoff.
+
+    The flag cuts both ways (#22, and zGuard#7 for the WS twin): with it, bind
+    SUCCEEDS on top of whatever instance already owns the port, the port-keyed
+    registry sees only one of N, and z swap/z reload can't tell duplicates exist.
+    So server_bind first probes with a PLAIN socket: a genuinely-taken port is
+    only co-bindable by a self-replace green (marked by the swap sentinel in its
+    env); any other boot gets the honest ``Address already in use``.
     """
 
     allow_reuse_port = True  # Python 3.11+ → server_bind sets SO_REUSEPORT
+
+    def server_bind(self):
+        host, port = self.server_address[:2]
+        if (hasattr(socket, "SO_REUSEPORT")
+                and not os.environ.get("ZOS_SWAP_READY_FILE")
+                and self._port_taken(host, port)):
+            raise OSError(
+                errno.EADDRINUSE,  # callers already handle this errno path
+                f"port {port} is already owned by another running instance — "
+                f"refusing to co-bind (zOS#22). Stop it, `z swap` it, or pick "
+                f"another HTTP_PORT.",
+            )
+        super().server_bind()
+
+    @staticmethod
+    def _port_taken(host, port):
+        """Plain-bind probe (SO_REUSEADDR only, like HTTPServer's own bind) —
+        sees a live flag-carrying listener as taken, tolerates TIME_WAIT."""
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            probe.bind((host, port))
+            return False
+        except OSError:
+            return True
+        finally:
+            probe.close()
 
 
 class DevServerManager:
@@ -75,6 +112,19 @@ class DevServerManager:
         # identical to waitress (which never chdirs) and avoids a process-wide
         # cwd mutation that leaked to unrelated subsystems.
         self.logger.info("[zServer] Starting in Development mode (http.server)...")
+
+        # Port hunting (zOS#43): pinned port = sacred (fail loud below, never
+        # hunt); unpinned default = zOS decides — walk the window for a free
+        # port BEFORE constructing the server. The chosen port is written back
+        # into config so every downstream consumer (instance registry, get_url,
+        # zOpen media URLs, the ready banner) reads the truth, not the wish.
+        requested_port = self.config.port
+        chosen_port = self._resolve_port()
+        if chosen_port != requested_port:
+            self.config.port = chosen_port
+            underlying = getattr(self.config, "config", None)
+            if underlying is not None:
+                underlying.port = chosen_port
 
         try:
             # Create handler with logger, router, mount manager, cache manager, and
@@ -128,6 +178,16 @@ class DevServerManager:
             # Consolidated INFO log
             self.logger.info(f"[zServer] Server ready at {protocol}://{self.config.host}:{self.config.port} (serving: {self.config.serve_path})")
 
+            # The address banner goes to STDOUT unconditionally (zOS#43): a
+            # hunted port nobody announces is worse than a crash, and the
+            # logger channel is environment-shaped (and wounded — zOS#6's
+            # 0-byte files). This one line is the user's door.
+            moved = ""
+            if chosen_port != requested_port:
+                moved = f"   ({requested_port} busy — moved over)"
+            print(f"[zOS] app  {protocol}://{self.config.host}:{self.config.port}{moved}",
+                  flush=True)
+
         except OSError as e:
             self._running = False
             if e.errno == 48:  # Address already in use
@@ -139,6 +199,42 @@ class DevServerManager:
             self._running = False
             self.logger.error(f"[zServer] Failed to start: {e}")
             raise
+
+    def _resolve_port(self):
+        """Resolve the port to bind (zOS#43 — the pinned-vs-hunt doctrine).
+
+        PINNED (zSpark/zEnv/env said a number): return it untouched — a taken
+        pinned port must fail loudly in server_bind, never wander; deployments,
+        launchd, and proxies all point at pins. Also never hunt mid self-replace
+        (the swap-green MUST co-bind the same port — that's the whole handoff).
+
+        UNPINNED (bare code default): the user said "zOS decides" — walk the
+        deterministic window (DEFAULT..+PORT_HUNT_WINDOW-1) for the first free
+        port, using the same plain-bind probe the co-bind guard trusts. A fully
+        exhausted window falls through to the requested port and the honest
+        EADDRINUSE — hunting must never turn a full house into a silent hang.
+        """
+        port = self.config.port
+        if getattr(self.config, "port_pinned", True):
+            return port
+        if os.environ.get("ZOS_SWAP_READY_FILE"):
+            return port
+
+        from zOS.L1_Foundation.a_zConfig.zConfig_modules.network.config_http_server import (
+            PORT_HUNT_WINDOW,
+        )
+        host = self.config.host
+        for candidate in range(port, port + PORT_HUNT_WINDOW):
+            if not _ReusePortHTTPServer._port_taken(host, candidate):
+                if candidate != port:
+                    self.logger.info(
+                        f"[zServer] Port {port} busy and unpinned — hunted to "
+                        f"{candidate} (window {port}-{port + PORT_HUNT_WINDOW - 1}, zOS#43)")
+                return candidate
+        self.logger.error(
+            f"[zServer] No free port in the hunt window "
+            f"{port}-{port + PORT_HUNT_WINDOW - 1} — binding {port} to fail honestly")
+        return port
 
     def _run_server(self):
         """

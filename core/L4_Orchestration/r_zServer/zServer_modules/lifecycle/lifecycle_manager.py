@@ -93,14 +93,26 @@ class LifecycleManager:
 
         # Register in the instance registry so `z reload` (another shell) can
         # discover us — by port (unique) + a human title for the pick list.
+        # ws_port rides along (zOS#43): with port hunting neither leg is
+        # guessable, so the registry records both. In zBifrost boots the WS
+        # server starts before zServer, so any WS hunt has already written its
+        # chosen port back into zos.config.websocket by the time we read it.
         if self.is_running():
             try:
                 from .pidfile import register_instance
                 title, mode = self._instance_identity()
+                ws_port = None
+                try:
+                    zos = getattr(self.config, "zos", None)
+                    if zos and zos.config and zos.config.websocket:
+                        ws_port = zos.config.websocket.port
+                except AttributeError:
+                    pass
                 register_instance(
                     port=getattr(self.config, "port", None),
                     title=title,
                     mode=mode,
+                    ws_port=ws_port,
                 )
             except Exception as exc:  # pylint: disable=broad-except
                 self.logger.debug(f"[zServer] Could not register instance: {exc}")

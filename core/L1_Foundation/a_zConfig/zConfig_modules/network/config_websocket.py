@@ -9,6 +9,9 @@ from zSys.logger import resolve_deployment_from_zspark, DEPLOYMENT_PRODUCTION
 # two legs can never drift to different origins (127.0.0.1 vs localhost). Safe at
 # module level — config_http_server never imports back into this module.
 from .config_http_server import DEFAULT_HOST as _LOOPBACK_HOST
+# Port-hunting window SSOT (zOS#43) — re-exported for the WS leg's consumers
+# (zGuard bifrost imports it from here alongside DEFAULT_PORT).
+from .config_http_server import PORT_HUNT_WINDOW  # noqa: F401  (re-export)
 
 # Module Constants
 
@@ -236,6 +239,14 @@ class WebSocketConfig:
                     pass
             if env_host:
                 websocket_config[_KEY_HOST] = env_host
+
+        # Pinned vs zOS-decides (port hunting, zOS#43) — the HTTP twin's rule:
+        # a port that arrived through ANY authored layer (zEnv zSocket block,
+        # WEBSOCKET_PORT env, zSpark zSocket, ZHOST_MANAGED injection — all of
+        # which land in websocket_config by this point) is a PIN, never hunted
+        # off. Only the bare 8765 code default is huntable. Recorded before
+        # the defaults below erase the distinction.
+        self.port_pinned = _KEY_PORT in websocket_config
 
         # 3. Apply defaults for any missing values.
         #    HOST fallback follows the zServer leg (one host per app, two ports):

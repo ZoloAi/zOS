@@ -72,6 +72,15 @@ class EnvironmentConfig:
             verbose=self._verbose
         )
 
+        # Self-heal legacy machine files (zOS#43): older create_default_env_config
+        # stamped the CODE defaults (ws 127.0.0.1:8765) into every machine file,
+        # which made WebSocketConfig read the port as an authored pin — port
+        # hunting never engaged and the co-bind guard silently killed the WS
+        # server on any second app. Those exact echoes are provably machine-
+        # written (deliberate pins live in zSpark/project zEnv/WEBSOCKET_PORT),
+        # so scrub them; _write_zolo_config below persists the healed file.
+        self._scrub_default_echoes()
+
         # Write current state to .zolo config file
         self._write_zolo_config()
 
@@ -125,6 +134,26 @@ class EnvironmentConfig:
             print(f"{LOG_PREFIX} Environment: {env[KEY_DEPLOYMENT]} ({env[KEY_ROLE]})")
 
         return env
+
+    def _scrub_default_echoes(self) -> None:
+        """Drop machine-written echoes of code defaults from the websocket block.
+
+        Only the EXACT default pair the old template stamped is scrubbed —
+        anything else in the block (an authored 9999, a changed host) is a real
+        user edit and survives untouched. Lazy import keeps the WS defaults
+        SSOT in config_websocket without a boot-order cycle.
+        """
+        ws = self.env.get("websocket")
+        if not isinstance(ws, dict):
+            return
+        try:
+            from ..network.config_websocket import DEFAULT_HOST, DEFAULT_PORT
+        except ImportError:
+            return
+        if ws.get("port") == DEFAULT_PORT:
+            ws.pop("port", None)
+        if ws.get("host") == DEFAULT_HOST:
+            ws.pop("host", None)
 
     def _apply_zspark_overrides(self) -> None:
         """Apply zSpark overrides (Layer 5 - highest priority in hierarchy).

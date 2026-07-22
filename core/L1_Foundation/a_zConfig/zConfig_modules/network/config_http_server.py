@@ -65,6 +65,12 @@ ENV_VAR_ZSERVER_WSGI = "ZSERVER_WSGI_EXPOSE"  # retired .zEnv switch (deprecatio
 # Default Values
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8080
+# Port hunting window (zOS#43): when the port is UNPINNED (no zSpark/zEnv/env
+# value — the bare code default) and taken, the runner may walk up to this many
+# consecutive ports (8080→8099, WS 8765→8784) before failing. A PINNED port is
+# never hunted — pinned means deployments point at it. SSOT for both legs:
+# config_websocket and zGuard's bifrost import this value, don't redefine it.
+PORT_HUNT_WINDOW = 20
 DEFAULT_SERVE_PATH = "."
 DEFAULT_ROUTES_FILE = None
 DEFAULT_ENABLED = False
@@ -190,6 +196,13 @@ class HttpServerConfig:
         default_port = int(env_http_port) if env_http_port else DEFAULT_PORT
         self.host = http_config.get(_KEY_HOST, default_host)
         self.port = http_config.get(_KEY_PORT, default_port)
+        # Pinned vs zOS-decides (port hunting, zOS#43): remember WHY this port
+        # value exists. A port that arrived from zSpark/zEnv/env is a PIN —
+        # sacred, never hunted off (deployments, launchd, Caddy all point at
+        # it). Only the bare code default is huntable: "the user said nothing,
+        # zOS decides". Recorded here because after this line the int alone
+        # can't tell pinned-8080 from defaulted-8080.
+        self.port_pinned = (_KEY_PORT in http_config) or bool(env_http_port)
         # Platform-managed instance (zOS #28): the driver's injected host/port
         # win over any spark pin — local boots have no marker and keep the
         # spark-king cascade above untouched.
