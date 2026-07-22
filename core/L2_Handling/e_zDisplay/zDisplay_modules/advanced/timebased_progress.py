@@ -134,10 +134,21 @@ class ProgressEvents:
 
     def _content_transformers(self) -> Any:
         """Lazily build the shared ContentTransformers (avoids import cycles at
-        construction — same lazy pattern as advanced_table.py's markdown build)."""
+        construction — same lazy pattern as advanced_table.py's markdown build).
+
+        ContentTransformers needs the REAL zDisplay (it dereferences
+        ``display.zos`` for token resolution), but this module is normally
+        constructed with the TimeBased COORDINATOR as its parent (zOS#37) —
+        walk ``.display`` links until an object that actually carries ``zos``,
+        so a %data spool token in current/total resolves instead of blowing
+        up the walker with 'TimeBased' object has no attribute 'zos'.
+        """
         if self._ct is None:
             from ..basic.outputs.content_transformers import ContentTransformers  # pylint: disable=relative-beyond-top-level
-            self._ct = ContentTransformers(self.display)
+            root = self.display
+            while root is not None and not hasattr(root, "zos") and hasattr(root, "display"):
+                root = root.display
+            self._ct = ContentTransformers(root if root is not None else self.display)
         return self._ct
 
     def _resolve_str(self, value: Any, context: Optional[dict]) -> str:
