@@ -26,6 +26,7 @@ from __future__ import annotations
 import abc
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -165,6 +166,12 @@ class Instance:
     pid: Optional[int] = None
     started_at: Optional[float] = None
     error: Optional[str] = None
+    # zCloud#11: first+last screens of a dead child's log, captured at the
+    # moment the wake fails — the drift banner / port refusal print first,
+    # the traceback last. Only set on an early-exit wake; deliberately NOT
+    # in as_dict() (owner-facing surfaces receive it via ProxyTarget, public
+    # status APIs never do).
+    log_tail: Optional[str] = None
 
     @property
     def address(self) -> Optional[str]:
@@ -207,6 +214,10 @@ class ProxyTarget:
     url: Optional[str] = None
     ws_url: Optional[str] = None
     error: Optional[str] = None
+    # zCloud#11: dead-child log capture, passed through from Instance so the
+    # front-door caller can persist it for the app OWNER (zApp_Builds.build_log).
+    # Never serialized into visitor-facing wake answers.
+    log_tail: Optional[str] = None
 
     @property
     def ready(self) -> bool:
@@ -269,6 +280,33 @@ def _port_open(host: str, port: int, timeout: float = 0.5) -> bool:
             return True
     except OSError:
         return False
+
+
+# Child boot banners are colored; stripped so the persisted capture reads
+# clean in a dashboard instead of as \x1b[…m soup.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _read_log_tail(path, head_bytes: int = 6000, tail_bytes: int = 2000) -> Optional[str]:
+    """First+last screens of a dead child's log (zCloud#11). Best-effort, never raises.
+
+    Both ends matter: the drift banner / port refusal print in the first
+    screen, a crash traceback prints in the last. A middle-truncated capture
+    diagnoses either without hauling a runaway log around.
+    """
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return None
+    if not data:
+        return "(log is empty — the child died before its first write)"
+    if len(data) <= head_bytes + tail_bytes:
+        text = data.decode("utf-8", errors="replace")
+    else:
+        text = (data[:head_bytes].decode("utf-8", errors="replace")
+                + "\n… [log truncated] …\n"
+                + data[-tail_bytes:].decode("utf-8", errors="replace"))
+    return _ANSI_RE.sub("", text)
 
 
 class LocalProcessDriver(ComputeDriver):
@@ -493,7 +531,8 @@ class LocalProcessDriver(ComputeDriver):
                         pass
                 return Instance(app_id=app.app_id, state=STATE_ERROR, pid=proc.pid,
                                 error=f"instance exited early (code {proc.returncode}); "
-                                      f"see {log_path}"), None
+                                      f"see {log_path}",
+                                log_tail=_read_log_tail(log_path)), None
             if _port_open(app.host, port):
                 return self._to_instance(app.app_id, rec, STATE_RUNNING), rec
             time.sleep(0.25)

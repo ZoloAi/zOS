@@ -217,6 +217,35 @@ class EndpointRouteHandlersMixin:
         from urllib.parse import parse_qs, urlparse  # pylint: disable=import-outside-toplevel
         is_poll = "zwake" in parse_qs(urlparse(self.handler.path).query)
 
+        # Failure sink (zCloud#11) — OFF by default; a platform opts in by
+        # declaring `failure_table` (its build ledger). Dead wakes are then
+        # persisted for the app OWNER (attempts counter + captured child-log
+        # tail), and a build that burned through its attempts is answered
+        # from the ledger instead of booting another doomed child per
+        # visitor. A repush mints a NEW ledger row, so recovery needs no
+        # reset here. All best-effort: sink trouble never blocks a visitor.
+        failure_table = cfg.get("failure_table")
+        build_id = row.get(build_field) if build_field else None
+        if failure_table and build_id not in (None, ""):
+            try:
+                _connect(cfg.get("failure_model") or f"@.models.zSchema.{failure_table}")
+                brows = zos.data.select(table=failure_table,
+                                        where={cfg.get("failure_key", "id"): build_id})
+                brow = next(iter(brows or []), None)
+                failed_value = str(cfg.get("failure_status_value", "failed"))
+                if brow and str(brow.get(cfg.get("failure_status_field",
+                                                 "build_status"))) == failed_value:
+                    if self.logger:
+                        self.logger.info(
+                            f"[RouteDispatcher] zProxy '{slug}' build {build_id} is "
+                            f"{failed_value} — answering from ledger, no wake")
+                    if is_poll:
+                        return self._serve_wake_status(state="error", error="build failed")
+                    return self._serve_error(502, "App failed to start")
+            except Exception as exc:  # pylint: disable=broad-except
+                if self.logger:
+                    self.logger.error(f"[RouteDispatcher] failure-sink read failed: {exc}")
+
         try:
             # Front door is a control-plane job — delegate to zHost. zServer only
             # performs the 302 / interstitial; it no longer imports the compute engine.
@@ -242,6 +271,9 @@ class EndpointRouteHandlersMixin:
             if is_poll:
                 return self._serve_wake_status(state="error", error="wake failed")
             return self._serve_error(502, "App failed to start")
+
+        if target.state == "error" and failure_table and build_id not in (None, ""):
+            self._record_wake_failure(zos, cfg, failure_table, build_id, target)
 
         if is_poll:
             return self._serve_wake_status(
@@ -274,6 +306,41 @@ class EndpointRouteHandlersMixin:
                 f"[RouteDispatcher] zProxy '{slug}' waking → interstitial "
                 f"(state={target.state})")
         return self._serve_wake_interstitial(row.get("name") or slug)
+
+    def _record_wake_failure(self, zos, cfg, table, build_id, target):
+        """Persist a dead wake on the platform's build ledger (zCloud#11).
+
+        Increments the attempts counter, stores the captured child-log tail
+        (the drift banner / traceback the child printed to a stdout nobody
+        watches) for the OWNER's dashboard, and flips the build's status to
+        the failed value once attempts reach the ceiling — the pre-wake gate
+        above then answers from the ledger instead of waking forever.
+        Best-effort by design: a sink failure only logs, never blocks.
+        """
+        try:
+            key = cfg.get("failure_key", "id")
+            attempts_field = cfg.get("failure_attempts_field", "wake_failures")
+            rows = zos.data.select(table=table, where={key: build_id})
+            row = next(iter(rows or []), None)
+            if row is None:
+                return
+            attempts = int(row.get(attempts_field) or 0) + 1
+            values = {attempts_field: attempts}
+            tail = target.log_tail or target.error
+            if tail:
+                values[cfg.get("failure_log_field", "build_log")] = str(tail)[:4000]
+            flipped = attempts >= int(cfg.get("failure_max_attempts", 3))
+            if flipped:
+                values[cfg.get("failure_status_field", "build_status")] = \
+                    str(cfg.get("failure_status_value", "failed"))
+            zos.data.update(table=table, values=values, where={key: build_id})
+            if self.logger:
+                self.logger.warning(
+                    f"[RouteDispatcher] wake failure #{attempts} recorded for build "
+                    f"{build_id}" + (" — build marked failed, waking stops" if flipped else ""))
+        except Exception as exc:  # pylint: disable=broad-except
+            if self.logger:
+                self.logger.error(f"[RouteDispatcher] failure-sink write failed: {exc}")
 
     def _serve_wake_status(self, state: str, url=None, error=None):
         """JSON answer for the interstitial's `?zwake=1` poll."""

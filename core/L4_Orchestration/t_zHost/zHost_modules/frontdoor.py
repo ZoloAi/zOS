@@ -80,6 +80,7 @@ class FrontDoorMixin:
                     url=public_url,
                     ws_url=ingress.public_ws_url(app_id),
                     error=inst.error,
+                    log_tail=inst.log_tail,
                 )
             except Exception as exc:  # pylint: disable=broad-except
                 # A wake nobody can reach is a failed wake in prod — surface it
@@ -96,4 +97,7 @@ class FrontDoorMixin:
             url=inst.address,
             ws_url=inst.ws_url,
             error=inst.error,
+            # zCloud#11: dead-child log capture rides to the route handler,
+            # which persists it for the OWNER only (failure sink config).
+            log_tail=inst.log_tail,
         )
