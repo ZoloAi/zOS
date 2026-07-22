@@ -111,7 +111,10 @@ class AppLogger:
                 log_file.parent.mkdir(parents=True, exist_ok=True)
 
                 file_log_level = LOG_LEVEL_DEBUG if is_prod_mode else base_level
-                file_handler = make_rotating_file_handler(log_file)
+                # delay=True: the app tier only receives zos.log()/logger.user()
+                # traffic — many apps never emit any. Opening lazily keeps
+                # {title}.log from appearing as a confusing 0-byte file (zOS#6).
+                file_handler = make_rotating_file_handler(log_file, delay=True)
                 file_handler.setLevel(getattr(logging, file_log_level))
                 file_handler.setFormatter(file_formatter)
                 logger.addHandler(file_handler)

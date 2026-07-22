@@ -39,7 +39,7 @@ class _SharedRotatingFileHandler(RotatingFileHandler):
                 self.stream = self._open()
 
 
-def make_rotating_file_handler(path) -> RotatingFileHandler:
+def make_rotating_file_handler(path, delay: bool = False) -> RotatingFileHandler:
     """
     Build the ONE file handler every zOS logger writes through (SSOT).
 
@@ -49,12 +49,17 @@ def make_rotating_file_handler(path) -> RotatingFileHandler:
     subsequent boot). RotatingFileHandler self-limits: once a file hits
     LOG_FILE_MAX_BYTES it rotates (.1, .2, .3…) and the oldest backup is
     dropped — no manual cleanup, no scheduled job, safe for a global path.
+
+    delay=True defers opening the file until the first record: tiers that may
+    legitimately never log (the app tier when an app never calls zos.log)
+    stop littering zLogPath with eternally-empty 0-byte files (zOS#6).
     """
     return _SharedRotatingFileHandler(
         str(path),
         maxBytes=LOG_FILE_MAX_BYTES,
         backupCount=LOG_FILE_BACKUP_COUNT,
         encoding="utf-8",
+        delay=delay,
     )
 
 

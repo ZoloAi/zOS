@@ -4,7 +4,7 @@
 from zOS import logging, Path, Colors
 from zSys.logger import UnifiedFormatter
 from .constants import LOG_PREFIX, is_zos_log_level, get_base_log_level
-from .utils import get_logs_directory, make_rotating_file_handler
+from .utils import get_logs_directory, resolve_logger_path, make_rotating_file_handler
 
 
 class SessionFrameworkLogger:
@@ -14,7 +14,8 @@ class SessionFrameworkLogger:
     Characteristics:
         - Logger name: "zOS.session.framework"
         - File: {session_title}.framework.log (e.g., zCloud.framework.log)
-        - Location: Fixed at ~/Library/.../zolo-zos/logs/ (no override)
+        - Location: zLogPath when the spark sets one, else the platform
+          logs dir (~/Library/…/zOS/logs/)
         - Level: DEBUG (capture everything for this session)
         - Console: WARNING+ in Development only
         - Content: Bootstrap, Ready banners, SESSION logs, framework flow
@@ -42,7 +43,7 @@ class SessionFrameworkLogger:
     def _setup_logger(self) -> logging.Logger:
         """Setup the session framework logger."""
         # Get session title for filename
-        from ..session.config_session import SESSION_KEY_TITLE
+        from ..session.config_session import SESSION_KEY_TITLE, SESSION_KEY_LOGGER_PATH
         session_title = self.session_data.get(SESSION_KEY_TITLE, "session")
         log_filename = f"{session_title}.framework.log"
 
@@ -55,8 +56,17 @@ class SessionFrameworkLogger:
         is_testing = self.environment.is_testing()
         is_debug = self.environment.is_debug()
 
-        # Get fixed log directory (no override for session framework)
-        logs_dir = get_logs_directory(self.zos)
+        # Log directory: zLogPath, when the spark sets one, wins here too.
+        # Historically this tier was fixed at the platform dir "no override" —
+        # which meant a spark's logs/ held only the (usually silent) app-tier
+        # file, forever 0 bytes, while the actual trace hid in ~/Library/…
+        # (zOS#6). If the user pointed at a directory, the session trace is
+        # exactly what they expect to find in it.
+        custom_logger_path = self.session_data.get(SESSION_KEY_LOGGER_PATH)
+        if custom_logger_path:
+            logs_dir = resolve_logger_path(custom_logger_path, self.zos)
+        else:
+            logs_dir = get_logs_directory(self.zos)
         file_path = str(logs_dir / log_filename)
 
         # Create session framework logger
