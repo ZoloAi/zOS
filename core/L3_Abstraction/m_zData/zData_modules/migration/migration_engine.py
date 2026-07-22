@@ -30,6 +30,23 @@ _META_KEY_ZMIGRATION_VERSION = "zMigrationVersion"
 _ERROR_NO_ADAPTER = "No adapter initialized"
 
 
+def _transferred_tables(transfer_result: Optional[Dict[str, Any]]) -> List[str]:
+    """Table names whose backend transfer completed THIS run (zOS#1 ledger).
+
+    written − mismatches (a count mismatch is NOT complete) ∪ skipped (already
+    had rows on the target — transferred by an earlier run). Empty when no
+    transfer happened; write_backend_marker unions with the existing ledger,
+    so passing [] never erases prior records.
+    """
+    if not transfer_result:
+        return []
+    report = transfer_result.get("report") or {}
+    written = set(report.get("written") or {})
+    skipped = set(report.get("skipped") or {})
+    mismatched = set(report.get("mismatches") or {})
+    return sorted((written - mismatched) | skipped)
+
+
 class MigrationEngine:
     """
     Manages declarative schema migrations.
@@ -177,7 +194,8 @@ class MigrationEngine:
                 # marker and stop; a re-run on the new backend finishes DDL extras.
                 if marker_dir:
                     write_backend_marker(
-                        marker_dir, new_backend, new_meta.get(_META_KEY_DATA_LABEL)
+                        marker_dir, new_backend, new_meta.get(_META_KEY_DATA_LABEL),
+                        transferred=_transferred_tables(transfer_result),
                     )
                 return transfer_result
             # Implicit switch: orchestrator.adapter IS the new backend — fall
@@ -192,7 +210,10 @@ class MigrationEngine:
             self.logger.info("[zMigrate] Schema hash matches last applied migration — up to date")
             self.zos.display.text("✅ Migration completed successfully!")
             if not dry_run and marker_dir:
-                write_backend_marker(marker_dir, new_backend, new_meta.get(_META_KEY_DATA_LABEL))
+                write_backend_marker(
+                    marker_dir, new_backend, new_meta.get(_META_KEY_DATA_LABEL),
+                    transferred=_transferred_tables(transfer_result),
+                )
             return {"success": True, "diff": {}, "operations_executed": 0}
 
         # Resolve from_version from last migration record (first user-defined table)
@@ -224,7 +245,10 @@ class MigrationEngine:
 
         if isinstance(result, dict) and result.get("success") and not dry_run and not plan:
             if marker_dir:
-                write_backend_marker(marker_dir, new_backend, new_meta.get(_META_KEY_DATA_LABEL))
+                write_backend_marker(
+                    marker_dir, new_backend, new_meta.get(_META_KEY_DATA_LABEL),
+                    transferred=_transferred_tables(transfer_result),
+                )
             if transfer_result is not None:
                 result["backend_transfer"] = transfer_result.get("report")
         return result

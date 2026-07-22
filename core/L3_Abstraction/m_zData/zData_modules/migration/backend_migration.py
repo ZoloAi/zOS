@@ -30,6 +30,10 @@ _META_KEY_DATA_TYPE = "Data_Type"
 _META_KEY_DATA_LABEL = "Data_Label"
 _MIGRATIONS_DIRNAME = "zmigrations"
 _MARKER_FILENAME = "zbackend.json"
+# Per-table transfer ledger inside the marker (zOS#1): tables whose csv→target
+# transfer is KNOWN complete. The boot gate's row-count inference never re-arms
+# for a recorded table — burn-after-use ledgers are legitimately empty forever.
+_MARKER_KEY_TRANSFERRED = "transferred_tables"
 
 
 # ============================================================
@@ -70,15 +74,33 @@ def read_backend_marker(marker_dir: Path) -> Optional[Dict[str, Any]]:
     return None
 
 
-def write_backend_marker(marker_dir: Path, data_type: str, data_label: Any = None) -> None:
-    """Persist the backend the data was just migrated to (best-effort bookkeeping)."""
+def write_backend_marker(
+    marker_dir: Path,
+    data_type: str,
+    data_label: Any = None,
+    transferred: Any = None,
+) -> None:
+    """Persist the backend the data was just migrated to (best-effort bookkeeping).
+
+    ``transferred`` (zOS#1): iterable of table names whose csv→target transfer
+    completed THIS run. Names accumulate (union with the existing marker) —
+    the marker dir is shared by every schema on the data dir, so each schema
+    appends its own tables. The boot gate's csv-inference trusts this ledger:
+    a recorded table never re-arms the drift gate, no matter what stale rows
+    its legacy CSV still holds (burn-after-use tables are legitimately empty
+    on the target forever).
+    """
     try:
         path = _marker_path(marker_dir)
         path.parent.mkdir(parents=True, exist_ok=True)
+        previous = read_backend_marker(marker_dir) or {}
+        ledger = set(previous.get(_MARKER_KEY_TRANSFERRED) or [])
+        ledger.update(transferred or [])
         payload = {
             "data_type": str(data_type).lower(),
             "data_label": data_label,
             "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            _MARKER_KEY_TRANSFERRED: sorted(ledger),
         }
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     except Exception:  # pylint: disable=broad-except
@@ -138,19 +160,43 @@ def detect_backend_switch(
     # csv → SQL inference from disk (see docstring for why it ignores the marker).
     if new_backend == "csv":
         return None
-    if not _csv_data_pending(marker_dir, new_schema, target_adapter):
+    # zOS#1: the marker's transferred_tables ledger is the gate's memory —
+    # a table recorded as transferred never re-arms on row counts (burn-
+    # after-use ledgers are legitimately empty on the target while their
+    # stale rollback CSVs keep rows forever).
+    transferred = set((marker or {}).get(_MARKER_KEY_TRANSFERRED) or [])
+    if not _csv_data_pending(marker_dir, new_schema, target_adapter, transferred, logger):
         return None
     source = _build_source_adapter(zos, logger, "csv", marker_dir, None, new_schema)
     return ("csv", source) if source else None
 
 
-def _csv_data_pending(data_dir: Path, schema: Dict[str, Any], target_adapter: Any) -> bool:
-    """True if any declared table has CSV rows on disk but no rows on the target."""
+def _csv_data_pending(
+    data_dir: Path,
+    schema: Dict[str, Any],
+    target_adapter: Any,
+    transferred: Optional[set] = None,
+    logger: Any = None,
+) -> bool:
+    """True if any declared table has CSV rows on disk but no rows on the target.
+
+    Tables in ``transferred`` (the marker ledger, zOS#1) are excluded from the
+    inference — their transfer already completed; leftover CSV rows are stale
+    rollback artifacts, worth a warning but never a boot refusal.
+    """
     from .backend_transfer import _user_tables  # pylint: disable=import-outside-toplevel
 
     for table, _columns in _user_tables(schema):
         csv_file = Path(data_dir) / f"{table}.csv"
         if not csv_file.is_file() or not _csv_has_rows(csv_file):
+            continue
+        if transferred and table in transferred:
+            if logger:
+                logger.warning(
+                    f"{_LOG_PREFIX} {table}.csv still holds rows but the marker "
+                    f"records its transfer as complete — ignoring (stale legacy "
+                    f"CSV; delete or empty it to silence this warning)."
+                )
             continue
         try:
             if (target_adapter is not None
