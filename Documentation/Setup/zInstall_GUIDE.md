@@ -23,7 +23,7 @@ reproducible runtime without polluting your system Python. `pip` still works.
 
 ## Requirements Checklist
 
-- [ ] Python **3.9+** (3.11 / 3.12 recommended; the uv tool pins its own interpreter)
+- [ ] Python **3.10–3.13** (3.13 recommended; the uv tool pins its own interpreter)
 - [ ] **uv** installed (recommended) — or `pip` / `pip3` as an alternative
 
 ## 1. Install Python (macOS & Windows)
@@ -116,6 +116,11 @@ uv tool install zolo-os
 uv tool install "zolo-os[all]"        # csv + postgresql + monitoring
 ```
 
+> **⚠️ The package name is `zolo-os` — exactly that.** A bare `pip install zolo`
+> succeeds but installs an unrelated squatted PyPI package that has nothing to do
+> with zOS. There is no `zolo-desktop` / `zos-desktop` either — desktop mode is
+> the `[webview]` extra of the same package.
+
 **Alternative: pip**
 
 ```bash
@@ -124,6 +129,7 @@ pip install zolo-os
 
 # Optional backends
 pip install "zolo-os[csv]"
+pip install "zolo-os[webview]"        # native desktop window mode (zDesktop)
 pip install "zolo-os[postgresql]"
 pip install "zolo-os[monitoring]"
 pip install "zolo-os[all]"

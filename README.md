@@ -29,11 +29,14 @@ curl -fsSL https://raw.githubusercontent.com/ZoloAi/zOS/main/install.sh | bash
 irm https://raw.githubusercontent.com/ZoloAi/zOS/main/install.ps1 | iex
 ```
 
-**Or plain pip** (Python 3.10–3.12):
+**Or plain pip** (Python 3.10–3.13):
 
 ```bash
 pip install zolo-os
 ```
+
+> **⚠️ The package name is [`zolo-os`](https://pypi.org/project/zolo-os/) — exactly that.**
+> `pip install zolo` succeeds but installs an **unrelated squatted package** that has nothing to do with zOS. There is no `zolo-desktop` or `zos-desktop` either — the desktop/native-window mode is an extra of the same package: `pip install "zolo-os[webview]"`.
 
 **Then run a demo:**
 
@@ -42,8 +45,6 @@ git clone https://github.com/ZoloAi/zOS.git
 cd zOS/zDemos/zHello
 z zSpark.zhello.zolo
 ```
-
-> **⚠️ PyPI warning:** the package is [`zolo-os`](https://pypi.org/project/zolo-os/). An unrelated public `zolo` package exists on PyPI and will cause conflicts — don't install it.
 
 ---
 
@@ -54,11 +55,11 @@ It introduces the core concepts of **zOS** and smoothly leads into the layer-by-
 
 ### Requirements
 
-- **CPython 3.10 – 3.12** (the range the zGuard trust binaries ship for)
+- **CPython 3.10 – 3.13** (the range the zGuard trust binaries ship for)
 - **macOS / Linux / Windows**, arm64 or x86_64
 
 > Need help installing requirements on **Windows** or **macOS**?  
-> See [**zInstall Guide**](Documentation/zInstall_GUIDE.md) for detailed instructions.
+> See [**zInstall Guide**](Documentation/Setup/zInstall_GUIDE.md) for detailed instructions.
 
 ---
 
@@ -68,11 +69,11 @@ It introduces the core concepts of **zOS** and smoothly leads into the layer-by-
 |---------|----------|-----------------|
 | **Basic** | CSV + SQLite backends | `pip install zolo-os` |
 | **PostgreSQL** | + PostgreSQL backend | `pip install "zolo-os[postgresql]"` |
-| **Webview** | + native desktop window mode | `pip install "zolo-os[webview]"` |
+| **Webview** | + native desktop window mode (zDesktop) | `pip install "zolo-os[webview]"` |
 | **Monitoring** | + Prometheus metrics | `pip install "zolo-os[monitoring]"` |
 | **Full** | everything above | `pip install "zolo-os[all]"` |
 
-> See [**zInstall Guide**](Documentation/zInstall_GUIDE.md) for editable install and troubleshooting.
+> See [**zInstall Guide**](Documentation/Setup/zInstall_GUIDE.md) for editable install and troubleshooting.
 
 
 ---
@@ -158,7 +159,7 @@ This launches an **interactive menu** where you can choose:
 
 Each option shows you exactly what will be removed and asks for confirmation before proceeding.
 
-**[More details →](Documentation/zInstall_GUIDE.md#6-uninstall--cleanup)**
+**[More details →](Documentation/Setup/zInstall_GUIDE.md#6-uninstall--cleanup)**
 
 
 ## License
@@ -178,7 +179,7 @@ See [LICENSE](LICENSE) for details.
 > The guides below are technically accurate against the core architecture, but some details may be slightly behind the current source. Live docs with full examples will ship with the official alpha at [zolo.media](https://zolo.media).
 
 - **[zPhilosophy](Documentation/zPhilosophy.md)** - Core concepts and design principles
-- **[Installation Guide](Documentation/zInstall_GUIDE.md)** - Setup instructions
+- **[Installation Guide](Documentation/Setup/zInstall_GUIDE.md)** - Setup instructions
 - **[AI Agent Guide](Documentation/AI_AGENT_GUIDE.md)** - Reference for AI coding assistants
 - **[Subsystem Guides](Documentation/)** - Guides for all 20+ subsystems
 
