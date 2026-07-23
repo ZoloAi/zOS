@@ -51,6 +51,7 @@ zguard/push/__init__.py
 zguard/push/bundle.cp310-win_arm64.pyd
 zguard/push/command.cp310-win_arm64.pyd
 zguard/push/project_resolver.cp310-win_arm64.pyd
+zguard/push/receipt.cp310-win_arm64.pyd
 zguard/trust_audit.cp310-win_arm64.pyd
 zguard/zengine/__init__.py
 zguard/zengine/zengine.cp310-win_arm64.pyd

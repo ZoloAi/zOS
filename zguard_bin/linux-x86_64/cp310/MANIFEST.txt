@@ -51,6 +51,7 @@ zguard/push/__init__.py
 zguard/push/bundle.cpython-310-x86_64-linux-gnu.so
 zguard/push/command.cpython-310-x86_64-linux-gnu.so
 zguard/push/project_resolver.cpython-310-x86_64-linux-gnu.so
+zguard/push/receipt.cpython-310-x86_64-linux-gnu.so
 zguard/trust_audit.cpython-310-x86_64-linux-gnu.so
 zguard/zengine/__init__.py
 zguard/zengine/zengine.cpython-310-x86_64-linux-gnu.so
