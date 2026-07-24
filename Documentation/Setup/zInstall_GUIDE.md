@@ -167,10 +167,6 @@ uv tool environment (it also clears stale `.pyc`/`.so` caches):
 z patch
 ```
 
-> **Working on zGuard too?** Export `ZGUARD_DEV_PATH=/path/to/zGuard` and install it
-> editable as well; `z patch` then keeps both `zolo-os` and `zguard` in sync and
-> purges any stale compiled `.so` files so your local source wins over the binary.
-
 ---
 
 ### 2e. UV workflow (modern package management)

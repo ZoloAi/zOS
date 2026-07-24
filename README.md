@@ -139,8 +139,8 @@ So a `/plugins/` mount serves your client `.js`, but never the server-side `.py`
 - Set the **public** `WEBSOCKET_HOST`/port and `WEBSOCKET_ALLOWED_ORIGINS`.
 
 > **Alpha note:** WebSocket origin/CSRF validation is enabled together with
-> `WEBSOCKET_REQUIRE_AUTH` (per-feature toggles land before v2.0), and the shared
-> WS token uses a direct compare. Hardening continues through the alpha.
+> `WEBSOCKET_REQUIRE_AUTH` (per-feature toggles land before v2.0) — set it in
+> production. Token verification is constant-time (`hmac.compare_digest`).
 
 ---
 
