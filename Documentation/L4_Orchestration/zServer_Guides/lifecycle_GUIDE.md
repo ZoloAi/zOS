@@ -1,6 +1,6 @@
 # zServer Lifecycle Guide
 
-> **Modules:** `core/L4_Orchestration/q_zServer/zServer_modules/lifecycle/`
+> **Modules:** `core/L4_Orchestration/r_zServer/zServer_modules/lifecycle/`
 > (`lifecycle_manager.py`, `dev_server_manager.py`, `waitress_manager.py`, `wsgi_app.py`)
 > **Purpose:** Select and run the server — one request pipeline behind two in-process runners (`dev` / `waitress`) plus a WSGI export for external hosts.
 
@@ -106,7 +106,13 @@ dev runner         internet ──► WSGI host (gunicorn/uwsgi) ──► wsgi.
 
 **`waitress` runner won't start** — `No module named 'waitress'`: `pip install waitress` (only needed for that runner), or use `type: dev`.
 
-**Port already in use** — `OSError: Port 8080 already in use`: change `port` or stop the conflicting process.
+**Port already in use** — behavior depends on whether the port is *pinned*
+(zOS #43). An explicit port (spark `zServer.port`, `HTTP_PORT` env, or a
+hosted driver injection) is a contract: boot fails loud with
+`OSError: Port 8080 already in use` — change the pin or stop the conflicting
+process. An **unpinned** boot never hits this error: zOS hunts upward from
+8080 through a bounded window and announces the port it actually bound on
+stdout. If you see the OSError, something pinned the port.
 
 **Server didn't pick the expected runner** — `server_type` is explicit; check `zServer.type` / `ZSERVER_TYPE` (it is *not* derived from the deployment/environment name).
 

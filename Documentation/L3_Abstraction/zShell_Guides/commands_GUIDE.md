@@ -1,6 +1,6 @@
 # zShell Commands Module Guide
 
-> **Module:** `zOS/core/L3_Abstraction/o_zShell/shell_modules/commands/`  
+> **Module:** `zOS/core/L3_Abstraction/p_zShell/shell_modules/commands/`  
 > **Purpose:** One thin executor per shell command — adapters that translate a parsed command into a subsystem call and render the result through zDisplay.
 
 ---

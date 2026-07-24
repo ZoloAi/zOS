@@ -144,8 +144,8 @@ The **same** zVaFile runs in both modes — the mode is read from the session (`
 
 | Path | Role |
 |------|------|
-| `core/L4_Orchestration/p_zWalker/zWalker.py` | The orchestrator: `run()` + navigation callbacks (extends `z.wizard`) |
-| `core/L4_Orchestration/p_zWalker/__init__.py` | Package facade + metadata |
+| `core/L4_Orchestration/q_zWalker/zWalker.py` | The orchestrator: `run()` + navigation callbacks (extends `z.wizard`) |
+| `core/L4_Orchestration/q_zWalker/__init__.py` | Package facade + metadata |
 
 zWalker is single-file **by design** — a pure orchestrator stays minimal. The capabilities it composes are documented in their own guides: [zWizard](../L3_Abstraction/zWizard_GUIDE.md) (loop engine), [zNavigation](../L2_Handling/zNavigation_GUIDE.md) (breadcrumbs), [zDispatch](../L2_Handling/zDispatch_GUIDE.md) (routing), [zLoader](../L1_Foundation/zLoader_GUIDE.md) (zVaFiles), [zDisplay](../L2_Handling/zDisplay_GUIDE.md) (rendering).
 

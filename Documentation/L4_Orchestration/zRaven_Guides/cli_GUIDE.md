@@ -1,6 +1,6 @@
 # zRaven CLI Runner Guide
 
-> **Modules:** `core/L4_Orchestration/r_zRaven/zRaven_modules/cli/cli_runner.py`
+> **Modules:** `core/L4_Orchestration/s_zRaven/zRaven_modules/cli/cli_runner.py`
 > **Purpose:** Drive a **zCLI** zOS app as a subprocess over stdin/stdout, sending input and asserting on rendered console output — the same `.zolo` grammar as the browser runner.
 
 **[← Back to zRaven Guide](../zRaven_GUIDE.md) | [Home](../../../README.md)**

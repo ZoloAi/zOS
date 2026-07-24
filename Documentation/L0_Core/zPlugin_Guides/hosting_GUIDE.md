@@ -67,6 +67,19 @@ Ownership of *state* stays with the caller: the manager never touches the regist
 
 ---
 
+## The front door above these seams
+
+The control plane that *drives* these seams in production is
+`t_zHost` (L4): slug ingress (`<slug>.<domain>` via Caddy), the `slug#<build>`
+instance table, **owner-scoped tenants** (a tenant's instances are keyed to
+their owner — one user's apps can't shadow another's slugs), and the **waking
+interstitial** (a sleeping app's first visitor gets a "waking…" page instead of
+a timeout while `driver.wake` runs). Wake *failures* land in a declarative
+failure sink with the dead child's log tail captured — see
+[compute_GUIDE](compute_GUIDE.md).
+
+---
+
 ## Why these live in the SDK
 
 `bundle_store` / `session_store` / `release` mirror the `drivers` pattern: a swappable backend chosen by env, with **policy left to the caller**. "Persist a pushed app", "hold a session across processes", and "roll a build live" are *general* zOS capabilities, so they sit beside the compute driver in the SDK rather than inside any one app — a `register_*` call swaps in the prod backend (S3, Redis/DynamoDB, k8s) with no change to callers.

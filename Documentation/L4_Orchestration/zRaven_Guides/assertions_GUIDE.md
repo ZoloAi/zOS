@@ -1,6 +1,6 @@
 # zRaven Assertions Guide
 
-> **Modules:** `core/L4_Orchestration/r_zRaven/zRaven_modules/assertions/evaluator.py`
+> **Modules:** `core/L4_Orchestration/s_zRaven/zRaven_modules/assertions/evaluator.py`
 > **Purpose:** Evaluate a step's `zAssert` against whatever the step produced — a WS response, the live DOM, a computed style, or an HTTP/JSON response — plus `zLogger` checks against captured app logs.
 
 **[← Back to zRaven Guide](../zRaven_GUIDE.md) | [Home](../../../README.md)**

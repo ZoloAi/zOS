@@ -1,6 +1,6 @@
 # zServer Routing Guide
 
-> **Modules:** `core/L4_Orchestration/q_zServer/zServer_modules/routing/`
+> **Modules:** `core/L4_Orchestration/r_zServer/zServer_modules/routing/`
 > (`router.py`, `route_dispatcher.py`, `handler.py`, `wsgi_bridge.py`, `http_headers.py`, `security_checks.py`, `zapi_handler.py`, `zapi_scanner.py`, `nav_html_builder.py`, `utils.py`)
 > **Purpose:** Match URLs to declarative routes, enforce RBAC, dispatch to the right handler, and apply the safe-by-default web baseline — through **one request pipeline shared by every transport**.
 

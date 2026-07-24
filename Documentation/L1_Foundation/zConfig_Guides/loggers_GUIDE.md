@@ -87,7 +87,7 @@ The loggers module consists of four main components:
 
 **Console:** Always enabled (respects level), disabled in PROD mode
 
-**Path:** Customizable via zSpark `logger_path`
+**Path:** Customizable via zSpark `zLogPath`
 
 **Use cases:**
 - User application logs
@@ -472,7 +472,9 @@ z.logger.user("Processing %d records...", 1247)
 
 **File:** `{session_title}.framework.log`
 
-**Location:** Fixed at `~/Library/Application Support/zOS/logs/` (or OS equivalent)
+**Location:** Honors zSpark `zLogPath` (zOS #6) — the session trace lands next
+to your app logs. Default (no `zLogPath`): `~/Library/Application Support/zOS/logs/`
+(or OS equivalent)
 
 **Purpose:** Complete execution trace for THIS session
 
@@ -491,7 +493,7 @@ z.logger.user("Processing %d records...", 1247)
 
 **File:** `{session_title}.log`
 
-**Location:** Customizable via zSpark `logger_path` (default: system logs dir)
+**Location:** Customizable via zSpark `zLogPath` (default: system logs dir)
 
 **Purpose:** User application code
 
@@ -584,19 +586,20 @@ logging:
 
 ## Custom Logger Path
 
-Application logger supports custom log directory via zSpark:
+Custom log directory via the zSpark key **`zLogPath`** (the old `zScrapath`
+alias is deprecated and warns):
 
 ```python
 # Custom directory
-zSpark = {"logger_path": "./logs"}
+zSpark = {"zLogPath": "./logs"}
 z = zOS(zSpark)
 
 # zPath notation (workspace-relative)
-zSpark = {"logger_path": "@.logs"}
+zSpark = {"zLogPath": "@.logs"}
 z = zOS(zSpark)
 
 # Home-relative
-zSpark = {"logger_path": "~/logs"}
+zSpark = {"zLogPath": "~/logs"}
 z = zOS(zSpark)
 ```
 
@@ -606,7 +609,10 @@ z = zOS(zSpark)
 - `./path` - Current directory relative
 - `/path` - Absolute path
 
-**Note:** Custom path only affects application logger. Framework and session framework logs remain in system directory.
+**Note:** `zLogPath` moves both the **application log** and the **session
+framework trace** (zOS #6) — your app's complete execution story lives next to
+your project, not lost in a system directory. Only the global
+`zos-framework.log` stays in the system location.
 
 ---
 
@@ -668,13 +674,13 @@ z.logger.error("Database connection failed")
 zSpark = {
     "title": "api_server",
     "logger": "DEBUG",
-    "logger_path": "./logs"
+    "zLogPath": "./logs"
 }
 z = zOS(zSpark)
 
 # Logs go to:
 # - ./logs/api_server.log (application)
-# - ~/Library/.../zOS/logs/api_server.framework.log (session framework)
+# - ./logs/api_server.framework.log (session framework trace — follows zLogPath, zOS #6)
 # - ~/Library/.../zOS/logs/zos-framework.log (framework)
 ```
 

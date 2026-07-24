@@ -78,7 +78,7 @@ It depends on your OS and Python installation:
 
 - **macOS/Linux**: Usually `python3` and `pip3`
 - **Windows**: Usually `python` or `py` and `pip`
-- **Test yours**: Run each command with `--version` and use whichever reports Python 3.9+
+- **Test yours**: Run each command with `--version` and use whichever reports Python 3.10+
 
 **Best practice (works everywhere):**
 ```bash
@@ -138,7 +138,7 @@ pip install "zolo-os[all]"
 ### 2c. Install specific version
 
 ```bash
-uv tool install zolo-os==1.6.6        # specific version
+uv tool install zolo-os==1.7.0        # specific version
 pip install "zolo-os>=1.6.0"          # minimum version or later
 ```
 
@@ -191,8 +191,11 @@ z patch
 **Installing UV:**
 
 ```bash
-# Method 1: Official installer (recommended)
+# Method 1: Official installer (recommended) — macOS & Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Method 1b: Official installer — Windows (PowerShell; there is no `sh` on Windows)
+# irm https://astral.sh/uv/install.ps1 | iex
 
 # Method 2: Via pip
 pip install uv
@@ -289,7 +292,7 @@ After installation completes, **test that zOS is working** by running these comm
 z --version        # or: zolo --version
 ```
 
-You should see the version number (e.g., `v1.6.6`). This confirms zOS is installed and accessible.
+You should see the version number (e.g., `v1.7.0`). This confirms zOS is installed and accessible.
 
 
 ## 4. Updating

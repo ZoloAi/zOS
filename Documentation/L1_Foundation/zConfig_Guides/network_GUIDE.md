@@ -67,8 +67,15 @@ WebSocketConfig implements hierarchical loading (lowest to highest priority):
 | 2 | Config file | `zConfig.environment.zolo` → `websocket.host` |
 | 3 | Environment variables | `$WEBSOCKET_HOST` |
 | 4 | zSpark | `zOS({"websocket": {"host": "0.0.0.0"}})` |
+| 5 (hosted only) | Driver-injected env under `ZHOST_MANAGED=1` | zHost compute driver |
 
-**Layer 4 (zSpark) always wins** - allows runtime overrides.
+**Layer 4 (zSpark) wins on a local machine** — the author's spark is king.
+There is ONE exception: a **hosted** instance. When the zHost compute driver
+boots a tenant child it stamps `ZHOST_MANAGED=1` and injects `HTTP_*` /
+`WEBSOCKET_*` host+port env vars; with that marker set, the injected values
+beat the spark's pins — a hosted instance's network placement is the
+platform's business, not the app author's. Local boots are unmarked, so
+nothing changes for a developer machine (zOS #28).
 
 > **Port-conflict validation:** the config validator rejects a setup where the
 > WebSocket port equals the HTTP/`zServer` port. The check reads the canonical
@@ -361,7 +368,17 @@ port = http_config.port
 # 8080
 ```
 
-**Default:** 8080
+**Default:** 8080 — but the default is a *preference*, not a pin. Port
+doctrine (zOS #43):
+
+- **Unpinned** (no spark port, no `HTTP_PORT` env): zOS decides — the server
+  starts at 8080 and *hunts* upward through a bounded window until it finds a
+  free port, then announces the final port on stdout.
+- **Pinned** (explicit spark `zServer.port`, `HTTP_PORT`, or a hosted
+  driver-injected port): the port is a contract — if it's taken, boot **fails
+  loud**. No silent neighbor-port surprises.
+
+Anything that can't prove it's huntable is treated as pinned.
 
 ---
 
@@ -829,10 +846,20 @@ if http.routes_file:
 
 | Variable | Type | Description | Default |
 |---|---|---|---|
+| `HTTP_HOST` | str | Bind address floor (spark `zServer.host` beats it) | "127.0.0.1" |
+| `HTTP_PORT` | int | Port floor — setting it **pins** the port (fail loud, no hunt) | 8080 |
+| `ZSERVER_ENABLED` | bool | Enable the HTTP server without a spark block | False |
 | `HTTP_SSL_ENABLED` | bool | Enable SSL/TLS | False |
 | `HTTP_SSL_CERT` | str | SSL certificate path | None |
 | `HTTP_SSL_KEY` | str | SSL private key path | None |
 | `ZSERVER_MOUNTS` | str | Static mounts (JSON) | {} |
+
+The host/port cascade is SYMMETRIC for both values:
+`zSpark.zServer.{host,port}` (king) → `{HTTP_HOST,HTTP_PORT}` env floor →
+default `127.0.0.1` / `8080`. On hosted instances `ZHOST_MANAGED=1` inverts
+the top of the cascade (see Configuration Hierarchy above). The WebSocket
+host additionally inherits a spark-set HTTP host when it has no explicit
+value of its own, keeping the two origins aligned.
 
 ---
 
@@ -915,7 +942,9 @@ ZSERVER_MOUNTS={"/bifrost/": "/Users/gal/bifrost/", "/assets/": "/var/www/assets
    - WebSocket: 8765 (standard development port)
    - HTTP: 8080 (standard development port)
    - HTTPS: 443 (standard production port)
-   - Use environment variables for deployment-specific ports
+   - Use environment variables for deployment-specific ports — remember an
+     env/spark port is a **pin** (fail loud if taken); leave the port unset
+     when you want zOS to hunt for a free one and announce it (zOS #43)
 
 4. **Multi-Mount:**
    - Use for serving multiple directories

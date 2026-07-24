@@ -32,10 +32,11 @@ zRaven is a thin facade (`z.raven`) over `ZRavenRunner`, which selects a transpo
 | Cluster | Modules | Responsibility | Guide |
 |---------|---------|----------------|-------|
 | **runner** | `zRaven.py`, `runner.py`, `base_runner.py`, `entry.py`, `constants.py` | Activation, mode detection + dispatch, shared step state, the test-file format | [runner_GUIDE](zRaven_Guides/runner_GUIDE.md) |
-| **cli** | `cli/cli_runner.py` | Subprocess stdin/stdout driver + CLI primitives (`zSubmit`/`zPick`/`zExpect`/`zCapture`/`zMarker`) | [cli_GUIDE](zRaven_Guides/cli_GUIDE.md) |
+| **cli** | `cli/cli_runner.py` | Subprocess stdin/stdout driver + CLI primitives (`zSubmit`/`zPick`/`zFill`/`zExpect`/`zCapture`/`zMarker`) | [cli_GUIDE](zRaven_Guides/cli_GUIDE.md) |
 | **browser** | `ws/ws_runner.py` | Playwright + bifrost WS driver + browser/WS/HTTP primitives (`zOpen`/`zType`/`zClick`/`zWait`/`zShot`/`zFetch`/…) | [browser_GUIDE](zRaven_Guides/browser_GUIDE.md) |
 | **assertions** | `assertions/evaluator.py` | `zAssert` (ws/dom/style/api) + `zLogger` evaluation | [assertions_GUIDE](zRaven_Guides/assertions_GUIDE.md) |
 | **reporting** | `utils/` (`reporter`, `validator`, `data_manager`, `viewport`, `hint_*`, `parser`, `colors`) | Run log + result CSV, hints, zUI↔zRaven structure check, data isolation, viewport | [reporting_GUIDE](zRaven_Guides/reporting_GUIDE.md) |
+| **flow lifecycle** | `utils/` (`commit_manager`, `clear_manager`, `revive_manager`) | `z raven --commit / --clear / --revive` — milestone snapshots, safe scratch cleanup, flow-file restore (see below) | [runner_GUIDE](zRaven_Guides/runner_GUIDE.md) |
 
 ```
 z.raven (facade)
@@ -52,6 +53,25 @@ Drives under test: z.walker · z.server · z.bifrost
 ```
 
 **One grammar, two transports:** the same step keys mean the same thing in both runners; a step or block can be scoped to a single transport when needed (see [runner_GUIDE → Modes](zRaven_Guides/runner_GUIDE.md#modes-blocks--steps)).
+
+---
+
+## Flow lifecycle — zCommit / zClear / zRevive
+
+Milestone management for a flow (spark + raven pair). **NOT git** — a commit
+is a plain numbered folder (`c1`, `c2`, …) under `zVersions/commits/<flow>/`,
+written once, never mutated. Ledger: `zVersions/commits.csv` (one row per
+commit, project-wide).
+
+| Command | Nature | What it does |
+|---|---|---|
+| `z raven --commit 'label'` | purely additive | Snapshot the flow's own files (spark + active raven) **and** the project's shared text-source state (schemas, spools, zUI, routes) + shots + last run log + a unified diff vs the previous commit. `--force` commits even when the last run didn't pass. |
+| `z raven --clear` | purely subtractive | Remove dev-flow scratch (`_zSpark.<flow>.zolo` + its raven) **only** when a commit exists and the snapshot is byte-identical (`--force` skips the identity check, never the a-commit-must-exist check). Canonical `zSpark.<name>.zolo` is never touched. `zShots/` is disposable proof output and is wiped unconditionally. |
+| `z raven --revive` | flow-owned restore | Copy a commit's **flow-owned** files back into the working tree (any `cN`, not just latest). Shared project files are *never* written back — they're historical record only. A diverging working file is a refusal by default; `--force` overwrites. |
+
+The `manifest.json` in each commit records which snapshot paths are flow-owned
+(restorable) vs shared (read-only history) — that split is the whole safety
+model.
 
 ---
 

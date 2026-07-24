@@ -26,7 +26,7 @@ The first thing `main.py` touches and the only logger available before the frame
 
 **Guide split:** the [logger_GUIDE](logger_GUIDE.md) is a facade overview; per-cluster deep dives live in [`logger_Guides/`](logger_Guides/) — [formats](logger_Guides/formats_GUIDE.md), [bootstrap](logger_Guides/bootstrap_GUIDE.md), [config](logger_Guides/config_GUIDE.md), [runtime](logger_Guides/runtime_GUIDE.md).
 
-> **Trust:** fully open-core, **CLEAN — no zGuard seam**. No `eval`/`exec`/`compile`/`subprocess`/`pickle`/`os.system`/network/bind. The only file write is `bootstrap.emergency_dump` → a **fixed-name** `.zos-bootstrap-error.log` in `Path.cwd()`, wrapped in try/except (fail-safe), with **no user-controlled path**. Foreign content reaches the logger only as **message strings** (never executed). Residual **LOW / accepted** info-disclosure: the bootstrap buffer / emergency dump / `--verbose` print pre-boot content verbatim — redaction is the *caller's* responsibility, already hardened at the higher layers (`o_zShell`, `r_zRaven`, `j_zDialog`).
+> **Trust:** fully open-core, **CLEAN — no zGuard seam**. No `eval`/`exec`/`compile`/`subprocess`/`pickle`/`os.system`/network/bind. The only file write is `bootstrap.emergency_dump` → a **fixed-name** `.zos-bootstrap-error.log` in `Path.cwd()`, wrapped in try/except (fail-safe), with **no user-controlled path**. Foreign content reaches the logger only as **message strings** (never executed). Residual **LOW / accepted** info-disclosure: the bootstrap buffer / emergency dump / `--verbose` print pre-boot content verbatim — redaction is the *caller's* responsibility, already hardened at the higher layers (`p_zShell`, `s_zRaven`, `j_zDialog`).
 
 **Code:** `core/zSys/logger/` (`formats`, `constants`, `levels`, `bootstrap`, `console`, `config`, `execution_context`).
 
@@ -40,7 +40,7 @@ Two functions the engine wires at boot. `perform_shutdown(zos)` closes subsystem
 
 **Guide split:** the [shutdown_GUIDE](shutdown_GUIDE.md) is a facade overview; per-cluster deep dives live in [`shutdown_Guides/`](shutdown_Guides/) — [cleanup](shutdown_Guides/cleanup_GUIDE.md), [signals](shutdown_Guides/signals_GUIDE.md).
 
-> **Trust:** fully open-core, **CLEAN — no zGuard seam**. No `eval`/`exec`/`subprocess`/`pickle`/network/bind/file-write. Process termination (`sys.exit`) is **OS-signal-driven, not network-reachable** (SIGINT/SIGTERM, main thread, suppressed under `ZRAVEN_RUNNER`) — mirrors the `p_zWalker` local-only-exit posture. Fail-safe + foreign-content-free (operates only on the live `zos` instance).
+> **Trust:** fully open-core, **CLEAN — no zGuard seam**. No `eval`/`exec`/`subprocess`/`pickle`/network/bind/file-write. Process termination (`sys.exit`) is **OS-signal-driven, not network-reachable** (SIGINT/SIGTERM, main thread, suppressed under `ZRAVEN_RUNNER`) — mirrors the `q_zWalker` local-only-exit posture. Fail-safe + foreign-content-free (operates only on the live `zos` instance).
 
 **Code:** `core/zSys/shutdown/` (`cleanup`, `signals`, `shutdown_constants`).
 

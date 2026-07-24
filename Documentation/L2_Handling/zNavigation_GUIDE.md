@@ -493,6 +493,31 @@ You've completed the entire h_zNavigation tutorial journey:
 
 ## Advanced Features
 
+### `zModal` — the CALL verb (detour + auto-return)
+
+`zAlpha` / `zDelta` are GOTOs: the route moves, the trail records, coming back
+is `zBack`'s job. **`zModal:` is zOS's first CALL verb**: walk *into* a block,
+complete it, and auto-*return* to the firing point — the walk resumes exactly
+where it was. A modal is a glance, not a move:
+
+- **Trail-invisible** — the nested run writes no crumbs; the route never
+  mutates; `zBack` after return acts as if the detour never happened.
+- **Completion = return** — the target block finishing (a zDialog's
+  `onSubmit` returning, or plain content falling off its last key) hands
+  control back to the caller.
+- **Dismiss** — a `zBack` raised *inside* the modal closes it via the same
+  return path.
+- **Signals pass through** — `exit`/`stop`, a staged `navigate`, and delta
+  picks propagate untouched.
+
+Ownership split: zDispatch *recognizes* the `zModal` key and resolves the
+target to a block; the `Detour` engine
+(`h_zNavigation/navigation_modules/navigation_detour.py`) owns the run
+semantics. In Bifrost the resolved block is staged and rendered as a browser
+modal (`render_modal`).
+
+---
+
 ### Multi-Select Menus
 
 Create menus that allow selecting multiple options:

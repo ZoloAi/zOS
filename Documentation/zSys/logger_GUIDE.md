@@ -142,7 +142,7 @@ The logger is **fully open-core** and needs **no zGuard seam**.
 - **Benign global state** — `ensure_session_level()` registers the `SESSION` level on the stdlib `logging` module behind a `hasattr` guard (idempotent).
 - **Foreign content is inert** — anything from a `.zolo`/zSpark reaches the logger only as a **message string**; it is formatted, never interpreted. No Type-A/B/C surface.
 
-> **Info-disclosure (LOW / accepted):** the buffer, `emergency_dump`, and `--verbose` print pre-boot content **verbatim**. If a caller logged a secret pre-boot, it persists. The logger is a **sink** — redaction is the caller's job and is already enforced at the higher layers (`o_zShell` shell-history masking, `r_zRaven` log redaction, `j_zDialog` input masking). No change in the logger itself.
+> **Info-disclosure (LOW / accepted):** the buffer, `emergency_dump`, and `--verbose` print pre-boot content **verbatim**. If a caller logged a secret pre-boot, it persists. The logger is a **sink** — redaction is the caller's job and is already enforced at the higher layers (`p_zShell` shell-history masking, `s_zRaven` log redaction, `j_zDialog` input masking). No change in the logger itself.
 
 ---
 

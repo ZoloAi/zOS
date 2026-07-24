@@ -51,10 +51,12 @@ Each app instance is a **child `zolo` process** on its own ports:
 
 - argv resolution: `ZHOST_ZOLO_BIN` env → `shutil.which("zolo")` → `[sys.executable, "-m", "zOS.main", spark]`. Always `shell=False` with a fixed binary — no shell, no test-derived string on the command line.
 - per-instance ports (`_free_port`) are injected through the **OS environment** (the zEnv server-bind keys `HTTP_HOST`/`HTTP_PORT`/`WEBSOCKET_HOST`/`WEBSOCKET_PORT`) so the tenant's project folder is never mutated.
+- the driver also stamps **`ZHOST_MANAGED=1`** on the child. That marker is what lets the injected host/port env **beat the tenant spark's own pins** — on a local machine the author's spark is king, but a hosted instance's network placement is the platform's business (zOS #28). This covers the zEnv side door that spark-stripping at push time can't reach.
+- **per-build dependencies (zOS #26):** if the build carries a `zpackages/` directory (zpush installs the app's `zRequirements` there via `pip --target` at push time), the driver **prepends it to the child's `PYTHONPATH`** — tenant deps ride the build, the platform venv stays clean.
 - started with `start_new_session=True`; `sleep()` `killpg`s the whole group (SIGTERM → wait 5s → SIGKILL) so re-exec'd children are reaped.
-- `wake` is idempotent: a live+listening instance is returned as-is; a missing spark → `STATE_ERROR`; a process that exits early → `STATE_ERROR` with the log path; healthy → `STATE_RUNNING`; timed-out-but-alive → `STATE_WAKING`.
+- `wake` is idempotent: a live+listening instance is returned as-is; a missing spark → `STATE_ERROR`; a process that exits early → `STATE_ERROR` with the log path (dead-child log capture: the tail of a failed boot is preserved for the failure sink); healthy → `STATE_RUNNING`; timed-out-but-alive → `STATE_WAKING`.
 
-> **Trust boundary (T1).** Waking an app *runs its code*. `LocalProcessDriver` copies the **full host environment** into the child and applies **no sandbox** — appropriate for dev/self-hosted where the registry supplying `folder` is trusted. Multi-tenant isolation (scoped env, network, FS limits) is the **prod driver's** job (k8s/pod) — the V3 concern owned by zCloud + the zGuard-sealed runtime, not this dev driver.
+> **Trust boundary (T1).** Waking an app *runs its code*. `LocalProcessDriver` copies the host environment into the child **minus the keys the platform zEnv marks as its own** (`ZENV_EXPORTED_KEYS` are scrubbed before injection — tenant children don't inherit platform secrets), and applies **no sandbox** beyond that — appropriate for dev/self-hosted where the registry supplying `folder` is trusted. Multi-tenant isolation (scoped env, network, FS limits) is the **prod driver's** job (k8s/pod) — the V3 concern owned by zCloud + the zGuard-sealed runtime, not this dev driver.
 
 ---
 

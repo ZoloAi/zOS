@@ -12,7 +12,7 @@ zLoom is the **dynamic-grammar layer** — everything that makes a page *live* r
 You get:
 
 - **One sigil, two positions** — `%token` (value) and `%name:` (shape)
-- **A declared source for every value** — a named `zSpool`, an inline `_data`, or an ambient reel (`%session` / `%auth` / `%route` / `%item` / `%var`)
+- **A declared source for every value** — a named `zSpool` (`zMeta.zSpool` is the only data lane; inline `_data` blocks were retired) or an ambient reel (`%session` / `%auth` / `%route` / `%item` / `%var`)
 - **Value finishes** — the `|` pipe (`zDye`: upper/lower/title/trim/truncate/round/date/default)
 - **Reusable shapes** — `zPattern` (jinja `{% macro %}`), expanded at load
 - **Loops** — `zShuttle` (jinja `{% for %}`), lowered to `zList`
@@ -89,8 +89,7 @@ key position     %name:      → a reusable SHAPE, woven at load time  (pattern 
 
 | Reel | Token | Scope | Owner |
 |------|-------|-------|-------|
-| declared spool | `%data.<name>.<field>` | page | `binding_ops` (via `zMeta.zSpool` / `zLoom/spools/`) |
-| inline read | `%data.<key>.<field>` | block | `query_ops` (`_data:` sibling) |
+| declared spool | `%data.<name>.<field>` | page | `binding_ops` (via `zMeta.zSpool` / `zLoom/spools/`) — the **only** data lane; inline `_data:` siblings were retired |
 | session | `%session.*` | session | Identity (read-only) |
 | auth | `%auth.*` | session | Identity (read-only) |
 | route param | `%route.<param>` | request | `route_ops` (fed by zServer) |

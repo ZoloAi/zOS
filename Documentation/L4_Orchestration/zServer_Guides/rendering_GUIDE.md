@@ -1,6 +1,6 @@
 # zServer Rendering Guide
 
-> **Modules:** `core/L4_Orchestration/q_zServer/zServer_modules/rendering/`
+> **Modules:** `core/L4_Orchestration/r_zServer/zServer_modules/rendering/`
 > (`page_renderer.py`, `static_file_handler.py`, `error_pages.py`, `form_utils.py`)
 > **Purpose:** Turn a matched route into bytes — server-side zUI rendering, static-file serving, Jinja2 templates, declarative web forms, and error pages — with XSS-safe output by default.
 
@@ -72,6 +72,11 @@ Numeric attributes (e.g. `indent`) are cast to `int()` before use, so a string c
 `template` routes render a Jinja2 template with the supplied context. Use templates for traditional server-rendered pages; use `zWalker`/`dynamic` when the page is authored as a declarative zUI block.
 
 `content` routes return an inline HTML string directly (`{ type: content, content: "<h1>…</h1>" }`) — handy for tiny endpoints.
+
+**Built-in page frame:** if the app ships no `templates/zVaF.html`, rendering
+falls back to the packaged default frame (`rendering/default_templates.py`) —
+part of the zero-config story: a spark plus a zUI file serves a full page with
+no template authored (see [core_GUIDE → RouteManager](core_GUIDE.md#routemanager)).
 
 ---
 

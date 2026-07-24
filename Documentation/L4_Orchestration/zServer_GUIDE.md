@@ -37,6 +37,7 @@ zServer is a manager-based facade (`z.server`) delegating to specialized cluster
 | **core** | config_manager, mount_manager, route_manager, schema_manager | Config SSOT, URL→filesystem mounts, route-file detection, schema auto-init | [core_GUIDE](zServer_Guides/core_GUIDE.md) |
 | **lifecycle** | lifecycle_manager, dev_server_manager, waitress_manager, wsgi_app | Runner selection (`dev`/`waitress`) + WSGI export | [lifecycle_GUIDE](zServer_Guides/lifecycle_GUIDE.md) |
 | **caching** | cache_manager, http_cache_utils | Cache policies + ETag/Last-Modified/304 + stats | [caching_GUIDE](zServer_Guides/caching_GUIDE.md) |
+| **ports** | (doctrine, cross-module) | Pinned = fail loud, unpinned = hunt + announce; the full host/port cascade | [ports_GUIDE](zServer_Guides/ports_GUIDE.md) |
 
 ```
 z.server (facade)
@@ -98,7 +99,7 @@ z.server.wait()
 
 | Method | Description |
 |--------|-------------|
-| `start()` | Start the server (runner per `config.server_type`; raises `OSError` if port in use) |
+| `start()` | Start the server (runner per `config.server_type`; a *pinned* port raises `OSError` if taken, an unpinned one hunts — see zOS #43) |
 | `stop()` | Graceful shutdown (any runner) |
 | `wait()` | Block until interrupted (Ctrl+C handled) |
 | `is_running()` | `bool`, any runner |
@@ -167,7 +168,7 @@ The open-core server ships a **safe-by-default web baseline** comparable to Flas
 | Protocol | HTTP/HTTPS | WebSocket |
 | Purpose | Pages, APIs, static files | Real-time messaging |
 | Library | `http.server` / `waitress` | `websockets` |
-| Port | 8080 (default) | 8765 (default) |
+| Port | 8080 (preferred; unpinned boots hunt upward) | 8765 (default) |
 | Deployment | `dev` + `waitress` runners | single asyncio mode |
 
 Run either standalone or both together (full-stack: HTTP page frame + WebSocket live session).

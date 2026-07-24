@@ -1,6 +1,6 @@
 # zRaven Runner Guide
 
-> **Modules:** `core/L4_Orchestration/r_zRaven/`
+> **Modules:** `core/L4_Orchestration/s_zRaven/`
 > (`zRaven.py`, `zRaven_modules/runner.py`, `base_runner.py`, `constants.py`, `entry.py`)
 > **Purpose:** Activate the harness, detect the transport, dispatch a single `.zolo` suite to the right runner, and define the test-file format (blocks, modes, options) shared by both transports.
 

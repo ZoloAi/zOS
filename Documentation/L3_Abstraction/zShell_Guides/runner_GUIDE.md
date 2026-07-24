@@ -1,6 +1,6 @@
 # zShell Runner Module Guide
 
-> **Module:** `zOS/core/L3_Abstraction/o_zShell/shell_modules/shell_runner.py`  
+> **Module:** `zOS/core/L3_Abstraction/p_zShell/shell_modules/shell_runner.py`  
 > **Purpose:** The REPL session — prompt rendering, the input loop, persistent command history, history redaction, and special (non-routed) commands.
 
 ---

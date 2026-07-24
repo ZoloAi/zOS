@@ -109,7 +109,7 @@ validate_zos_instance(zos, "x_zNavigation")
 
 - **No code-exec / no network / no file-write** — no `eval`/`exec`/`subprocess`/`pickle`/`os.system`, no socket/bind. The only "dangerous-looking" call is `sys.excepthook = …` (excepthook install) plus an in-method `import zCLI` to launch the traceback UI — both standard.
 - **Auto-registration fails silent** — `_register_with_traceback` wraps everything in `try/except: pass`; a missing `zos` context never breaks `raise`.
-- **Interactive excepthook is local-CLI-only** — the Walker UI launch is gated on `session[zTraceback]` (off by default in non-dev), and falls back to the original excepthook otherwise. Not network-reachable; mirrors the shutdown/`p_zWalker` local-only posture.
+- **Interactive excepthook is local-CLI-only** — the Walker UI launch is gated on `session[zTraceback]` (off by default in non-dev), and falls back to the original excepthook otherwise. Not network-reachable; mirrors the shutdown/`q_zWalker` local-only posture.
 - **Secret-safe by construction (E5)** — `ValidationError` redacts the raw value into a `<type len=N>` descriptor before it reaches `context` → logs / the traceback screen. Other exceptions' contexts (schema names, resolved paths, usernames) are non-sensitive.
 - **Layer-0 discipline** — top-level imports are stdlib + sibling `errors_constants` only; the canonical session keys (`zOS.zVocabulary`) and `DEPLOYMENT_DEFAULT` (`zSys.logger`) are **lazy-imported** inside post-boot methods (E2).
 

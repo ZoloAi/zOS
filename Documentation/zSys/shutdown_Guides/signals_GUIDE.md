@@ -79,7 +79,7 @@ except Exception as exc:
 
 ## Trust notes
 
-- **Process termination is OS-signal-driven, not network-reachable.** The `sys.exit` paths fire only from a real `SIGINT`/`SIGTERM` delivered by the OS/operator, on the main thread. No remote/`.zolo` input can reach them — mirrors the `p_zWalker` local-only-exit posture.
+- **Process termination is OS-signal-driven, not network-reachable.** The `sys.exit` paths fire only from a real `SIGINT`/`SIGTERM` delivered by the OS/operator, on the main thread. No remote/`.zolo` input can reach them — mirrors the `q_zWalker` local-only-exit posture.
 - **No exec / no network / no file-write.** Lazy stdlib imports (`signal`, `sys`, `threading`, `os`) inside the function; nothing else.
 - **Fail-closed logging** — a teardown exception is routed through `zTraceback.log_exception` with the signal name + number as context, then a non-zero exit (outside the runner).
 

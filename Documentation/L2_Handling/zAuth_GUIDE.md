@@ -75,6 +75,11 @@ f_zAuth implements a sophisticated three-tier authentication system that handles
 
 **Session Key**: `session["zAuth"]["applications"][app_name]`
 
+**User model:** the identity ledger defaults to `@.models.zSchema.users`
+(`DEFAULT_USER_MODEL`). Apps declare their own table via **`ZAUTH_USER_MODEL`
+in zEnv** (e.g. zCloud points it at `@.models.zSchema.zOS_Registry`) — zOS
+never bakes an app-specific schema path into the framework.
+
 ### Tier 3: Dual-Mode Authentication (Both Contexts)
 
 **Purpose**: Both zSession AND application authenticated simultaneously.

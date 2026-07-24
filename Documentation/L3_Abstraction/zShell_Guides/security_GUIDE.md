@@ -1,6 +1,6 @@
 # zShell Security Module Guide
 
-> **Module:** `zOS/core/L3_Abstraction/o_zShell/shell_modules/shell_policy.py` (+ the safeguards it backs in `shell_cmd_shortcut.py`, `shell_cmd_auth.py`, `shell_cmd_comm.py`)  
+> **Module:** `zOS/core/L3_Abstraction/p_zShell/shell_modules/shell_policy.py` (+ the safeguards it backs in `shell_cmd_shortcut.py`, `shell_cmd_auth.py`, `shell_cmd_comm.py`)  
 > **Purpose:** The open-core, fail-closed safety layer for the shell — the single source of truth for what is sealed in a remote (Bifrost) session and how credentials are kept off the wire and out of history.
 
 ---

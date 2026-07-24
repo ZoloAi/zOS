@@ -1,6 +1,6 @@
 # zShell Executor Module Guide
 
-> **Module:** `zOS/core/L3_Abstraction/o_zShell/shell_modules/shell_executor.py`  
+> **Module:** `zOS/core/L3_Abstraction/p_zShell/shell_modules/shell_executor.py`  
 > **Purpose:** Parse a command line, enforce the Bifrost seal-policy, and route the parsed command to the right command executor (O(1) dispatch).
 
 ---

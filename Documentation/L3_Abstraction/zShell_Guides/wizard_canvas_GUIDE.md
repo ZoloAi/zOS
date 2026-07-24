@@ -1,6 +1,6 @@
 # zShell Wizard Canvas Module Guide
 
-> **Module:** `zOS/core/L3_Abstraction/o_zShell/shell_modules/wizard_canvas.py`  
+> **Module:** `zOS/core/L3_Abstraction/p_zShell/shell_modules/wizard_canvas.py`  
 > **Purpose:** The interactive canvas for staging multiple shell commands and running them together as one workflow, delegated to zWizard for execution.
 
 ---

@@ -80,7 +80,7 @@ When the bridge runtime sets `zos._sandbox_input` (per session), a plugin's bare
 
 ## `ZResult` / `ZAbort` (`result.py`)
 
-`ZResult` is the structured envelope — `ok`, `data`, `message`, `error`, `status`, `meta` — with `to_dict()` / `to_http()` and constructors `success()` / `failure()`. `ZResult.coerce(value)` normalises any plugin/handler return (explicit `{ok: ...}`, legacy `{success: ...}`, a plain data dict, or a bare value) into a `ZResult`, so imperative plugins keep returning plain dicts while the framework gets structured feedback. The open-core **zAPI** handler (`q_zServer`) consumes `coerce()` to turn a plugin return into a JSON HTTP response.
+`ZResult` is the structured envelope — `ok`, `data`, `message`, `error`, `status`, `meta` — with `to_dict()` / `to_http()` and constructors `success()` / `failure()`. `ZResult.coerce(value)` normalises any plugin/handler return (explicit `{ok: ...}`, legacy `{success: ...}`, a plain data dict, or a bare value) into a `ZResult`, so imperative plugins keep returning plain dicts while the framework gets structured feedback. The open-core **zAPI** handler (`r_zServer`) consumes `coerce()` to turn a plugin return into a JSON HTTP response.
 
 `ZAbort(error, status=4xx)` lets guard/validation code stay linear (`raise ZAbort(...)`); the wrapper catches it and surfaces `.result`.
 

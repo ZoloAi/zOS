@@ -327,14 +327,15 @@ logging:
 
 ### Logger Path Detection
 
-Custom logger path can be specified via zSpark:
+Custom logger path can be specified via zSpark (authoring key **`zLogPath`**;
+the session dict stores it internally as `logger_path`):
 
 ```python
-zSpark = {"logger_path": "./logs"}
-# → logger_path: "./logs"
+zSpark = {"zLogPath": "./logs"}
+# → session["logger_path"]: "./logs"
 
 # Default (no custom path)
-# → logger_path: None (uses system path)
+# → session["logger_path"]: None (uses system path)
 ```
 
 ---

@@ -623,6 +623,35 @@ os.getenv("OPTIONAL_KEY")  # None (not set in environ)
 
 ---
 
+## `zRequirements` — declarative per-app Python dependencies
+
+Declared inside the app's `zEnv.*.zolo` — same file, same grammar as any
+other zEnv key, no new file format:
+
+```zolo
+zEnv:
+  zRequirements: [Pillow>=10.0, requests]
+```
+
+**SSOT gate (same shape as schema migrations):**
+
+- **Boot never auto-installs.** `zSpark` boot only *verifies* the declared
+  packages are installed and refuses to launch if any are missing — printing
+  the exact command to fix it.
+- The only writer is the explicit **`z requirements <zspark file>`** CLI
+  command, which runs the `pip install` (mirrors how `z migrate` is the only
+  writer for schema drift).
+- Packages are checked by **distribution name** (`importlib.metadata`), not
+  import name — `Pillow` matches even though it imports as `PIL`.
+- Deployment overrides apply: base zEnv → deployment zEnv, like any other key.
+
+**Hosted flow:** at `zolo push` time the declared zRequirements are installed
+into the build's `zpackages/` directory (`pip --target`), and the zHost
+compute driver prepends that to the tenant child's `PYTHONPATH` — see
+[compute_GUIDE.md](../../L0_Core/zPlugin_Guides/compute_GUIDE.md).
+
+---
+
 ## Practical Examples
 
 ### Example 1: Basic Environment Config

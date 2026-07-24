@@ -121,6 +121,12 @@ if port:
     print(f"Found available port: {port}")
 ```
 
+> This is an *application-level* helper for your own sockets. zServer's own
+> boot has a built-in doctrine — pinned ports fail loud, unpinned ports hunt
+> and announce — documented in
+> [zServer ports_GUIDE](../../L4_Orchestration/zServer_Guides/ports_GUIDE.md);
+> don't pre-hunt a port and pin it yourself, you'd defeat the fail-loud contract.
+
 ---
 
 #### Pattern 3: Service Health Check

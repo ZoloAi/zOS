@@ -138,7 +138,7 @@ executor per command, the wizard canvas, the help system, and shared
 helpers/constants.
 
 ```python
-from zOS.L3_Abstraction.o_zShell import zShell
+from zOS.L3_Abstraction.p_zShell import zShell
 
 shell = zShell(z)              # z = your zOS instance
 shell.run_shell()              # interactive REPL
@@ -146,7 +146,7 @@ shell.execute_command("data read users --model @.zSchema.users")
 shell.show_help()
 ```
 
-Source: `zOS-OpenCore/core/L3_Abstraction/o_zShell/`.
+Source: `zOS-OpenCore/core/L3_Abstraction/p_zShell/`.
 
 ---
 

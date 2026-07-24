@@ -9,7 +9,7 @@
 
 ## What It Is
 
-**`zos_plugin`** is a **package-root SDK** (`core/zos_plugin/`, beneath the layers) imported by plugin code as `from zos_plugin import zfunc`. It is consumed by `zCloud/plugins/*` (avatar, zpush, zHost, …), the demo/test plugins, and the open-core server (`q_zServer` `zProxy` + `zAPI`).
+**`zos_plugin`** is a **package-root SDK** (`core/zos_plugin/`, beneath the layers) imported by plugin code as `from zos_plugin import zfunc`. It is consumed by `zCloud/plugins/*` (avatar, zpush, zHost, …), the demo/test plugins, and the open-core server (`r_zServer` `zProxy` + `zAPI`).
 
 > **Not to be confused with `i_zFunc`.** `i_zFunc` (L2) is the framework subsystem that *dispatches/executes* a zFunc call; `zos_plugin` is the **author-facing SDK** the plugin is written against. One routes, the other is the contract. See [zFunc_GUIDE](../L2_Handling/zFunc_GUIDE.md).
 

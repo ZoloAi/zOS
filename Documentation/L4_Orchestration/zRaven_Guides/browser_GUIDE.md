@@ -1,6 +1,6 @@
 # zRaven Browser / WS Runner Guide
 
-> **Modules:** `core/L4_Orchestration/r_zRaven/zRaven_modules/ws/ws_runner.py`
+> **Modules:** `core/L4_Orchestration/s_zRaven/zRaven_modules/ws/ws_runner.py`
 > **Purpose:** Drive a **zBifrost** app end-to-end with a real browser (Playwright) and the bifrost WebSocket — page navigation, DOM interaction, screenshots, live WS calls, and pure-HTTP requests — from the same `.zolo` grammar as the CLI runner.
 
 **[← Back to zRaven Guide](../zRaven_GUIDE.md) | [Home](../../../README.md)**

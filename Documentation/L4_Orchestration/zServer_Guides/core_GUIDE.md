@@ -1,6 +1,6 @@
 # zServer Core Managers Guide
 
-> **Modules:** `core/L4_Orchestration/q_zServer/zServer_modules/core/`
+> **Modules:** `core/L4_Orchestration/r_zServer/zServer_modules/core/`
 > (`config_manager.py`, `mount_manager.py`, `route_manager.py`, `schema_manager.py`)
 > **Purpose:** Configuration and resource managers — resolve server config (SSOT), map URLs to the filesystem, detect/merge route files, and auto-initialize database schemas.
 > *(`cache_manager.py` lives in this folder too but is documented in [caching_GUIDE.md](caching_GUIDE.md).)*
@@ -79,6 +79,11 @@ z = zOS({"zServer": {"static_mounts": {"/assets/": "/path/to/assets"}}})
 2. **`routes/` subfolder** — modular blueprints (e.g. `routes/zServer.api.yaml`, `routes/zServer.themes.zolo`)
 
 **Merge** (`load_and_merge_routes`) loads each file via `z.loader` (which delegates to `z.parser` for format detection) and merges into one structure: `meta` dicts are updated, `routes` dicts are merged with **last-wins** on conflicts. A `/` default is ensured if none is declared.
+
+**Zero-config:** no route files at all is a valid app. `RouteManager` builds a
+default router serving `/` — a spark plus a zUI file boots and serves with no
+`zServer.routes.zolo` authored (paired with the built-in template fallback in
+[rendering_GUIDE](rendering_GUIDE.md)).
 
 > The resulting router's matching/auto-discovery/RBAC behaviour is documented in [routing_GUIDE → HTTPRouter](routing_GUIDE.md#httprouter--matching).
 

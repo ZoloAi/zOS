@@ -97,7 +97,7 @@ class zCLI:
 `zSys.shutdown` is **fully open-core** and needs **no zGuard seam**.
 
 - **No code-exec / no network / no file-write** — no `eval`/`exec`/`subprocess`/`pickle`/`os.system`, no socket/bind. The only "dangerous-looking" calls are `signal.signal(...)` registration and an `asyncio.new_event_loop()` + `run_until_complete(ws.shutdown())` fallback — both standard teardown.
-- **Process termination is OS-signal-driven, not network-reachable.** `sys.exit(0/1)` lives in the SIGINT/SIGTERM handler (Ctrl-C / `kill`), on the **main thread only**, and is **suppressed under `ZRAVEN_RUNNER=1`**. A remote client cannot reach it. Mirrors the `p_zWalker` `on_stop`/`on_error` local-only-exit posture.
+- **Process termination is OS-signal-driven, not network-reachable.** `sys.exit(0/1)` lives in the SIGINT/SIGTERM handler (Ctrl-C / `kill`), on the **main thread only**, and is **suppressed under `ZRAVEN_RUNNER=1`**. A remote client cannot reach it. Mirrors the `q_zWalker` `on_stop`/`on_error` local-only-exit posture.
 - **Fail-safe + foreign-content-free** — every teardown step is wrapped in `ExceptionContext`; the module operates only on the live `zos` instance, never on `.zolo`/zSpark content → no Type-A/B/C surface.
 - **Correct layering** — consumed *down* from `core/engine.py` (L0 util ← engine); no upward dependency.
 
