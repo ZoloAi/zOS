@@ -40,6 +40,7 @@ _ENV_VAR_TOKEN = "WEBSOCKET_TOKEN"
 _ENV_VAR_SSL_ENABLED = "WEBSOCKET_SSL_ENABLED"
 _ENV_VAR_SSL_CERT = "WEBSOCKET_SSL_CERT"
 _ENV_VAR_SSL_KEY = "WEBSOCKET_SSL_KEY"
+_ENV_VAR_MAX_MESSAGE_MB = "WEBSOCKET_MAX_MESSAGE_MB"
 
 # Config Keys
 _KEY_HOST = "host"
@@ -54,6 +55,7 @@ _KEY_PING_TIMEOUT = "ping_timeout"
 _KEY_SSL_ENABLED = "ssl_enabled"
 _KEY_SSL_CERT = "ssl_cert"
 _KEY_SSL_KEY = "ssl_key"
+_KEY_MAX_MESSAGE_MB = "max_message_mb"
 
 # Canonical zSocket-block → env-var bridge (SSOT for the mapping). Mirrors
 # config_http_server.ZSERVER_BLOCK_ENV_MAP: a declarative `zSocket:` block in zSpark
@@ -70,6 +72,7 @@ ZSOCKET_BLOCK_ENV_MAP = {
     "ssl_enabled":     _ENV_VAR_SSL_ENABLED,
     "ssl_cert":        _ENV_VAR_SSL_CERT,
     "ssl_key":         _ENV_VAR_SSL_KEY,
+    "max_message_mb":  _ENV_VAR_MAX_MESSAGE_MB,
 }
 
 # Default Values
@@ -91,6 +94,11 @@ _DEFAULT_PING_TIMEOUT = 10
 _DEFAULT_SSL_ENABLED = False  # SSL disabled by default for easier local development
 _DEFAULT_SSL_CERT = None
 _DEFAULT_SSL_KEY = None
+# Inbound WS message ceiling in MB. The websockets library's own default (1 MiB)
+# silently kills the connection on any zDialog file upload past ~750KB raw
+# (base64 inflates ~33%), which the client can't tell apart from a network blip.
+# 32MB covers real-world workbook/CSV uploads; 0 = unlimited (max_size=None).
+_DEFAULT_MAX_MESSAGE_MB = 32
 
 # String Parsing
 _TRUTHY_VALUES = ("true", "1", "yes")
@@ -209,6 +217,14 @@ class WebSocketConfig:
             websocket_config[_KEY_SSL_KEY] = env_ssl_key
             self.logger.framework.debug(f"{_LOG_PREFIX} WebSocket SSL key from env: {env_ssl_key}")
 
+        env_max_message = os.getenv(_ENV_VAR_MAX_MESSAGE_MB)
+        if env_max_message:
+            try:
+                websocket_config[_KEY_MAX_MESSAGE_MB] = int(env_max_message)
+                self.logger.framework.debug(f"{_LOG_PREFIX} WebSocket max message from env: {env_max_message}MB")
+            except ValueError:
+                self.logger.framework.warning(f"{_LOG_PREFIX} Invalid {_ENV_VAR_MAX_MESSAGE_MB}: {env_max_message}")
+
         # 2. Check zSpark_obj for WebSocket settings (Layer 5 - highest priority, overrides env)
         #    Canonical block is `zSocket:`; `websocket:` is the deprecated alias.
         if self.zos.zspark_obj:
@@ -267,6 +283,7 @@ class WebSocketConfig:
             _KEY_SSL_ENABLED: websocket_config.get(_KEY_SSL_ENABLED, _DEFAULT_SSL_ENABLED),
             _KEY_SSL_CERT: websocket_config.get(_KEY_SSL_CERT, _DEFAULT_SSL_CERT),
             _KEY_SSL_KEY: websocket_config.get(_KEY_SSL_KEY, _DEFAULT_SSL_KEY),
+            _KEY_MAX_MESSAGE_MB: websocket_config.get(_KEY_MAX_MESSAGE_MB, _DEFAULT_MAX_MESSAGE_MB),
         }
 
     def _zserver_host_fallback(self) -> str:
@@ -356,6 +373,21 @@ class WebSocketConfig:
     def max_connections(self) -> int:
         """Maximum concurrent connections."""
         return self.config[_KEY_MAX_CONNECTIONS]
+
+    @property
+    def max_message_mb(self) -> int:
+        """Inbound WS message ceiling in MB (0 = unlimited)."""
+        return self.config.get(_KEY_MAX_MESSAGE_MB, _DEFAULT_MAX_MESSAGE_MB)
+
+    @property
+    def max_message_bytes(self) -> Optional[int]:
+        """The ceiling as the ``max_size`` the websockets library expects.
+
+        ``None`` (unlimited) when ``max_message_mb`` is 0 or negative — this is
+        what ``ws_serve(max_size=...)`` consumes directly.
+        """
+        mb = self.max_message_mb
+        return None if mb <= 0 else mb * 1024 * 1024
 
     @property
     def ping_interval(self) -> int:

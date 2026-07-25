@@ -256,16 +256,25 @@ class WebSocketServer:
         loop = asyncio.get_event_loop()
         loop.set_exception_handler(self._custom_exception_handler)
 
+        # Inbound message ceiling (zConfig SSOT: zSocket.max_message_mb /
+        # WEBSOCKET_MAX_MESSAGE_MB). The library default (1 MiB) silently drops
+        # the connection (close code 1009) on any zDialog file upload past
+        # ~750KB raw, which the client can't tell from a network blip.
+        max_size = getattr(self.config, "max_message_bytes", None)
+
         try:
             self.server = await ws_serve(
                 self._handle_client,
                 actual_host,
                 actual_port,
                 ssl=ssl_context,
+                max_size=max_size,
                 process_request=self._process_request  # v1.5.10: Graceful handshake error handling
             )
             self._running = True
             self.logger.info(_LOG_STARTED.format(protocol=protocol, host=actual_host, port=actual_port))
+            limit_label = f"{max_size // (1024 * 1024)}MB" if max_size else "unlimited"
+            self.logger.info(f"{_LOG_PREFIX} Max inbound message size: {limit_label}")
             await self.server.wait_closed()
         except OSError as e:
             self.logger.error(f"{_LOG_PREFIX} Failed to start: {e}")

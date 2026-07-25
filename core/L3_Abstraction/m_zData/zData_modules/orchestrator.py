@@ -215,6 +215,12 @@ class DataOrchestrator:
             raise RuntimeError("No operations handler initialized")
         return self.operations.insert(table, fields, values)
 
+    def insert_many(self, table: str, rows_data: List[Dict[str, Any]]) -> List[Any]:
+        """Insert multiple row dicts in one write pass. Delegates to operations facade."""
+        if not self.operations:
+            raise RuntimeError("No operations handler initialized")
+        return self.operations.insert_many(table, rows_data)
+
     def select(self, table: str, fields: Optional[List[str]] = None, **kwargs: Any) -> List[Dict[str, Any]]:
         """Select rows from table. Delegates to operations facade."""
         if not self.operations:

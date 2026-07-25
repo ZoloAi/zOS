@@ -273,6 +273,11 @@ class DataFacade:
         return rows[0] if rows else None
 
     def insert(self, table: str, values: dict) -> Optional[Row]:
+        if isinstance(values, (list, tuple)):
+            raise TypeError(
+                "data.insert takes ONE row dict — for a list of rows use "
+                "data.insert_many(table, rows)"
+            )
         self._d.insert(table=table, fields=list(values), values=list(values.values()))
         # Best-effort: return the freshly inserted row (max id of the match set).
         probe = {k: v for k, v in values.items() if not isinstance(v, (dict, list))}
@@ -280,6 +285,21 @@ class DataFacade:
         if not rows:
             return Row(values)
         return max(rows, key=lambda r: r.get("id", 0))
+
+    def insert_many(self, table: str, rows: List[dict]) -> int:
+        """Bulk insert: one write pass, one commit, NO per-row probe-select.
+
+        The single-row ``insert`` above re-selects after every write to hand back
+        the fresh row — fine for a form submit, ruinous for an import (34k rows
+        become 68k queries). This path delegates straight to the adapter's
+        ``insert_many`` (single transaction where the backend allows) and returns
+        only the inserted-row count.
+        """
+        rows = [dict(r) for r in (rows or [])]
+        if not rows:
+            return 0
+        inserted = self._d.insert_many(table, rows)
+        return len(inserted) if isinstance(inserted, list) else len(rows)
 
     def update(self, table: str, values: dict, where: dict) -> Any:
         """Update rows matching ``where``. ``values`` may carry a computed spec
