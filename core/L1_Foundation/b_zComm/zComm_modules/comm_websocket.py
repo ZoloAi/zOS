@@ -171,18 +171,29 @@ class WebSocketServer:
         Note:
             This eliminates "opening handshake failed" noise by handling
             the root cause (invalid connections) rather than symptoms.
-        """
-        # Check if it looks like a valid WebSocket upgrade request
-        upgrade = request_headers.get("Upgrade", "").lower()
-        connection = request_headers.get("Connection", "").lower()
 
-        if "websocket" not in upgrade or "upgrade" not in connection:
+        Dual-API seam: the legacy server calls this as (path, Headers); the
+        asyncio server (websockets >= 14 — what a fresh install resolves via
+        `from websockets import serve`) calls it as (ServerConnection, Request).
+        comm_websocket_auth already speaks both dialects — this hook was the
+        missed twin: on the new API, Request has no .get(), so the AttributeError
+        made EVERY handshake 500 (caught by the 1.7.1 pre-publish wire test).
+        """
+        # Request (new API) carries .headers; legacy passes the Headers mapping.
+        headers = getattr(request_headers, "headers", request_headers)
+        upgrade = headers.get("Upgrade", "").lower()
+        conn_header = headers.get("Connection", "").lower()
+
+        if "websocket" not in upgrade or "upgrade" not in conn_header:
             # This is a port probe, health check, or non-WebSocket HTTP request
             # Reject gracefully with HTTP 400 (no handshake error logged)
             self.logger.framework.debug(
-                f"{_LOG_PREFIX} Rejected non-WebSocket request from {path} "
-                f"(Upgrade: {upgrade or 'none'}, Connection: {connection or 'none'})"
+                f"{_LOG_PREFIX} Rejected non-WebSocket request "
+                f"(Upgrade: {upgrade or 'none'}, Connection: {conn_header or 'none'})"
             )
+            if hasattr(path, "respond"):
+                # New API: first arg is the ServerConnection — reject via respond()
+                return path.respond(400, "WebSocket connection required\n")
             return (400, [], b"WebSocket connection required\n")
 
         # Valid WebSocket upgrade request - allow handshake to proceed
