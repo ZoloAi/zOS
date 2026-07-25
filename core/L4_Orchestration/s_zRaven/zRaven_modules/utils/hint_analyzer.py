@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 from .hint_rules import apply_all, Hint
+from .issue_scout import scout
 from .colors import GREEN, RED, YELLOW, CYAN, BOLD, DIM, RESET
 
 
@@ -27,10 +28,22 @@ _MAX_RUNS = 20   # rows read from runs.csv for analysis
 # Public API
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _hints_with_scout(workspace: Path, data: dict) -> list[Hint]:
+    """Rule hints + the framework-suspect scout verdict (when it fires)."""
+    hints = apply_all(data)
+    try:
+        suspect = scout(workspace, data)
+    except Exception:  # pylint: disable=broad-except
+        suspect = None  # triage must never break the hint pass
+    if suspect:
+        hints.append(suspect)
+    return hints
+
+
 def analyze_and_print(workspace: Path, raven_name: str) -> list[Hint]:
     """Collect data, apply rules, print hints. Returns hint list."""
     data  = _collect(workspace, raven_name)
-    hints = apply_all(data)
+    hints = _hints_with_scout(workspace, data)
     _print_hints(data, hints, raven_name)
     return hints
 
@@ -38,7 +51,7 @@ def analyze_and_print(workspace: Path, raven_name: str) -> list[Hint]:
 def analyze_silent(workspace: Path, raven_name: str) -> list[Hint]:
     """Collect + apply rules without printing. Used for auto-append after --run."""
     data = _collect(workspace, raven_name)
-    return apply_all(data)
+    return _hints_with_scout(workspace, data)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

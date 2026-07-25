@@ -77,6 +77,8 @@ modes: two runners, one grammar — zMode in zSpark picks
     zSubmit   — scalar value → zCLI stdin; dict {path, gate, value} → zBifrost WS gate
     shared    — `zAssert:`/`zMarker:`/`zLogger:` run in both modes (scope with a wrapper if not intended)
     first     — TERMINAL IS TRUTH: CLI green, then flip to zBifrost (the coat, not a second test)
+    once      — each mode's green is EARNED ONCE per source state; the zMode flip itself never expires
+        the other mode's green — no CLI→Bifrost→CLI→Bifrost ping-pong (see 00_workflow test_economy)
 
 drive_dual: dual-mode primitives — ONE step, both runners (write once, no fork)
     zPick: Option            — zCLI: send that menu option's number (`^opt`, `zBack`, `_`→space work)
@@ -116,7 +118,11 @@ drive_web: zBifrost-only step primitives (Playwright + WS + HTTP; no terminal eq
     compound                 — a step may hold several; run fixed order (viewport→open→interact→wait→shot)
     !zScreenshot             — DEPRECATED alias of zShot (shoots + warns)
 
-assert: zAssert — check the outcome (empty = pass)
+assert: zAssert — check the outcome (empty = pass) — the grammar IS the inspection tool
+    !imperative — needing to CHECK something (DOM text/attrs/node counts, computed CSS, an API response,
+        a log line) is never a reason for an imperative tool (hand-rolled Playwright/node script, curl,
+        DevTools poking) — every check below is a one-line zAssert inside the SAME isolated --run; if a
+        check truly has no zAssert form, tell the user the gap instead of scripting around the grammar
     contains / not_contains  — substring of output/last response (case-insensitive, `_`→space in CLI)
     success: true            — no ERROR: in output/response
     dom: {selector, property, contains|equals|matches} — inspect a node (property default innerText)

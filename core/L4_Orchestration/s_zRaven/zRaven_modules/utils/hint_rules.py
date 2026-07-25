@@ -426,6 +426,48 @@ def rule_screenshots_without_dom_inspection(data: dict) -> list[Hint]:
     )]
 
 
+def rule_redundant_green(data: dict) -> list[Hint]:
+    """Over-testing brake — the CLI→Bifrost→CLI→Bifrost green ping-pong.
+
+    A green is a FACT about (source state, mode); flipping zMode doesn't expire
+    the other mode's green, so 3+ consecutive greens at the SAME ui_version are
+    re-proving a proven state. Agents love this loop (testing feels productive);
+    for the user it just makes "done" take forever. Fires only when the streak
+    spans a mode flip or a repeated mode — the moment it stops being one honest
+    green per mode.
+    """
+    runs = _runs(data)
+    last = _last(data)
+    if not last or _is_fail(last):
+        return []
+
+    streak = []
+    for r in reversed(runs):
+        if _is_fail(r):
+            break
+        streak.append(r)
+    if len(streak) < 3:
+        return []
+
+    ui_vers = {r.get("ui_version") or "" for r in streak}
+    if len(ui_vers) > 1:
+        return []  # source moved during the streak — those greens earned their keep
+
+    modes = [r.get("mode") or "?" for r in streak]
+    per_mode = Counter(modes)
+    if max(per_mode.values()) < 2:
+        return []  # one green per mode is exactly the doctrine — nothing redundant
+
+    modes_str = " + ".join(sorted(per_mode))
+    return [Hint(
+        f"{len(streak)} consecutive green runs ({modes_str}) with no source change — "
+        f"a green is a fact per (source, mode) and a zMode flip doesn't expire it. "
+        f"This state is PROVEN: stop re-testing, declare the segment complete, and "
+        f"archive the milestone.",
+        "z raven --commit 'segment green'",
+    )]
+
+
 def rule_screenshot_pixel_diff_suggestion(data: dict) -> list[Hint]:
     """
     After 5+ consecutive green runs with screenshots, suggest establishing a pixel
@@ -471,6 +513,7 @@ ALL_RULES = [
     rule_bifrost_cdn_unavailable,
     rule_multidevice_first_only,
     rule_screenshots_without_dom_inspection,
+    rule_redundant_green,
     rule_screenshot_pixel_diff_suggestion,
 ]
 

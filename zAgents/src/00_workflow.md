@@ -10,6 +10,16 @@ verify: run only `z raven --run`; !pipe !redirect !grep; zRaven owns output/logs
         clicks write straight to real seed data and leave it polluted; encode the flow as a zRaven step
         instead (see 13_testing)
 
+test_economy: a GREEN is a FACT about (source state, mode) — it does not expire, re-running it proves nothing new
+    matrix: logic/data/schema edit → re-run zCLI | UI/style/route edit → re-run zBifrost | both → one green each, DONE
+    !mode_pingpong: flipping zSpark's zMode is NOT a source edit — it never expires the other mode's green;
+        CLI green → Bifrost green → complete; never CLI→Bifrost→CLI→Bifrost re-proving the same state
+    trust_foundation: dual-mode primitives (zFill/zPick) running identically in both runners is zolo's
+        write-once GUARANTEE, proven by the framework's own suite — re-proving it per app is testing
+        zolo, not the app
+    budget: 2+ consecutive all-green runs with ZERO source edits between them = over-testing; STOP,
+        declare the segment complete (next_step_rule), suggest `z raven --commit 'label'`
+
 laws:
     architecture: facade/modules; 1 file = 1 responsibility; entrypoints import only; DRY/SSOT
     .zolo: zLSP strings != YAML; no quoted values; no YAML assumptions
