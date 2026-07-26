@@ -95,6 +95,7 @@ lifecycle: start / change / stop — without dropping anyone
         `z swap` (pick if several) · `--port 9090` · `--all` (every local instance) · `SIGUSR2`; Windows → restart
         vs `z patch` — swap RE-LAUNCHES what's on disk (installs nothing); patch INSTALLS (via `uv`); `z patch --live` = install then swap `--all`
         rule — new code already on disk → `z swap`; still need to fetch → `z patch --live`
+        `z patch --force` — refetch zguard binaries NOW, ignoring the 24h trust window (right after a zguard_bin/ push, when the cached VERSION may re-bless a stale build); dev source (`ZGUARD_DEV_PATH`) → no-op
     resilience— reload hitting a syntax error keeps the previous route table + reports "aborted"; a swap that won't come ready is REAPED, old keeps serving; worst case = "change didn't apply", never "site down"
 
 zapi: your buttons as an API — a TRANSPORT ADAPTER, not a second codebase

@@ -9,6 +9,16 @@ verify: run only `z raven --run`; !pipe !redirect !grep; zRaven owns output/logs
         clicks write straight to real seed data and leave it polluted; encode the flow as a zRaven step
         instead (see 13_testing)
 
+test_economy: a GREEN is a FACT about (source state, mode) — it does not expire, re-running it proves nothing new
+    matrix: logic/data/schema edit → re-run zCLI | UI/style/route edit → re-run zBifrost | both → one green each, DONE
+    !mode_pingpong: flipping zSpark's zMode is NOT a source edit — it never expires the other mode's green;
+        CLI green → Bifrost green → complete; never CLI→Bifrost→CLI→Bifrost re-proving the same state
+    trust_foundation: dual-mode primitives (zFill/zPick) running identically in both runners is zolo's
+        write-once GUARANTEE, proven by the framework's own suite — re-proving it per app is testing
+        zolo, not the app
+    budget: 2+ consecutive all-green runs with ZERO source edits between them = over-testing; STOP,
+        declare the segment complete (next_step_rule), suggest `z raven --commit 'label'`
+
 laws:
     architecture: facade/modules; 1 file = 1 responsibility; entrypoints import only; DRY/SSOT
     .zolo: zLSP strings != YAML; no quoted values; no YAML assumptions
@@ -1160,6 +1170,8 @@ modes: two runners, one grammar — zMode in zSpark picks
     zSubmit   — scalar value → zCLI stdin; dict {path, gate, value} → zBifrost WS gate
     shared    — `zAssert:`/`zMarker:`/`zLogger:` run in both modes (scope with a wrapper if not intended)
     first     — TERMINAL IS TRUTH: CLI green, then flip to zBifrost (the coat, not a second test)
+    once      — each mode's green is EARNED ONCE per source state; the zMode flip itself never expires
+        the other mode's green — no CLI→Bifrost→CLI→Bifrost ping-pong (see 00_workflow test_economy)
 
 drive_dual: dual-mode primitives — ONE step, both runners (write once, no fork)
     zPick: Option            — zCLI: send that menu option's number (`^opt`, `zBack`, `_`→space work)
@@ -1199,7 +1211,11 @@ drive_web: zBifrost-only step primitives (Playwright + WS + HTTP; no terminal eq
     compound                 — a step may hold several; run fixed order (viewport→open→interact→wait→shot)
     !zScreenshot             — DEPRECATED alias of zShot (shoots + warns)
 
-assert: zAssert — check the outcome (empty = pass)
+assert: zAssert — check the outcome (empty = pass) — the grammar IS the inspection tool
+    !imperative — needing to CHECK something (DOM text/attrs/node counts, computed CSS, an API response,
+        a log line) is never a reason for an imperative tool (hand-rolled Playwright/node script, curl,
+        DevTools poking) — every check below is a one-line zAssert inside the SAME isolated --run; if a
+        check truly has no zAssert form, tell the user the gap instead of scripting around the grammar
     contains / not_contains  — substring of output/last response (case-insensitive, `_`→space in CLI)
     success: true            — no ERROR: in output/response
     dom: {selector, property, contains|equals|matches} — inspect a node (property default innerText)
@@ -1414,6 +1430,7 @@ lifecycle: start / change / stop — without dropping anyone
         `z swap` (pick if several) · `--port 9090` · `--all` (every local instance) · `SIGUSR2`; Windows → restart
         vs `z patch` — swap RE-LAUNCHES what's on disk (installs nothing); patch INSTALLS (via `uv`); `z patch --live` = install then swap `--all`
         rule — new code already on disk → `z swap`; still need to fetch → `z patch --live`
+        `z patch --force` — refetch zguard binaries NOW, ignoring the 24h trust window (right after a zguard_bin/ push, when the cached VERSION may re-bless a stale build); dev source (`ZGUARD_DEV_PATH`) → no-op
     resilience— reload hitting a syntax error keeps the previous route table + reports "aborted"; a swap that won't come ready is REAPED, old keeps serving; worst case = "change didn't apply", never "site down"
 
 zapi: your buttons as an API — a TRANSPORT ADAPTER, not a second codebase
