@@ -24,6 +24,7 @@ not. @zfunc injects these by parameter name (see context.py).
 from __future__ import annotations
 
 import time
+from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional
 
 from .result import ZAbort
@@ -254,10 +255,52 @@ class TransferFacade:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class DataFacade:
-    """Ergonomic CRUD over zData. Values are plain dicts; rows come back as Rows."""
+    """Ergonomic CRUD over zData. Values are plain dicts; rows come back as Rows.
+
+    DEFAULTS PARITY (zOS#23, 2026-07-26): ``insert``/``insert_many`` (and the
+    insert leg of ``upsert``) run the SAME ``apply_defaults`` engine as the
+    declarative write path, so schema ``default:`` declarations — including
+    the ``now`` token — fire on the plugin door too. Before this, a plugin
+    insert landed NULL ``created_at`` while the identical zData insert
+    stamped it (the two-doors SSOT drift found dogfooding zCloud Media).
+    Supplied values are never overridden (apply_defaults' own contract);
+    update stays defaults-free by doctrine (never invent values on update).
+    """
 
     def __init__(self, zos: Any):
         self._d = zos.data
+        self._zos = zos
+
+    def _table_schema(self, table: str) -> Optional[dict]:
+        """The table's field definitions from the server-wide schema registry
+        (populated by every ``load_schema`` — plugins call it before writing).
+        None when the table was never registered: defaults simply don't fire,
+        which is exactly the pre-#23 behavior (fail-open, never fail-write)."""
+        try:
+            from zOS.L3_Abstraction.m_zData.zData_modules.schema_manager import (
+                SchemaManager,
+            )
+            schema = SchemaManager._server_registry.get(table)  # pylint: disable=protected-access
+            table_def = (schema or {}).get(table)
+            return table_def if isinstance(table_def, dict) else None
+        except Exception:  # pylint: disable=broad-except
+            return None
+
+    def _with_defaults(self, table: str, values: dict) -> dict:
+        table_def = self._table_schema(table)
+        if not table_def:
+            return values
+        try:
+            from zOS.L3_Abstraction.m_zData.zData_modules.shared.operations.write_prep import (
+                apply_defaults,
+            )
+            import logging as _logging
+            _ops = SimpleNamespace(
+                logger=getattr(self._zos, "logger", None) or _logging.getLogger("zos_plugin.data")
+            )
+            return apply_defaults(table, values, table_def, _ops)
+        except Exception:  # pylint: disable=broad-except
+            return values
 
     def select(
         self,
@@ -278,6 +321,7 @@ class DataFacade:
                 "data.insert takes ONE row dict — for a list of rows use "
                 "data.insert_many(table, rows)"
             )
+        values = self._with_defaults(table, values)
         self._d.insert(table=table, fields=list(values), values=list(values.values()))
         # Best-effort: return the freshly inserted row (max id of the match set).
         probe = {k: v for k, v in values.items() if not isinstance(v, (dict, list))}
@@ -295,7 +339,7 @@ class DataFacade:
         ``insert_many`` (single transaction where the backend allows) and returns
         only the inserted-row count.
         """
-        rows = [dict(r) for r in (rows or [])]
+        rows = [self._with_defaults(table, dict(r)) for r in (rows or [])]
         if not rows:
             return 0
         inserted = self._d.insert_many(table, rows)

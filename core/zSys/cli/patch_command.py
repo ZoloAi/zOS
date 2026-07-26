@@ -296,12 +296,18 @@ def _live_reload_running_servers() -> None:
     print("  Watch each server's console for the green→blue handoff receipt.\n")
 
 
-def handle_patch_command(verbose: bool = False, live: bool = False) -> int:
+def handle_patch_command(verbose: bool = False, live: bool = False,
+                         force: bool = False) -> int:
     """
     Main handler for `z patch`.
 
     When ``live`` is True, every running zServer is self-replaced with the
     patched code after a successful patch (zero-downtime swap, no restart).
+
+    When ``force`` is True (zOS#10), the zguard binaries are refetched
+    unconditionally — bypassing the 24h trust window that can re-bless a
+    stale build right after a zguard_bin/ push. No-op in dev mode (the
+    editable source IS the binaries).
 
     Returns 0 on success, 1 on failure.
     """
@@ -320,6 +326,8 @@ def handle_patch_command(verbose: bool = False, live: bool = False) -> int:
 
     if _dev_mode():
         print(f"\n✓ Dev mode (local zOS/zLSP source found) — editable source is source of truth.")
+        if force:
+            print("  --force        : no-op in dev mode (editable source, nothing to refetch)")
         if _zguard_dev is not None:
             print(f"  zguard         : dev source ({_zguard_dev})")
         _check_and_fix_playwright()
@@ -330,7 +338,7 @@ def handle_patch_command(verbose: bool = False, live: bool = False) -> int:
 
     if is_supported(platform_tag, current_py):
         print(f"\n[z patch] Ensuring zguard binaries are current for {platform_tag}/{current_py}...")
-        if ensure_zguard_importable(verbose=True):
+        if ensure_zguard_importable(verbose=True, force=force):
             print(f"✓ zguard ready ({platform_tag}/{current_py}).")
             _check_and_fix_playwright()
             _run_agents()

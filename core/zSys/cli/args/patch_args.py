@@ -30,4 +30,12 @@ def add_subparser(subparsers) -> argparse.ArgumentParser:
         help="After patching, self-replace every running zServer with the patched "
              "code (zero-downtime SIGUSR2 swap — no restart needed)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Bypass the 24h binary trust window: refetch zguard binaries from "
+             "the repo unconditionally, ignoring the cached VERSION's recheck "
+             "clock (use right after a zguard_bin/ push, when the CDN may still "
+             "serve a stale VERSION that re-blesses the old build)",
+    )
     return parser

@@ -12,6 +12,7 @@ engines live in ``component_expand`` / ``shuttle_expand``; this mixin is the fac
 from zOS import Any
 
 from .component_expand import expand_components as _expand_components
+from .component_expand import has_component_keys as _has_component_keys
 from .shuttle_expand import expand_shuttles as _expand_shuttles
 
 
@@ -33,3 +34,10 @@ class StructureOps:
         ``registry`` is optional (injected for tests); else loaded from zLoom/patterns/.
         """
         return _expand_components(tree, self.zos, registry)
+
+    def has_unexpanded_components(self, tree: Any) -> bool:
+        """True when ``tree`` still carries ``%``-prefixed KEYS after expansion —
+        the loader's "do not cache" signal (#48): a tree loaded before the
+        pattern registry existed must not poison the parse cache for the
+        whole server life."""
+        return _has_component_keys(tree)

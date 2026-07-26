@@ -192,7 +192,7 @@ def fetch_zguard_binaries(dest: Path, platform_tag: str, py_tag: str) -> bool:
     return True
 
 
-def ensure_zguard_importable(verbose: bool = False) -> bool:
+def ensure_zguard_importable(verbose: bool = False, force: bool = False) -> bool:
     """
     Make `import zguard` resolve for the rest of this process: dev source,
     a verified cache, or a fresh fetch, in that priority order. Call once,
@@ -200,6 +200,12 @@ def ensure_zguard_importable(verbose: bool = False) -> bool:
     platform/Python ABI isn't one we ship a build for, or if fetching failed
     — callers decide what to do about that (patch_command.py falls back to
     reinstalling onto a supported Python version via uv).
+
+    ``force`` (zOS#10, `z patch --force`): skip ``is_provisioned`` entirely
+    and refetch the binaries unconditionally — the escape hatch for the 24h
+    trust window (a cached build whose VERSION was re-blessed by a stale CDN
+    read right after a zguard_bin/ push). Dev source still wins over force:
+    there is nothing to fetch when ZGUARD_DEV_PATH is the origin.
     """
     global _resolved_origin  # pylint: disable=global-statement
 
@@ -219,12 +225,18 @@ def ensure_zguard_importable(verbose: bool = False) -> bool:
         return False
 
     dest = cache_root(platform_tag, py_tag)
-    if not is_provisioned(dest, platform_tag, py_tag):
+    if force or not is_provisioned(dest, platform_tag, py_tag):
         if verbose:
-            print(f"[zguard] fetching {platform_tag}/{py_tag} binaries...")
+            reason = "forced refetch (trust window bypassed)" if force else "fetching"
+            print(f"[zguard] {reason} {platform_tag}/{py_tag} binaries...")
         if not fetch_zguard_binaries(dest, platform_tag, py_tag):
-            return False
-        if verbose:
+            if force and is_provisioned(dest, platform_tag, py_tag):
+                # Forced refetch failed (offline?) but a working cache exists —
+                # same "never punish a working install" doctrine as is_provisioned.
+                print("[zguard] forced refetch failed — keeping the existing cache")
+            else:
+                return False
+        elif verbose:
             print(f"[zguard] cached at {dest}")
 
     parent = str(dest)

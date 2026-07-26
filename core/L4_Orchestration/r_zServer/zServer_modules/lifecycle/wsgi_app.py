@@ -18,6 +18,7 @@ security gap. That divergence is gone: the adapter holds a live ``zserver``
 
 from typing import Any, Callable, Iterable
 
+from ..routing.http_headers import build_response_headers
 from ..routing.wsgi_bridge import WSGIBridgeHandler
 
 
@@ -54,12 +55,17 @@ class zServerWSGIApp:
                     exc_info=True,
                 )
             body = b"<html><body><h1>500 Internal Server Error</h1></body></html>"
+            # zOS#9: even the last-resort page rides the http_headers SSOT —
+            # the hand-built response used to ship with no X-Content-Type-
+            # Options / X-Frame-Options / CSP (same-origin only: no CORS on
+            # an error page).
             start_response(
                 "500 Internal Server Error",
                 [
                     ("Content-Type", "text/html; charset=utf-8"),
                     ("Content-Length", str(len(body))),
-                ],
+                ]
+                + build_response_headers(),
             )
             return [body]
 

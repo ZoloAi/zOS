@@ -144,7 +144,8 @@ def route_command(
 
     handlers = {
         "patch": lambda: handle_patch_command(
-            verbose=verbose, live=getattr(args, "live", False)
+            verbose=verbose, live=getattr(args, "live", False),
+            force=getattr(args, "force", False),
         ),
         "shell": lambda: cli.handle_shell_command(logger, verbose=verbose),
         "login": lambda: cli.handle_login_command(logger, args, verbose=verbose),

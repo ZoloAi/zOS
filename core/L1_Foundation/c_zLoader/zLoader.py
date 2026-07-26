@@ -418,6 +418,30 @@ class zLoader:
             self.logger.debug("[zSchema] Not caching - returning fresh data")
             return result
 
+        # zOS#48: never cache a tree that still carries %-pattern KEYS. A load
+        # that ran before zLoom existed at all (the boot-time zAPI/RBAC sweep
+        # fires while self.zos.zloom is still None — proven live 2026-07-26,
+        # local 9090) comes back unexpanded — caching it would serve the
+        # poisoned parse for the whole server life (the "Eleven doors" empty
+        # grid). So the guard MUST NOT ride the _zloom handle that just
+        # skipped expansion: it calls the pure detector directly. Returning
+        # the tree uncached costs one re-parse on the first real render,
+        # which then expands + caches the good tree. KEY-position % is
+        # unambiguous grammar (render tokens are value-position), so the
+        # only other trees this skips are ones with unknown pattern names —
+        # already broken-and-warned, and better re-parsed than frozen.
+        if isinstance(result, dict):
+            from zOS.L3_Abstraction.n_zLoom.zLoom_modules.component_expand import (  # pylint: disable=import-outside-toplevel
+                has_component_keys,
+            )
+            if has_component_keys(result):
+                self.logger.warning(
+                    "[SystemCache] NOT caching %s — unexpanded %%-pattern keys "
+                    "remain (zLoom not up yet, registry empty, or unknown "
+                    "component)", zFilePath_identified,
+                )
+                return result
+
         # Cache other resources (UI, configs, etc.) in system cache
         # Use absolute filepath for cache key (same as get() for consistency)
         cache_key = self._cache_key(zFilePath_identified)
@@ -1058,6 +1082,25 @@ class zLoader:
 
         # Cache if not schema
         if not is_schema and parsed_data:
+            # zOS#48: THIS is the seam the boot-time zAPI/RBAC sweep fills the
+            # cache through (route managers call handle_absolute_path, not
+            # handle) — and this path NEVER runs zLoom expansion. Caching a
+            # tree that still carries %-pattern KEYS would hand the poisoned
+            # parse to every later handle() cache-hit for the whole server
+            # life (zCloud's Advanced "Eleven doors" empty grid). Skip the
+            # set; the first real render re-parses via handle(), expands with
+            # the registry ready, and caches the good tree.
+            if isinstance(parsed_data, dict):
+                from zOS.L3_Abstraction.n_zLoom.zLoom_modules.component_expand import (  # pylint: disable=import-outside-toplevel
+                    has_component_keys,
+                )
+                if has_component_keys(parsed_data):
+                    self.logger.warning(
+                        "[SystemCache] NOT caching %s — unexpanded %%-pattern "
+                        "keys remain (loaded outside the expansion seam)",
+                        file_path,
+                    )
+                    return parsed_data
             self.cache.set(cache_key, parsed_data, cache_type=CACHE_TYPE_SYSTEM, filepath=file_path)
             # Cache SET is already logged by cache.set() - no need for duplicate log
 

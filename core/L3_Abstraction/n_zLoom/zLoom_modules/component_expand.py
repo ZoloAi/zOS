@@ -88,6 +88,24 @@ def load_component_registry(zos: Any) -> Dict[str, Any]:
     return registry
 
 
+def has_component_keys(tree: Any) -> bool:
+    """True if any dict KEY in ``tree`` starts with ``%`` — an unexpanded
+    pattern invocation. Unambiguous by grammar: KEY-position ``%`` is always
+    a component (render tokens are VALUE-position only), so a surviving
+    ``%``-key means expansion hasn't happened (empty registry) or the name is
+    unknown. Callers use this as the "don't cache this tree" signal (#48)."""
+    if isinstance(tree, dict):
+        for key, val in tree.items():
+            if isinstance(key, str) and key.startswith("%"):
+                return True
+            if has_component_keys(val):
+                return True
+        return False
+    if isinstance(tree, list):
+        return any(has_component_keys(item) for item in tree)
+    return False
+
+
 def expand_components(tree: Any, zos: Any, registry: Dict[str, Any] = None) -> Any:
     """Expand every ``%<component>`` invocation in ``tree`` (returns a new tree).
 
@@ -97,6 +115,19 @@ def expand_components(tree: Any, zos: Any, registry: Dict[str, Any] = None) -> A
     if registry is None:
         registry = load_component_registry(zos)
     if not registry:
+        # The #48 rail: an empty registry with %-keys present is NOT the
+        # "app has no patterns" case — it's a load that happened before
+        # zLoom/patterns/ was readable (e.g. the boot-time zAPI/RBAC sweep).
+        # Warn instead of silently handing back a tree that renders nothing.
+        if has_component_keys(tree):
+            try:
+                zos.logger.framework.warning(
+                    "[zPattern] %-pattern invocation(s) present but the pattern "
+                    "registry is EMPTY (zLoom/patterns/ not readable yet?) — "
+                    "tree left unexpanded"
+                )
+            except Exception:  # pylint: disable=broad-except
+                pass
         return tree
     return _expand_node(tree, registry, zos, 0)
 
