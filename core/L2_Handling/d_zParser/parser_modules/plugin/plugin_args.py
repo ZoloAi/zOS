@@ -192,8 +192,21 @@ def smart_split_arguments(text: str) -> List[str]:
     in_quotes = False
     quote_char: Optional[str] = None
     depth = 0
+    escaped = False
 
     for char in text:
+        # Inside a DOUBLE-quoted token a backslash escapes the next char
+        # (JSON semantics — dialog_context injects free text as json.dumps
+        # literals, so an embedded \" must NOT close the token). Single-quoted
+        # tokens keep their legacy raw behavior.
+        if escaped:
+            current.append(char)
+            escaped = False
+            continue
+        if in_quotes and quote_char == CHAR_QUOTE_DOUBLE and char == '\\':
+            current.append(char)
+            escaped = True
+            continue
         if char in (CHAR_QUOTE_DOUBLE, CHAR_QUOTE_SINGLE) and (not in_quotes or char == quote_char):
             in_quotes = not in_quotes
             quote_char = char if in_quotes else None
@@ -329,6 +342,19 @@ def parse_argument_value(value: str) -> Any:
 
     # Handle quoted strings
     if is_quoted_string(value):
+        # A DOUBLE-quoted token may be a JSON string literal (dialog_context
+        # injects free-text zConv values as json.dumps — escaped quotes,
+        # \n newlines). json.loads restores the exact original text; anything
+        # that isn't valid JSON (authored raw like "C:\path") falls back to
+        # the legacy strip-the-quotes behavior. Single-quoted stays raw.
+        if value.startswith(CHAR_QUOTE_DOUBLE):
+            try:
+                import json
+                decoded = json.loads(value)
+                if isinstance(decoded, str):
+                    return decoded
+            except (ValueError, TypeError):
+                pass
         return value[1:-1]  # Remove quotes
 
     # Handle boolean

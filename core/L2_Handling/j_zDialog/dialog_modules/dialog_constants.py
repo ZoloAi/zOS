@@ -101,6 +101,11 @@ _EVENT_VALIDATION_ERROR: str = "validation_error"
 _PLACEHOLDER_PREFIX: str = "zConv"
 _PLACEHOLDER_FULL: str = "zConv"
 
+# A host string starting with the plugin sigil is a "&.plugin.fn(...)" call —
+# free-text zConv values injected into it must ride as JSON string literals
+# (see inject_placeholders), never naive single quotes.
+_PLUGIN_SIGIL: str = "&"
+
 
 # ============================================================================
 # SEPARATORS & PARSING CHARACTERS

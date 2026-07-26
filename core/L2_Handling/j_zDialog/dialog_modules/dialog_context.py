@@ -100,6 +100,7 @@ from .dialog_constants import (
     _EXPECTED_DOT_NOTATION_PARTS,
     _PLACEHOLDER_FULL,
     _PLACEHOLDER_PREFIX,
+    _PLUGIN_SIGIL,
     _QUOTE_CHARS,
     _REGEX_ZCONV_DOT_NOTATION,
     _WARNING_FIELD_NOT_FOUND,
@@ -370,6 +371,19 @@ def inject_placeholders(
                         # nested/unescaped quotes once embedded in the call-arg
                         # string. json.dumps is self-delimiting, double-quoted, and
                         # round-trips cleanly through zParser.parse_json_expr.
+                        replacement = json.dumps(value)
+                    elif obj.lstrip().startswith(_PLUGIN_SIGIL):
+                        # FREE TEXT IN A PLUGIN CALL STRING (2026-07-26, the
+                        # newsletter/alpha-request lesson): naive f"'{value}'"
+                        # shatters &.plugin.fn(...) the moment the prose holds an
+                        # apostrophe, newline, or unbalanced paren — the regex
+                        # parse rejects the whole submit. Ride the SAME json.dumps
+                        # road the dict/list branch above already proved: double-
+                        # quoted, fully escaped, newline-free. The arg parser
+                        # json.loads double-quoted tokens back to the exact text
+                        # (plugin_args.parse_argument_value). Scoped to '&' hosts
+                        # ON PURPOSE — embedded SQL/message strings keep their
+                        # legacy single-quote shape.
                         replacement = json.dumps(value)
                     else:
                         replacement = f"'{value}'"  # Text strings, add quotes
