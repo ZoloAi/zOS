@@ -39,7 +39,9 @@ Nothing you do on dev can touch it by accident.
    (token lives in `~/.pypirc`; make a fresh venv with `build`+`twine` if `/tmp/pubenv` is gone).
 4. Upgrade the box **explicitly**:
    `ssh box '/home/ubuntu/.zolo/venv/bin/pip install zolo-os==1.6.X && sudo systemctl restart zcloud'`
-5. Smoke: `https://zolo.media` 200, `/app/zhello` → 302 → subdomain 200.
+5. Smoke: `https://zolo.media` 200, `/users/herald/zhello` → 302 →
+   `zhello.herald.zolo.media` 200. (The bare `/app/<slug>` door was REMOVED
+   with claim-your-username, 2026-07-17 — it 404s by design.)
 
 Rollback is always: `pip install zolo-os==1.6.14` (or last-good) + restart.
 
