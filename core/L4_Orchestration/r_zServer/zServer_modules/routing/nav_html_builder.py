@@ -10,13 +10,14 @@ This removes NavigationRenderer.renderNavBar() as the source-of-truth for
 the meta navbar and eliminates 150+ lines of client-side construction logic.
 """
 
+import html
 import re
 import uuid
 
 
 def build_nav_html(
     items: list,
-    brand: str = None,
+    brand=None,
     theme: str = 'light',
     css_class: str = 'zcli-navbar-meta',
     zos=None,
@@ -26,7 +27,9 @@ def build_nav_html(
 
     Args:
         items:     List of navbar items (strings or dicts with zSub/zRBAC/zLink).
-        brand:     Brand text shown as the leftmost link (e.g. "zCloud").
+        brand:     zBrand declaration (SSOT). Either a dict
+                   ``{label, icon, logo, href}`` from handler.brand, or a plain
+                   string (treated as label, href '/'). None → no brand renders.
         theme:     zTheme variant — 'light' or 'dark'.
         css_class: Extra CSS class on the <nav> element.
         zos:       zOS instance — required to resolve an item's zLink (zPath →
@@ -42,8 +45,9 @@ def build_nav_html(
         f'<nav class="zNavbar zNavbar-{theme} {css_class}" role="navigation">'
     ]
 
-    if brand:
-        parts.append(f'<a href="/" class="zNavbar-brand">{_esc(brand)}</a>')
+    brand_html = _render_brand(brand)
+    if brand_html:
+        parts.append(brand_html)
 
     parts.append(
         f'<button class="zNavbar-toggler"'
@@ -70,6 +74,47 @@ def build_nav_html(
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
+
+def _render_brand(brand) -> str:
+    """Render the optional zBrand element (home/logo link), or '' if undeclared.
+
+    Brand = home. Wired as a navbar navigate action (not a plain <a>) so the client
+    delegator runs SPA nav AND passes navbar:true → the crumb trail RESETs to the
+    home root, SSOT with every other navbar pick. A bare <a href> would full-reload
+    and skip the reset.
+    """
+    if not brand:
+        return ''
+    if isinstance(brand, str):
+        brand = {'label': brand, 'logo': None, 'href': '/'}
+    if not isinstance(brand, dict):
+        return ''
+
+    label = brand.get('label')
+    icon = brand.get('icon')
+    logo = brand.get('logo')
+    href = brand.get('href') or '/'
+    if not label and not icon and not logo:
+        return ''
+
+    # Visual precedence: logo (image) > zIcon (<i>) > none. The label always
+    # renders alongside (or as the sole content / alt text). zCLI mirrors this
+    # with an ANSI-safe glyph; here the web gets a Bootstrap Icons <i>.
+    inner = ''
+    if logo:
+        alt = _esc(label) if label else 'home'
+        inner += f'<img src="{_esc(logo)}" class="zNavbar-brand-logo" alt="{alt}">'
+    elif icon:
+        safe_icon = _esc(str(icon)).removeprefix('bi-')
+        inner += f'<i class="bi bi-{safe_icon} zNavbar-brand-icon"></i>'
+    if label:
+        inner += _esc(label)
+
+    return (
+        f'<a href="{_esc(href)}" class="zNavbar-brand"'
+        f' data-nav-action="navigate" data-nav-href="{_esc(href)}">{inner}</a>'
+    )
+
 
 def _render_item(item, zos=None) -> list:
     """Render one navbar item (simple string or hierarchical dict)."""
@@ -203,9 +248,5 @@ def _href_for(item_name: str, zlink, zos) -> str:
 
 
 def _esc(text: str) -> str:
-    return (
-        text.replace('&', '&amp;')
-            .replace('<', '&lt;')
-            .replace('>', '&gt;')
-            .replace('"', '&quot;')
-    )
+    """HTML-escape via the stdlib SSOT (quote=True also escapes ' and ")."""
+    return html.escape(text, quote=True)

@@ -112,7 +112,14 @@ class RouteDispatcher(PageRouteHandlersMixin, EndpointRouteHandlersMixin):
                 and hasattr(zos.config, 'zSpark') and zos.config.zSpark
                 else None
             )
-            nav_html = _build_nav_html_safe(resolved, app_brand, self.logger, zos) if resolved else ""
+            # zBrand is the navbar's SSOT ({label, icon, logo, href}); zSpark.title
+            # is only the text fallback. SPA arrivals rebuild nav_html here, so
+            # reading the handler's brand is what keeps a logo from reverting to
+            # bare title text after a client-side navigation.
+            brand_decl = getattr(
+                getattr(zos.navigation, "navbar_handler", None), "brand", None
+            ) or app_brand
+            nav_html = _build_nav_html_safe(resolved, brand_decl, self.logger, zos) if resolved else ""
             return (resolved or None), (nav_html or "")
         except Exception as exc:  # pylint: disable=broad-except
             if self.logger:

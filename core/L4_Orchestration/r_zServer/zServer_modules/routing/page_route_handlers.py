@@ -19,18 +19,39 @@ from .html_injectors import (
 )
 
 
+def _navbar_brand_decl(zos):
+    """The navbar's zBrand declaration ({label, icon, logo, href}) or None.
+
+    NavbarHandler.brand is the SSOT; zSpark.title is only the text fallback the
+    caller applies. Kept separate from ``app_brand`` because the title string
+    still owns page_title / og:site_name / zuiConfig.brand (document.title).
+    """
+    return getattr(
+        getattr(getattr(zos, 'navigation', None), 'navbar_handler', None),
+        'brand', None,
+    )
+
+
 class PageRouteHandlersMixin:
     """Server-rendered HTML page handlers (template/zLoom/zWalker)."""
 
     def _finalize_page(self, html_content, zos, resolved_navbar, app_brand,
-                       page_title, context, zVaFile_meta, extra_config=None):
+                       page_title, context, zVaFile_meta, extra_config=None,
+                       brand_decl=None):
         """Shared server-render tail for template + zWalker (SSOT).
 
         Nav HTML + styles/zCanvas + zui-config, then head/title/watermark inject.
         zWalker passes ``extra_config={"websocket": {...}}``; template passes nothing
         — their ONLY difference. One place to inject, so the paths can't drift.
+
+        ``app_brand`` stays a STRING — it feeds page_title, og:site_name and the
+        zuiConfig "brand" the client turns into document.title. ``brand_decl`` is
+        the navbar-only zBrand declaration (dict {label, icon, logo, href}); it is
+        the only thing the nav HTML builder sees.
         """
-        nav_html = _build_nav_html_safe(resolved_navbar, app_brand, self.logger, zos)
+        nav_html = _build_nav_html_safe(
+            resolved_navbar, brand_decl or app_brand, self.logger, zos
+        )
         _styles_folder = (
             self.handler.mount_manager.mounts.get('/styles/')
             if hasattr(self.handler, 'mount_manager') else None
@@ -213,6 +234,7 @@ class PageRouteHandlersMixin:
             # Get app brand (always from zSpark for navbar consistency)
             zVaFile_meta = context.get("zVaFile_meta", {})
             app_brand = zos.config.zSpark.get("title") if hasattr(zos, 'config') and hasattr(zos.config, 'zSpark') and zos.config.zSpark else None
+            brand_decl = _navbar_brand_decl(zos) or app_brand
             page_ztitle = zVaFile_meta.get("zTitle") if zVaFile_meta else None
             
             # Construct full page title:
@@ -233,7 +255,7 @@ class PageRouteHandlersMixin:
             # The template path carries no websocket block (that's zWalker-only).
             html_content = self._finalize_page(
                 html_content, zos, resolved_navbar, app_brand, page_title,
-                context, zVaFile_meta
+                context, zVaFile_meta, brand_decl=brand_decl
             )
 
             # Send HTML response with cache headers
@@ -539,6 +561,7 @@ class PageRouteHandlersMixin:
             # Get app brand (always from zSpark for navbar consistency)
             zVaFile_meta = context.get("zVaFile_meta", {})
             app_brand = zos.config.zSpark.get("title") if zos and hasattr(zos, 'config') and hasattr(zos.config, 'zSpark') and zos.config.zSpark else None
+            brand_decl = _navbar_brand_decl(zos) or app_brand
             page_ztitle = zVaFile_meta.get("zTitle") if zVaFile_meta else None
             
             # Construct full page title:
@@ -598,6 +621,7 @@ class PageRouteHandlersMixin:
                 # route has no dynamic segment (static routes stay `null`).
                 "routeParams": rparams if isinstance(rparams, dict) and rparams else None,
                 },
+                brand_decl=brand_decl,
             )
 
             # Send HTML response with cache headers. _status_code lets styled
