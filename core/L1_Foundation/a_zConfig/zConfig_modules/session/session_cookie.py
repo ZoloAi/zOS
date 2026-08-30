@@ -30,11 +30,13 @@ import copy
 from http.cookies import SimpleCookie
 from typing import Any, Dict, Optional
 
-# The cookie name + the session slice we persist. Identity only (zAuth) — nav
-# state (zCrumbs/zVars) stays fresh per connection, so a reload never replays a
-# stale trail; only "who you are" survives.
+# The cookie name + the session slices we persist. Identity (zVisitor) plus the
+# app-state vars slice (zVars, zOS#94: an HTTP zAPI GET must see the vars the WS
+# session set — "click a row, request that thing" from a plain link). Nav state
+# (zCrumbs) stays fresh per connection, so a reload never replays a stale trail.
 COOKIE_NAME = "zsid"
 _SLICE_KEY = "zVisitor"  # the signed-in caller identity we persist (was "zAuth"/"zLobby")
+_VARS_KEY = "zVars"      # app session vars (zVar writes) bridged to HTTP reads
 
 # 7 days — mirrors the session_store DEFAULT_SESSION_TTL "persistent" intent.
 _COOKIE_MAX_AGE = 7 * 24 * 60 * 60
@@ -109,6 +111,23 @@ def load_identity(zos: Any, sid: str) -> Optional[Dict[str, Any]]:
     return blob.get(_SLICE_KEY)
 
 
+def _merge_set(store: Any, sid: str, key: str, value: Any) -> None:
+    """Merge ``key: value`` into the stored blob for ``sid`` (get-merge-set).
+
+    The blob under a zsid now carries more than one slice (identity + vars) —
+    a naive ``store.set(sid, {one_slice})`` from either writer would clobber
+    the other, so every writer funnels through this merge.
+    """
+    try:
+        blob = store.get(sid) or {}
+    except Exception:  # pylint: disable=broad-except
+        blob = {}
+    if not isinstance(blob, dict):
+        blob = {}
+    blob[key] = value
+    store.set(sid, blob)
+
+
 def persist_identity(zos: Any, sid: str, session: Dict[str, Any]) -> None:
     """Write-through the current ``zAuth`` slice under ``sid`` (best-effort).
 
@@ -125,9 +144,48 @@ def persist_identity(zos: Any, sid: str, session: Dict[str, Any]) -> None:
     if not isinstance(zauth, dict):
         return
     try:
-        store.set(sid, {_SLICE_KEY: copy.deepcopy(zauth)})
+        _merge_set(store, sid, _SLICE_KEY, copy.deepcopy(zauth))
     except Exception:  # pylint: disable=broad-except
         pass
+
+
+def persist_vars(zos: Any, sid: str, session: Dict[str, Any]) -> None:
+    """Write-through the ``zVars`` slice under ``sid`` (best-effort, zOS#94).
+
+    Called at the zVar write SSOT (dispatch ``_handle_zvar``) so app state set
+    over the WS becomes readable by a plain HTTP request carrying the same
+    cookie. An EMPTY dict is persisted too — a clear must propagate, not leave
+    the stale pre-clear snapshot behind.
+    """
+    if not sid or not isinstance(session, dict):
+        return
+    store = _store(zos)
+    if store is None:
+        return
+    zvars = session.get(_VARS_KEY)
+    if not isinstance(zvars, dict):
+        return
+    try:
+        _merge_set(store, sid, _VARS_KEY, copy.deepcopy(zvars))
+    except Exception:  # pylint: disable=broad-except
+        pass
+
+
+def load_vars(zos: Any, sid: str) -> Optional[Dict[str, Any]]:
+    """Return the stored ``zVars`` blob for ``sid`` (or None if absent/expired)."""
+    if not sid:
+        return None
+    store = _store(zos)
+    if store is None:
+        return None
+    try:
+        blob = store.get(sid)
+    except Exception:  # pylint: disable=broad-except
+        return None
+    if not blob:
+        return None
+    zvars = blob.get(_VARS_KEY)
+    return zvars if isinstance(zvars, dict) else None
 
 
 def clear_identity(zos: Any, sid: str) -> None:
@@ -148,4 +206,19 @@ def restore_into_unit(unit: Dict[str, Any], zauth_blob: Optional[Dict[str, Any]]
     if not isinstance(unit, dict) or not isinstance(zauth_blob, dict):
         return False
     unit[_SLICE_KEY] = copy.deepcopy(zauth_blob)
+    return True
+
+
+def restore_vars_into_unit(unit: Dict[str, Any], zvars_blob: Optional[Dict[str, Any]]) -> bool:
+    """Merge stored ``zVars`` into a per-caller unit (caller's stored vars win).
+
+    Merge — not replace — so boot-default vars seeded from the base session
+    survive when the store only holds a partial set. True if applied.
+    """
+    if not isinstance(unit, dict) or not isinstance(zvars_blob, dict):
+        return False
+    base_vars = unit.get(_VARS_KEY)
+    merged = dict(base_vars) if isinstance(base_vars, dict) else {}
+    merged.update(copy.deepcopy(zvars_blob))
+    unit[_VARS_KEY] = merged
     return True

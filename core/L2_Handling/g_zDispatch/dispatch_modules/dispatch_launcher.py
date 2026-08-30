@@ -757,6 +757,20 @@ class CommandLauncher(RoutingHandlers, WizardDataHandlers):
             zvars[key] = value
             self.logger.framework.debug(f"[zVar] Set zVars[{key!r}] = {value!r}")
 
+        # Cookie-bound state write-through (zOS#94, mirrors the identity seam in
+        # _apply_zvisitor): persist the zVars slice under this caller's durable
+        # zsid so a plain HTTP request (page load, zAPI GET) with the same cookie
+        # reads the vars this WS session just set. No _zsid (zCLI) → no-op.
+        try:
+            zsid = self.zos.session.get("_zsid")
+            if zsid:
+                from zOS.L1_Foundation.a_zConfig.zConfig_modules.session import (  # pylint: disable=import-outside-toplevel
+                    session_cookie as _sc,
+                )
+                _sc.persist_vars(self.zos, zsid, self.zos.session)
+        except Exception:  # pylint: disable=broad-except
+            pass
+
         if navigate_target:
             nav_path = resolve_variables(str(navigate_target), self.zos, context)
             effective_walker = walker or getattr(self.zos, "walker", None)

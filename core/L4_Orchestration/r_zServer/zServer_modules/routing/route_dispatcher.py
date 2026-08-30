@@ -302,6 +302,10 @@ class RouteDispatcher(PageRouteHandlersMixin, EndpointRouteHandlersMixin):
                     unit[key] = _copy.deepcopy(base[key])
             # Rehydrate a prior signed-in identity (if this zsid has one stored).
             _sc.restore_into_unit(unit, _sc.load_identity(zos, zsid))
+            # Rehydrate app-state vars set over the WS (zOS#94): a plain page
+            # load or zAPI GET carrying the same cookie sees the caller's zVars
+            # (merge — stored vars win over boot defaults).
+            _sc.restore_vars_into_unit(unit, _sc.load_vars(zos, zsid))
             unit['_zsid'] = zsid  # write-through key for login (_apply_zsession)
 
             sid = f"http_{_uuid.uuid4().hex}"
