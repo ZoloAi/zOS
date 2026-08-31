@@ -546,13 +546,28 @@ class DialogEvents:
         'pattern', 'min', 'max', 'step', 'minlength', 'maxlength',
     )
 
+    # Attrs whose semantic is boolean: presence-as-True downstream. A resolved
+    # bool arrives as False (or the strings "False"/"false" from a string-first
+    # zolo file) — Python truthiness would read "False" as ON, locking every
+    # row (zOS#92). Coerce here: falsy → the attr is simply absent.
+    _BOOLISH_FIELD_KEYS = ('readonly', 'disabled', 'multiple')
+    _FALSY_ATTR_STRINGS = ('false', '0', 'no', 'off', 'none', 'null', '')
+
     def _build_input_kwargs(self, field_attrs: Dict[str, Any], field_type: str) -> Dict[str, Any]:
         """Build the read_string kwargs for a dialog field from its declared attrs."""
         kwargs: Dict[str, Any] = {'type': field_type}
         for key in self._PASSTHROUGH_FIELD_KEYS:
             value = field_attrs.get(key)
-            if value is not None:
-                kwargs[key] = value
+            if value is None:
+                continue
+            if key in self._BOOLISH_FIELD_KEYS:
+                if value is False or (
+                    isinstance(value, str) and value.strip().lower() in self._FALSY_ATTR_STRINGS
+                ):
+                    continue  # falsy bool → attr absent (the falsy state)
+                kwargs[key] = True
+                continue
+            kwargs[key] = value
         return kwargs
 
     @staticmethod

@@ -389,7 +389,21 @@ def inject_placeholders(
                         replacement = f"'{value}'"  # Text strings, add quotes
                     result = result.replace(f"{_PLACEHOLDER_PREFIX}{_DOT_SEPARATOR}{field}", replacement)
                 else:
+                    # MISSING/None zConv field → substitute EMPTY, never leave the
+                    # literal token in the host string. An optional select left
+                    # unpicked ships no key at all; leaving `zConv.layer` intact
+                    # here silently stored the raw placeholder as row data
+                    # (zOS#60 — caught only in the raw CSV). Same escaping roads
+                    # as real values: json.dumps for '&' plugin hosts, legacy
+                    # single quotes elsewhere.
                     logger.warning(_WARNING_FIELD_NOT_FOUND, field)
+                    if obj.lstrip().startswith(_PLUGIN_SIGIL):
+                        empty_replacement = json.dumps("")
+                    else:
+                        empty_replacement = "''"
+                    result = result.replace(
+                        f"{_PLACEHOLDER_PREFIX}{_DOT_SEPARATOR}{field}", empty_replacement
+                    )
 
             return result
 

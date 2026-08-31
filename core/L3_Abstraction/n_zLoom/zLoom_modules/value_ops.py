@@ -12,6 +12,7 @@ from .token_resolver import (
     deep_nav,
     resolve_token_value as _resolve_token_value,
     resolve_token_string as _resolve_token_string,
+    resolve_whole_token as _resolve_whole_token,
 )
 
 
@@ -37,6 +38,15 @@ class ValueOps:
         SSOT with ``resolve_value`` and WHERE interpolation.
         """
         return _resolve_token_string(value, self.zos, context)
+
+    def resolve_whole_token(self, value: Any, context: Any = None) -> "tuple[bool, Any]":
+        """Whole-value single-token resolution → ``(is_whole, raw)``.
+
+        For STRUCTURAL positions (dialog field props, baked loop rows) where the
+        native type must survive — a list stays a list, False stays falsy. See
+        token_resolver.resolve_whole_token for the display-vs-structure contract.
+        """
+        return _resolve_whole_token(value, self.zos, context)
 
     def _zsession_path(self, dotted: Any) -> Any:
         """Deep-nav the live zSession dict by a dotted path → value or None.

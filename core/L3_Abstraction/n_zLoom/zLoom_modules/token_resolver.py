@@ -185,6 +185,29 @@ def resolve_token_value(expr: Any, zos: Any, context: Any = None) -> Any:
     return _lookup(namespace, field_path, _session(zos), context)
 
 
+def resolve_whole_token(value: Any, zos: Any, context: Any = None) -> "tuple[bool, Any]":
+    """Whole-value token resolution → ``(is_whole, raw)`` — types survive.
+
+    ``is_whole`` is True only when the ENTIRE string is one ``%token`` (an
+    optional trailing zDye chain allowed). ``raw`` is the post-dye value —
+    which may be None on a miss/null. The MISS POLICY is the caller's: display
+    surfaces keep the literal token (debuggable), STRUCTURAL positions — a
+    dialog field's ``options:``/``readonly:``/``default:``, a baked loop row —
+    take the raw value so a list stays a list and False stays falsy (the
+    str()-flattening in resolve_token_string is a DISPLAY contract only; it is
+    what turned ``readonly: %target_locked`` into the truthy string "False"
+    and shipped ``options: %data.names`` as a literal — zOS#92 / zOS#57).
+    """
+    if not isinstance(value, str):
+        return False, None
+    match = _DYE_PATTERN.fullmatch(value.strip())
+    if not match:
+        return False, None
+    raw = _lookup(match.group(1), match.group(2), _session(zos), context)
+    raw = apply_dyes(raw, match.group(3))
+    return True, raw
+
+
 def resolve_token_string(value: Any, zos: Any, context: Any = None) -> str:
     """Interpolate every ``%token`` inside a render string → resolved string.
 

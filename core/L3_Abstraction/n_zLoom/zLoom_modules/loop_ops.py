@@ -242,9 +242,20 @@ class LoopOps:
         op/condition keys survive) — the per-row ``expand_knots`` pass in
         ``_expand_zlist_into`` collapses it to a scalar while the frame is still live."""
         from zOS.L2_Handling.d_zParser.parser_modules.parser_functions import resolve_variables
+        from .token_resolver import resolve_whole_token
 
         if isinstance(node, str):
-            return resolve_variables(node, self.zos, context) if "%" in node else node
+            if "%" not in node:
+                return node
+            # A WHOLE-value token bakes to its RAW value so the native type
+            # survives the row copy: `readonly: %item.locked` stays a real bool
+            # (not the truthy string "False" — zOS#92), `options: %item.tags`
+            # stays a list (zOS#57). A miss (None) falls through to the display
+            # path below, which keeps the literal token — visible and debuggable.
+            is_whole, raw = resolve_whole_token(node, self.zos, context)
+            if is_whole and raw is not None and not isinstance(raw, str):
+                return raw
+            return resolve_variables(node, self.zos, context)
         if isinstance(node, dict):
             return {k: self._resolve_item_tokens(v, context) for k, v in node.items()}
         if isinstance(node, list):

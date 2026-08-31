@@ -534,14 +534,34 @@ class zPrimitives:
 
         from .inputs.field_rules import html_attrs  # SSOT for field rules
 
+        # Boolean-semantic attrs: JS truthiness reads the string "False" as ON
+        # (same trap as Python — zOS#92), so falsy values must not ship at all;
+        # truthy strings normalize to a real true.
+        boolish_keys = ('readonly', 'disabled', 'multiple', 'required')
+        falsy_strings = ('false', '0', 'no', 'off', 'none', 'null', '')
+
         enriched = []
         changed = False
         for field in fields:
             attrs = html_attrs(field)
+            base = dict(field) if isinstance(field, dict) else None
+            if base is not None:
+                for key in boolish_keys:
+                    value = base.get(key)
+                    if value is None or value is True:
+                        continue
+                    if value is False or (
+                        isinstance(value, str) and value.strip().lower() in falsy_strings
+                    ):
+                        base.pop(key)
+                    else:
+                        base[key] = True
+                    changed = True
             if not attrs:
-                enriched.append(field)
+                enriched.append(base if base is not None else field)
                 continue
-            base = dict(field) if isinstance(field, dict) else {'zConv': str(field)}
+            if base is None:
+                base = {'zConv': str(field)}
             for key, value in attrs.items():
                 if key not in base:
                     base[key] = value

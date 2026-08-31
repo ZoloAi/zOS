@@ -431,6 +431,12 @@ class zDialog:
         # Enrich fields with enum metadata (for zSelect rendering)
         fields = self._enrich_fields_with_enum(fields, _schema_path or model, table)
 
+        # Resolve whole-value %tokens in field PROPERTIES to native values —
+        # options: %data.names must reach the client as a real list (zOS#57),
+        # default: %col over a NULL column must render an empty box, never the
+        # literal token (zOS#88), and a bool-driven attr must stay a real bool.
+        fields = self._resolve_field_tokens(fields)
+
         # Create dialog context
         zContext = create_dialog_context(model, fields, self.logger)
 
@@ -694,6 +700,52 @@ class zDialog:
             if raw in (value, value[:1], label.lower()):
                 return value
         return _CONTROL_SUBMIT
+
+    # Field props whose ABSENCE is the falsy state in both renderers (a missing
+    # HTML attribute / kwarg) — a %token that resolves to nothing drops the key
+    # rather than shipping a literal token the renderer would treat as truthy.
+    _FIELD_BOOLISH_KEYS = ('required', 'readonly', 'disabled', 'multiple', 'multi')
+
+    def _resolve_field_tokens(self, fields: list) -> list:
+        """Resolve whole-value ``%tokens`` in field properties to NATIVE values.
+
+        The render-string pass (resolve_token_string) is a DISPLAY contract: it
+        str()-flattens scalars and leaves None/containers as the literal token.
+        Field properties are STRUCTURE, not prose — ``options:`` must stay a
+        list, ``readonly:`` a real bool, and an unresolvable ``default:`` must
+        become an empty box (zOS#57 / #92 / #88). Whole-token misses:
+        ``default`` → '' , ``options`` → [] , bool-ish attrs → key dropped;
+        anything else keeps its literal token (visible and debuggable).
+        """
+        zloom = getattr(self.zcli, 'zloom', None)
+        if zloom is None or not hasattr(zloom, 'resolve_whole_token'):
+            return fields
+        resolved_fields = []
+        for field in fields:
+            if not isinstance(field, dict):
+                resolved_fields.append(field)
+                continue
+            out = dict(field)
+            for key, value in field.items():
+                if not (isinstance(value, str) and "%" in value):
+                    continue
+                try:
+                    is_whole, raw = zloom.resolve_whole_token(value)
+                except Exception as exc:  # pylint: disable=broad-except
+                    self.logger.warning("[zDialog] field token '%s' failed: %s", value, exc)
+                    continue
+                if not is_whole:
+                    continue
+                if raw is not None:
+                    out[key] = raw
+                elif key == 'default':
+                    out[key] = ''
+                elif key == 'options':
+                    out[key] = []
+                elif key in self._FIELD_BOOLISH_KEYS:
+                    out.pop(key, None)
+            resolved_fields.append(out)
+        return resolved_fields
 
     def _enrich_fields_with_enum(
         self,
