@@ -49,6 +49,7 @@ from . import requirements_args
 from . import agents_args
 from . import login_args
 from . import push_args
+from . import pull_args
 from . import patch_args
 from . import uninstall_args
 from . import ztests_args
@@ -109,6 +110,7 @@ def create_parser(version: str) -> argparse.ArgumentParser:
     agents_args.add_subparser(subparsers)
     login_args.add_subparser(subparsers)
     push_args.add_subparser(subparsers)
+    pull_args.add_subparser(subparsers)
     # — maintenance / questionable / deprecated —
     patch_args.add_subparser(subparsers)
     uninstall_args.add_subparser(subparsers)

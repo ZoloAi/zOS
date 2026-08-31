@@ -102,6 +102,25 @@ class BundleStore(abc.ABC):
         """
         return []
 
+    def list_app_files(self, slug: str, build_id: Optional[Any] = None,  # pylint: disable=unused-argument
+                       prefix: str = "") -> list:
+        """Relative app-file paths of a stored build, optionally under ``prefix``.
+
+        Powers the push-time data-loss guard (zOS#63): the receiver diffs the
+        live build's ``Data/`` against the incoming bundle before replacing it.
+        Default empty for stores that can't enumerate (the guard then simply
+        doesn't fire); overridden where builds live on a filesystem.
+        """
+        return []
+
+    def remove_build(self, slug: str, build_id: Any) -> bool:  # pylint: disable=unused-argument
+        """Delete ONE build's stored tree (zOS#107 owner-facing build purge).
+
+        Returns True if bytes were actually removed. Default False for stores
+        without a versioned layout; overridden by :class:`LocalBundleStore`.
+        """
+        return False
+
 
 def _safe_join(base: Path, member_name: str) -> Optional[Path]:
     """Resolve ``member_name`` under ``base``, refusing traversal/absolute paths."""
@@ -213,6 +232,36 @@ class LocalBundleStore(BundleStore):
             shutil.rmtree(dest)
             return True
         return False
+
+    def list_app_files(self, slug: str, build_id: Optional[Any] = None,
+                       prefix: str = "") -> list:
+        """Relative paths of a build's app files (posix), filtered by ``prefix``."""
+        root = self._dest(slug, build_id)
+        if not root.is_dir():
+            return []
+        out = []
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            rel = path.relative_to(root).as_posix()
+            # _attachments/ is the dormant slice, not the app tree.
+            if rel.startswith("_attachments/"):
+                continue
+            if prefix and not rel.startswith(prefix):
+                continue
+            out.append(rel)
+        return sorted(out)
+
+    def remove_build(self, slug: str, build_id: Any) -> bool:
+        """Delete one build's dir (builds/<id>/) — sibling builds untouched."""
+        if build_id is None:
+            return False
+        dest = self._dest(slug, build_id)
+        # Only ever remove a per-version dir, never the flat/whole-slug tree.
+        if dest == self._base / slug or not dest.is_dir():
+            return False
+        shutil.rmtree(dest)
+        return True
 
     def prune(self, slug: str, keep_build_ids) -> list:
         """Drop build dirs not in ``keep_build_ids`` (e.g. keep live + previous)."""

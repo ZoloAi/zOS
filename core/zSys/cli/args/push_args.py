@@ -44,6 +44,14 @@ def add_subparser(subparsers) -> argparse.ArgumentParser:
         help="PAT to authenticate with (default: the persisted `zolo login` identity)",
     )
     parser.add_argument(
+        "--replace-data",
+        action="store_true",
+        dest="replace_data",
+        help="Confirm a push that removes Data/ files present in the live hosted "
+             "build (every push is a full replace; `ignore` does NOT preserve "
+             "hosted files — without this flag such a push is refused)",
+    )
+    parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="List every shipped file and show bootstrap output",
