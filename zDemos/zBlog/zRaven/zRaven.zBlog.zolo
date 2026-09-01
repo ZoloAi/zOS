@@ -434,12 +434,48 @@ Tests:
             full_page: true
 
     Fill_Register_Form:
+        #> Register lives in its OWN (non-spark) zVaFile, so the green signal
+        #  here is the standing guard for zOS#20: a walk-rendered form outside
+        #  the spark file must submit, not answer "This form has expired" <#
         zFill:
             name:     Charlie
             email:    charlie@zblog.io
             password: charlie123
+        zWait:
+            selector: .zSignal-success
+            state: visible
+            timeout: 8000
         zShot:
             full_page: true
+
+    Open_Register_Cold:
+        #> the OTHER half of the same guard: reach that non-spark form by a
+        #  COLD full-page load of its own auto-discovered route (no SPA hop,
+        #  no modal dispatch) and submit there too <#
+        zOpen: @.zViews.zUI.Register.Register
+        zWait:
+            selector: "[name='name']"
+            state: visible
+            timeout: 8000
+
+    Fill_Register_Cold:
+        zFill:
+            name:     Dana
+            email:    dana@zblog.io
+            password: dana12345
+        zWait:
+            selector: .zSignal-success
+            state: visible
+            timeout: 8000
+        zShot:
+            full_page: true
+
+    Open_Register_Again_For_SignIn:
+        zOpen: @.zViews.zUI.Register.Register
+        zWait:
+            selector: "[data-zkey='SignInLink'] button"
+            state: visible
+            timeout: 8000
 
     Click_Sign_In_From_Register:
         zClick:

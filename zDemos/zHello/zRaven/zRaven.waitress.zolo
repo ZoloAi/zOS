@@ -1,0 +1,104 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# zRavenVersion: v1.0.0
+# The baseline's WAITRESS leg (zOS#5) — pairs with _zSpark.waitress.zolo.
+# Source: zUI.zhello.zolo (same app the `dev`-runner zhello suite covers)
+#
+# Two things this leg proves that no other baseline suite can:
+#   1. the production TRANSPORT renders and stays interactive at all — the
+#      WSGI bridge answers the same pipeline the dev runner does;
+#   2. the two request shapes that only exist on the bridge — a HEAD probe
+#      (the 1.6.15 HEAD-500 bug) and a proxy's X-Forwarded-Proto hop
+#      (1.6.16) — behave, since prod always sits behind TLS termination.
+
+Tests:
+
+    # ── Same app, production transport ───────────────────────────────────
+    Open_App:
+        zOpen: zSpark
+        zWait:
+            selector: h1
+            state: visible
+            timeout: 12000
+
+    Assert_Page_Rendered:
+        zAssert:
+            dom:
+                selector: h1
+                count: 1
+
+    # ── Still interactive through the bridge (WS + dispatch, not just HTML)
+    Pick_Say_Hello:
+        zPick: Say_Hello
+        zWait:
+            selector: .zModal-close
+            state: visible
+
+    Assert_Hello:
+        zAssert:
+            dom:
+                selector: .zModal-content h2
+                contains: Hello, Zolo!
+
+    Close_Hello_Modal:
+        zClick:
+            selector: .zModal-close
+
+    # ── HEAD: GET's shadow (RFC 7231) ────────────────────────────────────
+    #> The exact 1.6.15 bug. The dev runner answered HEAD; the WSGI bridge
+    #  500'd, and no baseline leg ever sent one — so it hid for weeks. A
+    #  HEAD is what uptime monitors, link checkers and crawlers send first. <#
+    Head_Homepage:
+        zFetch:
+            url:    /
+            method: HEAD
+
+    Assert_Head_Not_500:
+        zAssert:
+            api:
+                status_not: 500
+
+    Assert_Head_Ok:
+        zAssert:
+            api:
+                status: 200
+
+    # ── X-Forwarded-Proto: the TLS-termination hop (1.6.16) ──────────────
+    #> Production is always behind a proxy terminating TLS, so every real
+    #  request arrives with this header and http on the wire. The bridge
+    #  re-surfaces the resolved scheme for the shared pipeline; a request
+    #  carrying it must be served normally, not rejected or mis-redirected. <#
+    Get_Homepage_Forwarded_Https:
+        zFetch:
+            url:    /
+            method: GET
+            headers:
+                X-Forwarded-Proto: https
+
+    Assert_Forwarded_Https_Served:
+        zAssert:
+            api:
+                status: 200
+
+    Head_Forwarded_Https:
+        zFetch:
+            url:    /
+            method: HEAD
+            headers:
+                X-Forwarded-Proto: https
+
+    Assert_Forwarded_Head_Ok:
+        zAssert:
+            api:
+                status: 200
+
+    # ── Shippable bar under the production runner ────────────────────────
+    Shot_desktop:
+        zViewport: desktop
+        zOpen: zSpark
+        zWait:
+            selector: h1
+            state: visible
+        zShot: {}
+
+    Done:
+        zMarker: done

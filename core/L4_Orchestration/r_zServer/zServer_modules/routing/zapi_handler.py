@@ -81,6 +81,7 @@ def handle(handler, route: dict, zos) -> None:
 
     # --- Execute inner handler (by kind) → ZResult --------------------------
     kind = route.get("kind", "zData")
+    vars_before = _snapshot_session_vars(zos)
     try:
         if kind == "zData":
             zres = _execute_zdata(route, params, zos)
@@ -95,6 +96,13 @@ def handle(handler, route: dict, zos) -> None:
         zos.logger.error(f"[zAPI] {kind} execution failed: {exc}", exc_info=True)
         _send_json(handler, 500, {"error": "Internal server error"})
         return
+
+    # Write-through zVars the handler mutated (zOS#21). The request unit
+    # RESTORED stored zVars at entry (zOS#94), and the WS path persists at the
+    # zVar-write SSOT — but a plugin writing session['zVars'] directly over
+    # zAPI had no persist site, so state died with the request and the next
+    # call saw none of it (arm → guess flows broke). Persist only on change.
+    _persist_session_vars(zos, vars_before)
 
     # --- Serialise ----------------------------------------------------------
     # A handler may return a RAW binary body (ZResult.binary) — a file, an image,
@@ -112,6 +120,44 @@ def handle(handler, route: dict, zos) -> None:
 
     zos.logger.info(f"[zAPI] {method} {handler.path} → {status_out}  (kind={kind})")
     _send_json(handler, status_out, payload, cors=True)
+
+
+# ---------------------------------------------------------------------------
+# Session write-through (zOS#21)
+# ---------------------------------------------------------------------------
+
+def _snapshot_session_vars(zos):
+    """Deep-copy the request unit's ``zVars`` slice (None when absent)."""
+    session = getattr(zos, "session", None)
+    if not isinstance(session, dict):
+        return None
+    zvars = session.get("zVars")
+    return copy.deepcopy(zvars) if isinstance(zvars, dict) else None
+
+
+def _persist_session_vars(zos, vars_before) -> None:
+    """Persist ``session['zVars']`` under the caller's zsid iff the handler changed it.
+
+    Best-effort and change-gated: an anonymous read-only hit writes nothing to
+    the store; a mutation (including a clear to ``{}``) propagates so the next
+    request carrying the same cookie restores it at entry.
+    """
+    try:
+        session = getattr(zos, "session", None)
+        if not isinstance(session, dict):
+            return
+        zsid = session.get("_zsid")
+        if not zsid:
+            return
+        zvars = session.get("zVars")
+        if not isinstance(zvars, dict) or zvars == vars_before:
+            return
+        from zOS.L1_Foundation.a_zConfig.zConfig_modules.session import (  # pylint: disable=import-outside-toplevel
+            session_cookie as _sc,
+        )
+        _sc.persist_vars(zos, zsid, session)
+    except Exception:  # pylint: disable=broad-except
+        pass
 
 
 # ---------------------------------------------------------------------------

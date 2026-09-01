@@ -1,0 +1,22 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+# The BASELINE'S WAITRESS LEG (zOS#5). Every other suite in the baseline boots
+# the `dev` runner, so the production transport — waitress through the WSGI
+# bridge — was never exercised by the gate. The HEAD-500 bug (fixed 1.6.15)
+# lived in exactly that blind spot for weeks: the dev runner answered HEAD
+# fine, the bridge did not, and nothing looked.
+#
+# Same app, same pipeline, different TRANSPORT: `zServer.type` is the
+# top-precedence runner override (zSpark beats ZSERVER_TYPE beats the dev
+# default), so this file needs nothing else to pin waitress.
+
+zSpark:
+    title:     Hello World
+    zMode:     zBifrost
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zhello
+    zBlock:    zVaF
+    zServer:
+        enabled: true
+        type:    waitress

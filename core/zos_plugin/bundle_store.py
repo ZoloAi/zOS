@@ -121,6 +121,16 @@ class BundleStore(abc.ABC):
         """
         return False
 
+    @property
+    def root(self) -> Optional[Path]:
+        """The root a ``StoredBundle.rel_root`` is relative to, if on a filesystem.
+
+        The reader's half of the zOS#3 contract: whoever needs to LOCATE a build
+        asks the store instead of re-deriving a root, so a declared root moves
+        both ends at once. None for stores with no local filesystem (e.g. S3).
+        """
+        return None
+
 
 def _safe_join(base: Path, member_name: str) -> Optional[Path]:
     """Resolve ``member_name`` under ``base``, refusing traversal/absolute paths."""
@@ -143,6 +153,11 @@ class LocalBundleStore(BundleStore):
     def __init__(self, workspace_dir: str):
         self._workspace = Path(workspace_dir).resolve()
         self._base = self._workspace / HOSTED_DIRNAME
+
+    @property
+    def root(self) -> Path:
+        """Root that ``rel_root`` paths (and registry ``zspark_path``) resolve against."""
+        return self._workspace
 
     def _dest(self, slug: str, build_id: Optional[Any] = None) -> Path:
         if build_id is None:
@@ -293,14 +308,61 @@ def register_bundle_store(name: str, factory: Callable[[str], BundleStore]) -> N
     _STORES[name] = factory
 
 
-def get_bundle_store(zos: Any = None, workspace_dir: Optional[str] = None) -> BundleStore:
-    """Resolve the active store: ``ZHOST_STORE`` env → 'local', rooted at the workspace.
+def _declared_hosted_root(zos: Any) -> Optional[str]:
+    """The host's DECLARED root for the hosted app tree, or None.
 
-    Workspace resolution: explicit arg → ``zos.workspace_dir`` → cwd. Unlike the
-    compute driver these are not cached as singletons — a store is cheap and the
-    workspace is stable per host process.
+    Read from ``ZHOST_HOSTED_ROOT`` (env) or ``HOSTED_ROOT`` (zEnv, resolved
+    through zConfig's own cascade). Deliberately NOT ``STORAGE_LOCAL_ROOT``:
+    that key is the object/media bucket a running app writes uploads into, a
+    different lifetime and a different thing to back up — pointing app bundles
+    at it would relocate a live hosted tree out from under every registry
+    ``zspark_path`` already recorded against the workspace.
+
+    Only an ABSOLUTE path is honoured, so a relative media-style value can
+    never be mistaken for a host-wide root.
+    """
+    raw = os.environ.get("ZHOST_HOSTED_ROOT")
+    if not raw:
+        try:
+            env = getattr(getattr(zos, "config", None), "environment", None)
+            if env is not None:
+                raw = env.get("hosted_root") or env.get_env_var("HOSTED_ROOT")
+        except Exception:  # pylint: disable=broad-except
+            raw = None
+    if not raw or not isinstance(raw, str):
+        return None
+    candidate = Path(raw).expanduser()
+    return str(candidate) if candidate.is_absolute() else None
+
+
+def resolve_hosted_root(zos: Any = None, workspace_dir: Optional[str] = None) -> Path:
+    """The single answer to "where does this host keep pushed apps?" (zOS#3).
+
+    Priority: explicit arg → declared root (``ZHOST_HOSTED_ROOT`` / ``HOSTED_ROOT``)
+    → ``zos.workspace_dir`` → cwd.
+
+    cwd is last because it is not a location an operator chose — a receiver
+    launched from an app folder grew its own ``_hosted/`` right there, so the
+    same push could land under two different roots depending only on how the
+    process happened to start. Callers that need to LOCATE a build (e.g. a
+    registry ``zspark_path``) must resolve through here rather than re-deriving
+    a root of their own, so the writer and the reader cannot drift apart.
+    """
+    root = (
+        workspace_dir
+        or _declared_hosted_root(zos)
+        or getattr(zos, "workspace_dir", None)
+        or os.getcwd()
+    )
+    return Path(str(root)).expanduser().resolve()
+
+
+def get_bundle_store(zos: Any = None, workspace_dir: Optional[str] = None) -> BundleStore:
+    """Resolve the active store: ``ZHOST_STORE`` env → 'local', rooted per :func:`resolve_hosted_root`.
+
+    Unlike the compute driver these are not cached as singletons — a store is
+    cheap and the root is stable per host process.
     """
     name = os.environ.get("ZHOST_STORE") or "local"
-    root = workspace_dir or getattr(zos, "workspace_dir", None) or os.getcwd()
     factory = _STORES.get(name) or _STORES["local"]
-    return factory(str(root))
+    return factory(str(resolve_hosted_root(zos, workspace_dir)))
