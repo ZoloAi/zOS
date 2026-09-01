@@ -203,6 +203,33 @@ def select(
     return rows
 
 
+def _dtype_safe_assignment(df: pd.DataFrame, field: str, value: Any) -> Any:
+    """Make a cell assignment dtype-safe instead of letting pandas raise (zOS#59).
+
+    A digits-only string submitted from a form can arrive here as ``int`` (the
+    token-injection round trip drops the quotes on numeric-looking text), and
+    pandas' string dtype (``string`` extension / the ``str`` default that
+    ``read_csv`` infers from pandas 3) REJECTS non-string scalars at ``.loc``
+    assignment — the field-reported ``TypeError: Invalid value '182' for dtype
+    'str'``. Symmetric guards, schema-true storage:
+
+      - non-string scalar → string-dtype column: store ``str(value)`` (a str
+        column holds the string form; the CSV round-trip is identical)
+      - string value → non-object (numeric/bool) column: relax the column to
+        ``object`` first (pre-existing behavior, unchanged)
+
+    Returns the (possibly coerced) value; may relax the column dtype in place.
+    """
+    dtype = df[field].dtype
+    if isinstance(value, str):
+        if dtype != object:
+            df[field] = df[field].astype(object)
+        return value
+    if value is not None and isinstance(dtype, pd.StringDtype):
+        return str(value)
+    return value
+
+
 def update(
     table: str,
     fields: List[str],
@@ -238,8 +265,7 @@ def update(
 
     for field, value in zip(fields, values):
         if field in df.columns:
-            if isinstance(value, str) and df[field].dtype != object:
-                df[field] = df[field].astype(object)
+            value = _dtype_safe_assignment(df, field, value)
             df.loc[mask, field] = value
 
     rows_affected = mask.sum()
@@ -388,6 +414,7 @@ def upsert(
         if mask.any():
             for field, value in zip(fields, values):
                 if field in df.columns:
+                    value = _dtype_safe_assignment(df, field, value)
                     df.loc[mask, field] = value
             if logger:
                 logger.info("Updated existing row in CSV table %s", table)

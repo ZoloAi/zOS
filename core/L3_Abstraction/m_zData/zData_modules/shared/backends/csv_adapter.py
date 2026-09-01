@@ -310,7 +310,20 @@ class CSVAdapter(BaseDataAdapter):
             return self.tables[table_name]
 
         csv_file = file_ops.get_csv_path(self.base_path, table_name)
-        df = file_ops.load_table_from_csv(csv_file, logger=self.logger)
+        try:
+            df = file_ops.load_table_from_csv(csv_file, logger=self.logger)
+        except FileNotFoundError:
+            # zOS#58 — auto-provision a schema-registered table on first touch,
+            # matching the declarative path's ensure_tables behavior (which
+            # creates missing tables even before a read). The plugin door
+            # (DataFacade.insert) previously crashed here while the identical
+            # zData insert provisioned. A table with NO registered schema still
+            # fails loud — nothing to provision from, likely a typo.
+            if table_name not in self.schemas:
+                raise
+            self.create_table(table_name, self.schemas[table_name])
+            self._log('info', "Auto-provisioned missing CSV table '%s' from schema", table_name)
+            df = file_ops.load_table_from_csv(csv_file, logger=self.logger)
 
         # Coerce nullable int columns to Int64 so they round-trip as "2", not the
         # float64 "2.0" pandas infers when NaN is present. Int-only on purpose —
