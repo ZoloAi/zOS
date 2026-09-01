@@ -90,7 +90,14 @@ class WaitressManager:
         try:
             self._server.run()
         except Exception as e:  # pylint: disable=broad-except
-            self.logger.error(f"[zServer] waitress error: {e}")
+            # stop() flips _running to False BEFORE close(), and close() racing
+            # the accept loop surfaces here as EBADF/closed-socket — expected
+            # teardown noise, not an operator-facing error (zOS#115). A genuine
+            # mid-run crash still lands in the ERROR branch.
+            if not self._running:
+                self.logger.debug(f"[zServer] waitress closed during shutdown (expected): {e}")
+            else:
+                self.logger.error(f"[zServer] waitress error: {e}")
         finally:
             self._running = False
 
