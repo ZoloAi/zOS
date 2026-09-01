@@ -28,6 +28,10 @@ zselect: one choice in three shapes
         multi: true        — pick more than one; hands back a LIST
     inline_flags: tag an option right in the list, no extra keys
         [default] pre-selects it | [disabled] greys it out, out of reach — options: [Free, Pro [default], Enterprise [disabled]]
+    live_options: the list can come from DATA, not just a literal — `options: %data.<name>` / `%<var>`
+        a WHOLE-value token resolves to the real list before the control ships (declare the read on
+        the block's zMeta.zSpool → 17_dynamic_content); a source that resolves to NOTHING renders an
+        EMPTY select
     terminal: every shape reads the same — a numbered menu (multi just lets you pick more than one)
     rule: dropdown vs radio is purely a Bifrost look; the answer is the same either way
 
