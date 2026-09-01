@@ -55,6 +55,10 @@ def handle_zspark_command(
         if requirements_exit != 0:
             return requirements_exit
 
+        strict_exit = _run_strict_lint(zspark_config, zspark_file)
+        if strict_exit != 0:
+            return strict_exit
+
         zcli.run()
         return 0
 
@@ -90,6 +94,9 @@ def run_spark_with_config(
         requirements_exit = _run_requirements_check(zspark_config, zspark_file)
         if requirements_exit != 0:
             return requirements_exit
+        strict_exit = _run_strict_lint(zspark_config, zspark_file)
+        if strict_exit != 0:
+            return strict_exit
         zcli.run()
         return 0
     except SystemExit as e:
@@ -298,6 +305,79 @@ def _print_requirements_refusal(zspark_file: Any, missing: list) -> None:
         "",
         "   (zRaven boots through this same gate — tests won't run with",
         "    missing deps either. Install first.)",
+        bar,
+        "",
+    ]
+    print("\n".join(lines))
+
+
+_FALSY_STRICT = frozenset({"false", "no", "off", "0"})
+
+
+def _run_strict_lint(zspark_config: dict, zspark_file: Any) -> int:
+    """
+    Static fault gate — strict is the DEFAULT (zOS#84).
+
+    Behaviour (identical shape to _run_schema_migrations / _run_requirements_check):
+      - Every authored .zolo file in the app is statically checked at boot
+        (parse/comment anomalies, duplicate siblings, undeclared reels/patterns,
+        %tokens in _zClass, unknown onSuccess verbs — see lint_core).
+      - Faults refuse the launch with exact positions. Silence was the dominant
+        cost in every field report; strict makes it loud before anything runs.
+      - Opt-out is explicit and per-app: `strict: false` in zSpark downgrades
+        the refusal to a printed warning list (the app still boots).
+      - zRaven boots through this same gate, so tests inherit the refusal.
+      - `z lint` runs the identical checks standalone, without booting.
+    """
+    from .lint_core import lint_app  # pylint: disable=import-outside-toplevel
+
+    try:
+        faults = lint_app(zspark_file.parent)
+    except Exception as exc:  # pylint: disable=broad-except
+        # Fail OPEN on the linter's own internal errors — the guard must never
+        # be the outage. App faults still fail closed above.
+        print(f"\n⚠️  strict lint skipped (internal error: {exc}) — booting\n")
+        return 0
+    if not faults:
+        return 0
+
+    strict = zspark_config.get("strict", True)
+    if isinstance(strict, str):
+        strict = strict.strip().lower() not in _FALSY_STRICT
+
+    if not strict:
+        print(f"\n⚠️  strict: false — booting despite {len(faults)} static fault(s):")
+        for fault in faults:
+            print(f"     • {fault.render()}")
+        print()
+        return 0
+
+    _print_strict_refusal(zspark_file, faults)
+    return 1
+
+
+def _print_strict_refusal(zspark_file: Any, faults: list) -> None:
+    """Graceful, actionable refusal — zOS will not launch on static faults."""
+    bar = "═" * 64
+    lines = [
+        "",
+        bar,
+        "⛔  zOS refused to launch — static faults detected (strict mode)",
+        bar,
+        "   These faults are visible without running anything — booting over",
+        "   them means silent misbehavior later:",
+        "",
+    ]
+    for fault in faults:
+        lines.append(f"     • {fault.render()}")
+    lines += [
+        "",
+        "   Fix the faults (or inspect them standalone with `z lint`), then",
+        "   relaunch. To boot anyway while migrating an older app, declare",
+        "   `strict: false` in this zSpark — explicit, per-app, and visible.",
+        "",
+        "   (zRaven boots through this same gate — tests won't run on a",
+        "    faulty tree either.)",
         bar,
         "",
     ]

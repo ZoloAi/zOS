@@ -20,6 +20,17 @@ env: optional, sensible defaults
     zLog:      INFO            — DEBUG | INFO | WARNING | ERROR; z-prefix (zINFO…) adds engine trace
     zLogPath:  @.logs          — zPath
 
+strict: boot-time static fault gate — ON by default (no key needed)
+    checks   — every authored .zolo statically, before anything runs: parse/comment anomalies
+               (unterminated `#>`, duplicate NAMED sibling blocks — repeated shorthand zEvents like
+               zText/zH2 are supported grammar and never fault), zShuttle reels/patterns that don't
+               exist, %tokens in `_zClass:` that can never resolve there (only loop-baked %item.*
+               resolves in class position), `onSuccess:` verbs outside the dispatch set
+    refuses  — faults print with file:line and the app does NOT boot (zRaven inherits the same gate)
+    opt_out  — `strict: false` in zSpark downgrades the refusal to a printed warning list (boots anyway);
+               explicit, per-app, for migrating older apps — fix the faults, then drop the key
+    standalone — `z lint <app dir | zSpark file>` runs the identical checks without booting
+
 zRequirements: declared INSIDE zEnv.base.zolo (!zSpark key) — app-specific Python deps for plugins
     zRequirements: [Pillow>=10.0, requests]  — flat pip-spec list, same grammar as any zEnv value
     gate     — identical shape to zMigration: boot NEVER installs, only verifies; refuses to launch + prints the fix if anything's missing (zRaven inherits the same refusal)

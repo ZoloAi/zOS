@@ -16,6 +16,9 @@ manifest: `zProject.<name>.zolo` — the distribution manifest, sibling of the s
         cover rides the multipart BESIDE the bundle (a served blob, never app code) — list it in `ignore` so it stays out of the app/ slice
     ignore:     [logs/*, zRaven/output/*, "*.db-journal"] — what never ships; shell wildcards, matched on the full relative path AND each segment (a bare `__pycache__` prunes at any depth)
         always_pruned — `.git` · `__pycache__` · `*.pyc` · `.DS_Store` ship NEVER, no matter what
+        guarded — `#>`/`<#` comment markers in the manifest MUST pair; an unterminated `#>`, an orphan
+            `<#`, or a comment marker inside an ignore entry FAILS the push (fail-closed) — zLSP
+            underlines an unclosed `#>` as you type
     include:    [docs/spec.pdf]     — dormant extras packed as attachments/ alongside the app — stored, never executed; a missing path FAILS the bundle
     rule — required = slug + spark; everything else defaults sensibly or is card dressing
 
@@ -33,12 +36,26 @@ login: `zolo login` — sign the MACHINE in, once (git-/gh-style; no app/instanc
 push: `zolo push` — the verb; bundle the slice, upload, come up hosted
     resolve  — bare `zolo push` finds the lone manifest in cwd · `zolo push <name>` picks by manifest name · a folder arg resolves the manifest inside it
     identity — authenticated by the machine's persisted PAT (`zolo login`); `--token <PAT>` overrides for one push; not signed in → clean FAIL naming the fix
+        auth_first — auth is checked FIRST: a stale/rotated PAT 401s naming the re-mint path, and any
+            username/slug/data findings surface only once the token is valid
     flags    — `--dry-run` full file plan, nothing uploads (ALWAYS run it before a first ship) · `--slug <s>` one-push slug override · `--url <base>` target zCloud (default https://zolo.media; `ZOLO_ZCLOUD_URL` env too) · `-v` every shipped file
+    data_guard — a push that would DELETE Data/ files present in the live build is REFUSED (409 names
+        the exact files); `--replace-data` is the explicit consent when the wipe IS intended
     builds   — each push is a NEW build; the previous is kept server-side, so a bad ship rolls back instead of ruining your day
+        retained builds keep their files until purged — the owner's MyApps push history purges a
+        superseded/failed build's files on demand
     server   — zCloud upserts the zApps row bound to your account (owner_id), unpacks the slice, wakes `spark` via the hosting control plane (wake/sleep/status → 22_hosting)
     rule     — the manifest is written ONCE; from then on shipping is one word
+
+pull: `zolo pull --slug <slug>` — the verb home: clone YOUR hosted app back to any machine
+    dest     — `--dest <dir>` picks the folder (default ./<slug>); it must be EMPTY or new — pull never merges into existing work
+    data     — WITHOUT Data/ by default (live data stays safely on the server); `--with-data` snapshots it explicitly, with a loud warning that it's a copy, not a sync
+    receipt  — writes the linked `.zpush` receipt into the clone, so it is push-ready as the SAME app (app id survives renames); pull-then-push is the round trip
+    identity — the same machine PAT as push; `--url <base>` targets another zCloud
+    rule     — dev verb for the CLI crowd; the dashboard's Download stays the average-joe door
 
 seek_as_need: !authoring a manifest — only if extending the pipeline
     resolver+bundle — zguard/push/project_resolver.py (manifest contract, required keys) · bundle.py (_DEFAULT_IGNORE, segment matching, attachments/)
     upload    — zguard/push/command.py (PAT resolve → multipart Bearer POST); server side — zCloud plugins/zpush.py (upsert + seed semantics)
-    cli seam  — core/zSys/cli/push_command.py (public shim; no zguard → "run z patch") + args/push_args.py
+    pull seam — zguard/pull/command.py (ZIP download + traversal-safe extract + receipt); server side — zCloud plugins/zpull.py (GET /api/apps/pull)
+    cli seam  — core/zSys/cli/push_command.py (public shim; no zguard → "run z patch") + args/push_args.py · pull_command.py + args/pull_args.py

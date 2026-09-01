@@ -112,6 +112,14 @@ def _handle_visitors_command(logger, args, verbose):
     return handle_visitors_command(logger, args, verbose=verbose)
 
 
+def _handle_lint_command(args, verbose):
+    from zSys.cli.lint_command import handle_lint_command  # pylint: disable=import-outside-toplevel
+    return handle_lint_command(
+        getattr(args, "app_file", "."),
+        verbose=verbose or getattr(args, "verbose", False),
+    )
+
+
 def route_command(
     args,
     python_file,
@@ -166,6 +174,7 @@ def route_command(
         ),
         "agents":   lambda: _handle_agents_command(args),
         "raven": lambda: _handle_raven_command(logger, args, verbose),
+        "lint": lambda: _handle_lint_command(args, verbose),
         "demos": lambda: _handle_demos_command(args),
         "reload": lambda: _handle_reload_command(logger, args, verbose),
         "swap": lambda: _handle_swap_command(logger, args, verbose),

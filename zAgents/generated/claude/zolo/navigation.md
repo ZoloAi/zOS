@@ -79,6 +79,7 @@ breadcrumbs: the ENGINE's own trail, surfacing — not a widget you build
 navbar: the same places on every page — one named list, two skins (bar in zBifrost, menu in zCLI)
     inline — `zNavBar:` inside a block, list names, point each with `zLink: @path`
     zBrand — the name on the left that always goes home (zSpark root); page-level bars only
+        rich — a dict rides too: `{label, logo, icon, href}` — logo (an image path) wins over icon (a bi-* name), the label always renders alongside
     convention — a bare top-level name → a file in root `zViews/` (zAbout → zViews/zUI.zAbout.zolo, block zAbout)
         `true` show · `false` keep line but hide · `zLink: @path` off-convention · `Name: @path` value IS target · `https://` external
     zSub — a drop-down: a LIST of child names (convention, one folder down) OR per-child BLOCK (`child: true`/`child: @path`)

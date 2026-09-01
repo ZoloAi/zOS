@@ -24,6 +24,10 @@ vocabulary: a field carries the SAME keys it has on its own leaf — a zDialog j
     inputs  — text · email · url · tel · number · password · textarea · color · date · file -> Input Events
     controls— select (dropdown/radio/multi) · checkbox -> Control Events
     extras ride along unchanged: placeholder · default · required · readonly · disabled · prefix/suffix · datalist · options · multi · accept
+    tokens_in_props — a field property holding a WHOLE %token resolves NATIVELY, not as display text:
+        `options: %data.<name>` → a real LIST · readonly/disabled from a bool column → a real yes/no ·
+        `default:` over a NULL value → an EMPTY box (a miss on other props keeps the literal token —
+        visible, debuggable)
     _zClass — lands on that field's own input/select/textarea (text/number/select/etc); radio/checkbox groups don't forward it yet
     rule: don't re-teach a field here — its own leaf owns it; the zDialog only collects it
     every answer lands in zConv as a string (a LIST for a multi-select)
@@ -114,6 +118,9 @@ schema: let a zSchema write the fields
 zconv: the bag of answers
     every field's value is gathered under its key — name -> zConv.name
     zConv is what onSubmit hands the action — &...(zConv.name) reads one, the action sees them all
+    empty_is_empty — a field left blank (an OPTIONAL select left unpicked included) hands the action
+        an EMPTY value; a `zConv.<field>` reference with no submitted value substitutes empty in the
+        action string
 
 terminal: write once, it reads the room
     the same zDialog runs in zCLI (a prompt per field) and in Bifrost (one real form) — no second version

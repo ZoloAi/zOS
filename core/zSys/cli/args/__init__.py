@@ -44,6 +44,7 @@ from . import reload_args
 from . import swap_args
 from . import visitors_args
 from . import raven_args
+from . import lint_args
 from . import migrate_args
 from . import requirements_args
 from . import agents_args
@@ -105,6 +106,7 @@ def create_parser(version: str) -> argparse.ArgumentParser:
     swap_args.add_subparser(subparsers)
     visitors_args.add_subparser(subparsers)
     raven_args.add_subparser(subparsers)
+    lint_args.add_subparser(subparsers)
     migrate_args.add_subparser(subparsers)
     requirements_args.add_subparser(subparsers)
     agents_args.add_subparser(subparsers)

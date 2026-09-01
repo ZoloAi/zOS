@@ -144,6 +144,17 @@ env: optional, sensible defaults
     zLog:      INFO            — DEBUG | INFO | WARNING | ERROR; z-prefix (zINFO…) adds engine trace
     zLogPath:  @.logs          — zPath
 
+strict: boot-time static fault gate — ON by default (no key needed)
+    checks   — every authored .zolo statically, before anything runs: parse/comment anomalies
+               (unterminated `#>`, duplicate NAMED sibling blocks — repeated shorthand zEvents like
+               zText/zH2 are supported grammar and never fault), zShuttle reels/patterns that don't
+               exist, %tokens in `_zClass:` that can never resolve there (only loop-baked %item.*
+               resolves in class position), `onSuccess:` verbs outside the dispatch set
+    refuses  — faults print with file:line and the app does NOT boot (zRaven inherits the same gate)
+    opt_out  — `strict: false` in zSpark downgrades the refusal to a printed warning list (boots anyway);
+               explicit, per-app, for migrating older apps — fix the faults, then drop the key
+    standalone — `z lint <app dir | zSpark file>` runs the identical checks without booting
+
 zRequirements: declared INSIDE zEnv.base.zolo (!zSpark key) — app-specific Python deps for plugins
     zRequirements: [Pillow>=10.0, requests]  — flat pip-spec list, same grammar as any zEnv value
     gate     — identical shape to zMigration: boot NEVER installs, only verifies; refuses to launch + prints the fix if anything's missing (zRaven inherits the same refusal)
@@ -321,6 +332,7 @@ breadcrumbs: the ENGINE's own trail, surfacing — not a widget you build
 navbar: the same places on every page — one named list, two skins (bar in zBifrost, menu in zCLI)
     inline — `zNavBar:` inside a block, list names, point each with `zLink: @path`
     zBrand — the name on the left that always goes home (zSpark root); page-level bars only
+        rich — a dict rides too: `{label, logo, icon, href}` — logo (an image path) wins over icon (a bi-* name), the label always renders alongside
     convention — a bare top-level name → a file in root `zViews/` (zAbout → zViews/zUI.zAbout.zolo, block zAbout)
         `true` show · `false` keep line but hide · `zLink: @path` off-convention · `Name: @path` value IS target · `https://` external
     zSub — a drop-down: a LIST of child names (convention, one folder down) OR per-child BLOCK (`child: true`/`child: @path`)
@@ -411,6 +423,10 @@ zselect: one choice in three shapes
         multi: true        — pick more than one; hands back a LIST
     inline_flags: tag an option right in the list, no extra keys
         [default] pre-selects it | [disabled] greys it out, out of reach — options: [Free, Pro [default], Enterprise [disabled]]
+    live_options: the list can come from DATA, not just a literal — `options: %data.<name>` / `%<var>`
+        a WHOLE-value token resolves to the real list before the control ships (declare the read on
+        the block's zMeta.zSpool → 17_dynamic_content); a source that resolves to NOTHING renders an
+        EMPTY select
     terminal: every shape reads the same — a numbered menu (multi just lets you pick more than one)
     rule: dropdown vs radio is purely a Bifrost look; the answer is the same either way
 
@@ -547,6 +563,10 @@ vocabulary: a field carries the SAME keys it has on its own leaf — a zDialog j
     inputs  — text · email · url · tel · number · password · textarea · color · date · file -> Input Events
     controls— select (dropdown/radio/multi) · checkbox -> Control Events
     extras ride along unchanged: placeholder · default · required · readonly · disabled · prefix/suffix · datalist · options · multi · accept
+    tokens_in_props — a field property holding a WHOLE %token resolves NATIVELY, not as display text:
+        `options: %data.<name>` → a real LIST · readonly/disabled from a bool column → a real yes/no ·
+        `default:` over a NULL value → an EMPTY box (a miss on other props keeps the literal token —
+        visible, debuggable)
     _zClass — lands on that field's own input/select/textarea (text/number/select/etc); radio/checkbox groups don't forward it yet
     rule: don't re-teach a field here — its own leaf owns it; the zDialog only collects it
     every answer lands in zConv as a string (a LIST for a multi-select)
@@ -637,6 +657,9 @@ schema: let a zSchema write the fields
 zconv: the bag of answers
     every field's value is gathered under its key — name -> zConv.name
     zConv is what onSubmit hands the action — &...(zConv.name) reads one, the action sees them all
+    empty_is_empty — a field left blank (an OPTIONAL select left unpicked included) hands the action
+        an EMPTY value; a `zConv.<field>` reference with no submitted value substitutes empty in the
+        action string
 
 terminal: write once, it reads the room
     the same zDialog runs in zCLI (a prompt per field) and in Bifrost (one real form) — no second version
@@ -2077,6 +2100,9 @@ manifest: `zProject.<name>.zolo` — the distribution manifest, sibling of the s
         cover rides the multipart BESIDE the bundle (a served blob, never app code) — list it in `ignore` so it stays out of the app/ slice
     ignore:     [logs/*, zRaven/output/*, "*.db-journal"] — what never ships; shell wildcards, matched on the full relative path AND each segment (a bare `__pycache__` prunes at any depth)
         always_pruned — `.git` · `__pycache__` · `*.pyc` · `.DS_Store` ship NEVER, no matter what
+        guarded — `#>`/`<#` comment markers in the manifest MUST pair; an unterminated `#>`, an orphan
+            `<#`, or a comment marker inside an ignore entry FAILS the push (fail-closed) — zLSP
+            underlines an unclosed `#>` as you type
     include:    [docs/spec.pdf]     — dormant extras packed as attachments/ alongside the app — stored, never executed; a missing path FAILS the bundle
     rule — required = slug + spark; everything else defaults sensibly or is card dressing
 
@@ -2094,12 +2120,26 @@ login: `zolo login` — sign the MACHINE in, once (git-/gh-style; no app/instanc
 push: `zolo push` — the verb; bundle the slice, upload, come up hosted
     resolve  — bare `zolo push` finds the lone manifest in cwd · `zolo push <name>` picks by manifest name · a folder arg resolves the manifest inside it
     identity — authenticated by the machine's persisted PAT (`zolo login`); `--token <PAT>` overrides for one push; not signed in → clean FAIL naming the fix
+        auth_first — auth is checked FIRST: a stale/rotated PAT 401s naming the re-mint path, and any
+            username/slug/data findings surface only once the token is valid
     flags    — `--dry-run` full file plan, nothing uploads (ALWAYS run it before a first ship) · `--slug <s>` one-push slug override · `--url <base>` target zCloud (default https://zolo.media; `ZOLO_ZCLOUD_URL` env too) · `-v` every shipped file
+    data_guard — a push that would DELETE Data/ files present in the live build is REFUSED (409 names
+        the exact files); `--replace-data` is the explicit consent when the wipe IS intended
     builds   — each push is a NEW build; the previous is kept server-side, so a bad ship rolls back instead of ruining your day
+        retained builds keep their files until purged — the owner's MyApps push history purges a
+        superseded/failed build's files on demand
     server   — zCloud upserts the zApps row bound to your account (owner_id), unpacks the slice, wakes `spark` via the hosting control plane (wake/sleep/status → 22_hosting)
     rule     — the manifest is written ONCE; from then on shipping is one word
+
+pull: `zolo pull --slug <slug>` — the verb home: clone YOUR hosted app back to any machine
+    dest     — `--dest <dir>` picks the folder (default ./<slug>); it must be EMPTY or new — pull never merges into existing work
+    data     — WITHOUT Data/ by default (live data stays safely on the server); `--with-data` snapshots it explicitly, with a loud warning that it's a copy, not a sync
+    receipt  — writes the linked `.zpush` receipt into the clone, so it is push-ready as the SAME app (app id survives renames); pull-then-push is the round trip
+    identity — the same machine PAT as push; `--url <base>` targets another zCloud
+    rule     — dev verb for the CLI crowd; the dashboard's Download stays the average-joe door
 
 seek_as_need: !authoring a manifest — only if extending the pipeline
     resolver+bundle — zguard/push/project_resolver.py (manifest contract, required keys) · bundle.py (_DEFAULT_IGNORE, segment matching, attachments/)
     upload    — zguard/push/command.py (PAT resolve → multipart Bearer POST); server side — zCloud plugins/zpush.py (upsert + seed semantics)
-    cli seam  — core/zSys/cli/push_command.py (public shim; no zguard → "run z patch") + args/push_args.py
+    pull seam — zguard/pull/command.py (ZIP download + traversal-safe extract + receipt); server side — zCloud plugins/zpull.py (GET /api/apps/pull)
+    cli seam  — core/zSys/cli/push_command.py (public shim; no zguard → "run z patch") + args/push_args.py · pull_command.py + args/pull_args.py
