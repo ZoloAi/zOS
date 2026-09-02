@@ -45,6 +45,12 @@ seek_as_need: !boot-critical — pull the reference when you reach the key
             anyway (the IP changes on AP roam) — rely on the first-party auto-trust instead.
             A rejected origin closes the WS with code 1008 + a reason naming this key (visible
             in browser devtools → Network → WS frame) and logs the same server-side
+        max_message_mb — inbound WS frame ceiling in MB (default 32, 0 = unlimited; env form
+            WEBSOCKET_MAX_MESSAGE_MB). Honored by BOTH sockets — the zOS sync server and the
+            browser Bifrost bridge (zOS#95, 1.7.3; the bridge used to sit on the websockets
+            library's 1 MiB default, silently 1009-closing any zDialog file upload past
+            ~750 KB raw no matter what the spark said). Boot tell in the app framework log:
+            `Max inbound message size: NNMB`; an over-ceiling frame closes with code 1009
     zCanvas   — app-wide canvas applied across pages -> zUI ref
     zPersist  — create Apps/{title}/ user-data dir -> Config ref
     zRaven*   — bind a test suite (zRaven, zRavenTimeout, zRavenPort…); !add during dev (noisy auto-run) -> 13_testing
