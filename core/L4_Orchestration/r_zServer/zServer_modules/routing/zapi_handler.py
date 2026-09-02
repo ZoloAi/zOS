@@ -94,7 +94,9 @@ def handle(handler, route: dict, zos) -> None:
             return
     except Exception as exc:
         zos.logger.error(f"[zAPI] {kind} execution failed: {exc}", exc_info=True)
-        _send_json(handler, 500, {"error": "Internal server error"})
+        # zOS#90: name the failure — type + message, never a bare "Internal
+        # server error" (the full traceback stays in the server log).
+        _send_json(handler, 500, {"error": f"{type(exc).__name__}: {exc}"})
         return
 
     # Write-through zVars the handler mutated (zOS#21). The request unit
@@ -268,6 +270,19 @@ def _execute_zfunc(route: dict, params: dict, files: dict, handler, zos) -> "ZRe
         raw = zos.zparser.resolve_plugin_invocation(handler_ref)
     finally:
         reset_env(token)
+
+    # zOS#90: when the plugin RAISED, the @zfunc wrapper contains it as the
+    # bare "error" sentinel (wizard contract) but stashes the real identity on
+    # THIS invocation — surface `TypeError: ...` to the caller instead of the
+    # misleading "Handler returned 'error'" (it didn't return — it raised, and
+    # that message sends the author auditing return values).
+    exc_info = (inv.meta or {}).get("unhandled_exception")
+    if exc_info and raw == "error":
+        return ZResult.failure(
+            f"{exc_info.get('type', 'Exception')}: {exc_info.get('error', '')}".strip(),
+            status=500,
+            meta={"kind": "zFunc", "handler": exc_info.get("handler", handler_ref)},
+        )
     return ZResult.coerce(raw)
 
 

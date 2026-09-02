@@ -92,6 +92,14 @@ class ZResult:
         if value == "error":
             return cls.failure("Handler returned 'error'")
 
+        # An "error: <detail>" string is a FAILURE carrying its own sentence
+        # (zOS#90): it used to coerce as a SUCCESS with the text as message —
+        # the one place the author DID write a real error sentence, and the
+        # envelope threw it away (ok:true, no error field).
+        if isinstance(value, str) and value[:6].lower() == "error:":
+            detail = value[6:].strip() or "Handler returned an error"
+            return cls.failure(detail)
+
         if isinstance(value, dict):
             d = value
             # Explicit envelope (already ok-shaped).

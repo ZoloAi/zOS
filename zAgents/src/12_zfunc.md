@@ -62,8 +62,14 @@ zos_plugin: want the contract handled for you? the SDK on top of `&.`
         rule — a caller-supplied arg WINS over an injected provider
     contract — what you RETURN tells zOS what happened:
         truthy → success · falsy → retriable failure · "error" → hard abort
+        "error: <detail>" → a FAILURE that keeps its sentence (zOS#90, 1.7.3) — the detail ships as the
+            error text (zAPI envelope + WS signal alike); pre-1.7.3 it coerced as a SUCCESS with the text
+            as message, silently eating the one sentence the author wrote
         `raise ZAbort("...", status=4xx)` → structured ZResult with that code (API answers right)
-        an unhandled exception → logged + contained as "error" (a crashing plugin never takes the page down)
+        an unhandled exception → logged + contained as "error" (a crashing plugin never takes the page
+            down) — and over zAPI the response now NAMES it (zOS#90, 1.7.3): `TypeError: ...` with the
+            handler in meta, never the old misleading 500 "Handler returned 'error'" (it raised, it didn't
+            return; full traceback stays in the server log)
     async — decorate an `async def` and nothing changes (injection + contract carry through the await)
     seek — full door → Advanced › Extending › zos-plugin
 

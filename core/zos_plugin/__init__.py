@@ -136,14 +136,37 @@ def _looks_like_zos(obj) -> bool:
     return hasattr(obj, "logger") or hasattr(obj, "data") or hasattr(obj, "session")
 
 
-async def _acontract(coro, fn):
+def _stash_exception(inv, fn, exc) -> None:
+    """Record an unhandled plugin exception's REAL identity on the Invocation.
+
+    The wrapper's contract still returns the bare ``"error"`` sentinel (the
+    wizard hard-abort consumed all over the walk), but a transport adapter
+    holding the same Invocation (zAPI) can read the truth back and surface
+    ``TypeError: ...`` instead of the actively-misleading "Handler returned
+    'error'" (zOS#90 — the handler didn't return, it RAISED).
+    """
+    if inv is None:
+        return
+    try:
+        inv.meta = inv.meta or {}
+        inv.meta["unhandled_exception"] = {
+            "type": type(exc).__name__,
+            "error": str(exc),
+            "handler": getattr(fn, "__qualname__", str(fn)),
+        }
+    except Exception:  # pylint: disable=broad-except
+        pass
+
+
+async def _acontract(coro, fn, inv=None):
     """Carry the @zfunc return/error contract through an async plugin body.
 
     The sync wrapper resolves DI and hands back the coroutine; this awaits it so
     an ``async def`` gets the SAME contract as a sync function — ``ZAbort`` →
     its structured result, unhandled exceptions logged + contained as ``"error"``.
     Without it, an async body's exception bypasses the wrapper (which only ever
-    wrapped coroutine *creation*) and escapes the contract.
+    wrapped coroutine *creation*) and escapes the contract. ``inv`` is captured
+    at wrap time — ``current_env()`` may already be reset by await time.
     """
     try:
         return await coro
@@ -156,6 +179,7 @@ async def _acontract(coro, fn):
             "[zos-plugin] Unhandled exception in async '%s': %s",
             getattr(fn, "__qualname__", fn), exc, exc_info=True,
         )
+        _stash_exception(inv, fn, exc)
         return "error"
 
 
@@ -263,7 +287,7 @@ def zfunc(fn):
                 # ``finally`` below: the tokens were set in this context, so they
                 # must be reset here — not across the loop thread that drives the
                 # coroutine (a cross-context reset would raise).
-                return _acontract(fn(*args, **merged), fn)
+                return _acontract(fn(*args, **merged), fn, inv)
             return fn(*args, **merged)
 
         except ZAbort as abort:
@@ -275,6 +299,7 @@ def zfunc(fn):
                 "[zos-plugin] Unhandled exception in '%s': %s",
                 fn.__qualname__, exc, exc_info=True,
             )
+            _stash_exception(inv, fn, exc)
             return "error"
         finally:
             if input_token is not None:
