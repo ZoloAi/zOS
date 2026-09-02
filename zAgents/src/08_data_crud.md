@@ -14,6 +14,11 @@ zmeta: settings up top — where + how kept
     Schema_Name: zSchema.<name> — self-ref the registry resolves the model by
     zMigration: true + zMigrationVersion: vX.Y.Z — opt into migrations + stamp each change
     journey — csv (see every row) → sqlite (solid) → postgresql (outgrown); each hop is one line, never a rewrite
+    seed_prose — hand-authoring a seed CSV row whose str field holds prose? any comma inside the text MUST be
+        double-quoted (`"tall grass, gone gold"`) — unquoted it splits the row into extra columns and the whole
+        table load aborts. The error now names it (zOS#27, 1.7.3): file, raw offending line, declared-vs-seen
+        column count, and the quoting fix — pre-1.7.3 it was a bare pandas "Expected 7 fields in line 3, saw 8"
+        and the only visible symptom was a blank render layers away
 
 types: each field has a KIND that does quiet work (coerce value, pick the input, reject misfits)
     str (default) · int · float · bool (true/1/yes/on ↔ false/0/no/off) · date · time · datetime (`default: now`)

@@ -6,10 +6,56 @@ This module handles all file system operations including path management,
 CSV reading/writing, and directory creation.
 """
 
+import re
+
 from zOS import Dict, Any, Optional, Path
 import pandas as pd
 
 from .constants import CSV_EXTENSION
+
+# pandas C-tokenizer arity message, e.g. "Expected 7 fields in line 3, saw 8".
+_PARSER_ARITY_RE = re.compile(r"Expected (\d+) fields in line (\d+), saw (\d+)")
+
+
+def _explain_parser_error(csv_path: Path, exc: Exception) -> str:
+    """Turn a cryptic pandas tokenizer error into a diagnosis an author can act on.
+
+    zOS#27: seed CSVs are the ONE place the declarative model has authors (and
+    LLM agents) hand-writing a raw data file, and the most likely mistake — an
+    unquoted comma inside a prose field — produced the least helpful error:
+    no file, no row text, no fix. Name all three; the raw pandas message rides
+    along at the end for the rare non-arity parse failure.
+    """
+    msg = str(exc)
+    m = _PARSER_ARITY_RE.search(msg)
+    if not m:
+        return f"Failed to parse CSV {csv_path}: {msg}"
+    expected, line_no, saw = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    header = ""
+    line_text = ""
+    try:
+        with open(csv_path, encoding="utf-8") as fh:
+            lines = fh.readlines()
+        if lines:
+            header = lines[0].strip()
+        if 0 < line_no <= len(lines):
+            line_text = lines[line_no - 1].strip()
+            if len(line_text) > 200:
+                line_text = line_text[:200] + "…"
+    except OSError:
+        pass
+    hint = (
+        "almost always an UNQUOTED comma inside a text field — wrap that field in "
+        'double quotes, e.g. "A slope of tall grass, gone gold"'
+        if saw > expected
+        else "the row has fewer fields than the header declares — a missing comma or truncated line"
+    )
+    return (
+        f"Malformed CSV seed row in {csv_path} (file line {line_no}): the header declares "
+        f"{expected} column(s) but this row splits into {saw} — {hint}.\n"
+        f"  header      : {header}\n"
+        f"  line {line_no:<7}: {line_text}"
+    )
 
 
 def get_csv_path(base_path: Path, table_name: str) -> Path:
@@ -104,6 +150,14 @@ def load_table_from_csv(
 
         return df
 
+    except pd.errors.ParserError as e:
+        # zOS#27: re-raise the tokenizer error WITH the diagnosis (file, raw
+        # line, expected-vs-seen arity, quoting hint) — every upstream wrapper
+        # ("Error executing read: {e}") now carries the actionable sentence.
+        detail = _explain_parser_error(csv_path, e)
+        if logger:
+            logger.error("%s", detail)
+        raise ValueError(detail) from e
     except Exception as e:
         if logger:
             logger.error("Failed to load CSV table %s: %s", csv_path.stem, e)
