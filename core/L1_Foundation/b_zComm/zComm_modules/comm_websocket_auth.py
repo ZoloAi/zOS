@@ -22,7 +22,14 @@ _LOG_PREFIX = "[WebSocketAuth]"
 
 # Log Messages
 _LOG_ORIGIN_VALID = f"{_LOG_PREFIX} Origin validated: {{origin}}"
-_LOG_ORIGIN_INVALID = f"{_LOG_PREFIX} Origin rejected: {{origin}}"
+_LOG_ORIGIN_INVALID = (
+    f"{_LOG_PREFIX} Origin rejected: {{origin}} — the browser sees only a dead "
+    f"connection (blank page). If this origin is legitimate, add it to "
+    f"zSocket.allowed_origins in the zSpark; same-host origins are auto-trusted."
+)
+_LOG_ORIGIN_FIRST_PARTY = (
+    f"{_LOG_PREFIX} Origin auto-trusted (first-party): {{origin}} matches request host {{host}}"
+)
 _LOG_TOKEN_VALID = f"{_LOG_PREFIX} Token validated for {{addr}}"
 _LOG_TOKEN_INVALID = f"{_LOG_PREFIX} Invalid token from {{addr}}"
 _LOG_TOKEN_MISSING = f"{_LOG_PREFIX} Missing token from {{addr}}"
@@ -90,19 +97,40 @@ class WebSocketAuth:
         # Get allowed origins from zConfig
         allowed_origins = self.config.allowed_origins or []
 
-        # Extract Origin header (websockets 15.0+ uses websocket.request.headers)
-        origin_header = None
+        # Extract headers (websockets 15.0+ uses websocket.request.headers)
+        headers = None
         if hasattr(websocket, 'request') and websocket.request:
-            origin_header = websocket.request.headers.get('Origin')
+            headers = websocket.request.headers
         elif hasattr(websocket, 'request_headers'):
-            origin_header = websocket.request_headers.get('Origin')
-        elif hasattr(websocket, 'origin'):
+            headers = websocket.request_headers
+
+        origin_header = headers.get('Origin') if headers else None
+        if origin_header is None and hasattr(websocket, 'origin'):
             origin_header = websocket.origin
 
         # No Origin header - allow (some WebSocket clients don't send it)
         if not origin_header:
             self.logger.framework.debug(f"{_LOG_PREFIX} No Origin header, allowing connection")
             return True
+
+        # zOS#62: FIRST-PARTY AUTO-TRUST — a page whose Origin hostname equals
+        # the hostname this very request was addressed to (the Host header) is
+        # the legitimate case CSWSH protection exists to PROTECT, not block:
+        # the freshly-assigned zCloud domain on its first visit, a phone on the
+        # LAN dialing the machine's IP. Hostname-only compare (the HTTP shell
+        # and the WS listener legitimately sit on different PORTS of the same
+        # host); an attacker page can't forge a first-party Origin without
+        # already controlling the host. Explicit allowed_origins entries remain
+        # for genuinely cross-origin embedders.
+        host_header = headers.get('Host') if headers else None
+        if host_header:
+            origin_host = urlparse(origin_header).hostname
+            # urlparse needs a scheme marker to split host:port (and IPv6 brackets).
+            request_host = urlparse(f"//{host_header}").hostname
+            if origin_host and request_host and origin_host.lower() == request_host.lower():
+                self.logger.framework.debug(
+                    _LOG_ORIGIN_FIRST_PARTY.format(origin=origin_header, host=host_header))
+                return True
 
         # Empty allowed_origins = localhost only
         if not allowed_origins:

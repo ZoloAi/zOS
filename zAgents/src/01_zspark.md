@@ -37,6 +37,14 @@ zRequirements: declared INSIDE zEnv.base.zolo (!zSpark key) — app-specific Pyt
 seek_as_need: !boot-critical — pull the reference when you reach the key
     zServer   — HTTP leg: host/port/routes/static (zBifrost only) -> zServer ref
     zSocket   — WebSocket leg the Bifrost bridge rides (legacy alias: websocket) -> zBifrost ref
+        allowed_origins — extra ORIGINS trusted to open the WS (list of full origins, e.g.
+            [https://embed.example.com]); localhost AND any first-party origin (page host ==
+            request host, ports may differ) are auto-trusted (zOS#62, 1.7.3) — a hosted domain's
+            first visit and a phone dialing the machine's LAN IP just work, no entry needed.
+            Only a genuinely CROSS-origin embedder needs listing; LAN-IP entries are brittle
+            anyway (the IP changes on AP roam) — rely on the first-party auto-trust instead.
+            A rejected origin closes the WS with code 1008 + a reason naming this key (visible
+            in browser devtools → Network → WS frame) and logs the same server-side
     zCanvas   — app-wide canvas applied across pages -> zUI ref
     zPersist  — create Apps/{title}/ user-data dir -> Config ref
     zRaven*   — bind a test suite (zRaven, zRavenTimeout, zRavenPort…); !add during dev (noisy auto-run) -> 13_testing
