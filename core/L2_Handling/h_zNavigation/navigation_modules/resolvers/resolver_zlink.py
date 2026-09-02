@@ -710,6 +710,17 @@ class ZLinkResolver:
                 if self.logger:
                     self.logger.debug(f"[ZLinkResolver] zPath→route: {href} → {url}")
                 return url
+            # zOS#66: a live router with NO route for this target means the raw
+            # zPath is about to ship to the browser as a dead '/@/…' link — say
+            # so in the app log instead of failing silently.
+            log = getattr(self.logger, "session_framework", None) or self.logger
+            if log:
+                log.warning(
+                    f"[ZLinkResolver] No route serves '{href}' "
+                    f"(file={zVaFile}, folder={zVaFolder}) — the raw zPath will "
+                    f"reach the browser as a dead link. Is the target page "
+                    f"discovered/routed?"
+                )
             return href
         except Exception as exc:  # pragma: no cover — never block rendering
             if self.logger:

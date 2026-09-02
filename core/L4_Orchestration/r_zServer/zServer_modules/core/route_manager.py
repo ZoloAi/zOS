@@ -191,13 +191,19 @@ class RouteManager:
                 )
                 return None, 0, 0
 
+            # Auto-inject the '/' anchor when no explicit route declares it — as a
+            # `type: zSpark` route so normalization below seats the spark's
+            # zVaFolder/zVaFile/zBlock on it (SSOT with the explicit form). The old
+            # bare `{type: zWalker}` injection carried NO zVaFile, so reverse_route
+            # could never match the HOME file — a zURL back to a root-level home
+            # (`@.zViews.zUI.<home>.<Block>`) shipped the raw zPath to the browser
+            # and 404'd as `/@/zViews/…` (zOS#66).
+            if "/" not in merged_data["routes"]:
+                merged_data["routes"]["/"] = {"type": "zSpark"}
+                self.logger.framework.debug("[zServer] Auto-injected default zSpark anchor for /")
+
             # zSpark routes → zspark-defaulted zWalkers (self-documenting fallback).
             self._normalize_zspark_routes(merged_data)
-
-            # Auto-inject default zWalker for / when no explicit route is defined.
-            if "/" not in merged_data["routes"]:
-                merged_data["routes"]["/"] = {"type": "zWalker", "auto_discover_blocks": True}
-                self.logger.framework.debug("[zServer] Auto-injected default zWalker for /")
 
             # File-wide smart-routing meta (zVaFolder default) from the parsed meta.
             self._apply_routing_meta(merged_data)

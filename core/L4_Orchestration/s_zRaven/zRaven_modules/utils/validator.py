@@ -113,7 +113,15 @@ def validate_structure(
     Compare zUI structural keys against zRaven keys.
     zUI is the source of truth. Prints mismatches and returns False if any found.
     """
-    folder_rel = zpath.strip_symbol(va_folder).lstrip("/")
+    # Dots in a zPath folder ref are SEGMENTS (@.zViews.Home → zViews/Home).
+    # The old strip_symbol-only form left them literal, so any multi-segment
+    # zVaFolder looked for "zViews.Home/zUI.Home.zolo" — a nonexistent dir —
+    # and the structure check silently skipped every nested page (zOS#66).
+    if va_folder and va_folder.startswith(zpath.SIGIL_WORKSPACE):
+        segments = zpath.split(va_folder).segments
+        folder_rel = str(Path(*segments)) if segments else ""
+    else:
+        folder_rel = zpath.strip_symbol(va_folder or "").lstrip("/").replace(".", "/")
     zui_path   = Path.cwd() / folder_rel / f"{va_file}.zolo"
 
     if not zui_path.exists():

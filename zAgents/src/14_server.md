@@ -29,9 +29,14 @@ routing: your folders become the routes — take the wheel only when you want
     contract  — routes live in `zServer.*.zolo`; zServer finds EVERY one (app root + `routes/`) + merges at boot — no import/registry, the `zServer.` prefix IS the contract
     smart     — default: declare the anchor ONCE, folders fan into URLs
         `routes: { /: { type: zSpark } }` — serve this app's home (borrows the spark's page)
-        walks `zViews/` → every page a URL: `zUI.Home.zolo`→`/` · `About/zUI.About.zolo`→`/About`; `_`-folders + `error/` stay private
+        walks `zViews/` → every page a URL: `zUI.Home.zolo`→`/` · nested mirror their dir: `About/zUI.About.zolo`→`/About/About`; `_`-folders + `error/` stay private
         omit `/` and zServer adds the anchor for you — true zero-config: NO `zServer.*.zolo` file at all needed
         just to serve the zSpark homepage; add one only when you need routes BEYOND that (extra pages/webhooks/API)
+        home_links — the auto-added anchor carries the spark's zVaFolder/zVaFile/zBlock (zOS#66, 1.7.3), so a
+            zURL/zLink back to a ROOT-LEVEL home (`href: @.zViews.zUI.<home>.<Block>`) reverse-resolves to `/`
+            like any other page — pre-1.7.3 the raw zPath reached the browser as a dead `/@/zViews/…` link.
+            Any zPath href that still has NO serving route now warns in the app log (`[ZLinkResolver] No route
+            serves …`) instead of silently shipping the dead link
     manual    — a URL + a `type:` (reads like Flask):
         `zWalker` — one page: name `zVaFolder`/`zVaFile` (+opt `zBlock`)
         `static`  — a disk file untouched: `file: public/landing.html`
