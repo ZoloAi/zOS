@@ -173,8 +173,27 @@ class RouteDispatcher(PageRouteHandlersMixin, EndpointRouteHandlersMixin):
                     }
                     body = json.dumps(payload).encode('utf-8')
                     self.handler.send_response(200)
-            elif not route or route.get('type') != 'zWalker':
-                body = json.dumps({'error': f'No zWalker route for {path}'}).encode('utf-8')
+            elif not route or route.get('_default'):
+                # No declared route (the '_default' fallback is a synthesized
+                # catch-all, not a real match — see HTTPRouter.match_route).
+                body = json.dumps({'error': f'No route for {path}'}).encode('utf-8')
+                self.handler.send_response(404)
+            elif route.get('type') != 'zWalker':
+                # zOS#93: the route EXISTS — say so. The old blanket "No zWalker
+                # route for <path>" read as "route doesn't exist" for perfectly
+                # healthy zLoom/zAPI/static routes and sent debugging down a wrong
+                # path. Status stays 404 on purpose: it is the client's signal to
+                # fall back to a FULL page load, which is what keeps a zLoom
+                # route's server-side gate (empty read → 404) in the loop — SPA
+                # config would bypass it.
+                rtype = route.get('type', 'unknown')
+                body = json.dumps({
+                    'error': (
+                        f"Route {path} exists (type: {rtype}) but is not "
+                        f"SPA-navigable — served by full page load"
+                    ),
+                    'type': rtype,
+                }).encode('utf-8')
                 self.handler.send_response(404)
             elif not self.router.check_access(route)[0]:
                 # RBAC parity: this API exposes a route's walker config (zBlock,

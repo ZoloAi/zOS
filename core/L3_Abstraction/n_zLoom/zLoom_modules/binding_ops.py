@@ -109,8 +109,13 @@ class BindingOps:
                 if name in registry:
                     merged[name] = registry[name]
                 else:
-                    self.zos.logger.framework.warning(
-                        f"[zLoom] Unknown spool '{name}' (not in zLoom/spools/)"
+                    # zOS#93: name the aliases that DO exist — same app-log routing
+                    # as the zPath-ref warnings above.
+                    log = getattr(self.zos.logger, "session_framework", None) \
+                        or self.zos.logger.framework
+                    log.warning(
+                        f"[zLoom] Unknown spool '{name}' (not in zLoom/spools/) — "
+                        f"available: {sorted(registry.keys())}"
                     )
 
         return merged
@@ -148,11 +153,30 @@ class BindingOps:
         bad ref degrades to "no data" (gate 404 / empty render) rather than raising.
         """
         import os
+        # App-authoring faults go to the session (app) framework log — the trace
+        # the developer actually reads (same routing as the zOS#42 loop warning);
+        # the global framework log is often handler-less in app runs.
+        log = getattr(self.zos.logger, "session_framework", None) \
+            or self.zos.logger.framework
         try:
             segs = ref[2:].split(".")
             # Find where the filename starts (the zVaFile type-prefix segment).
             idx = next((i for i, s in enumerate(segs) if s in self._ZVAFILE_PREFIXES), None)
-            if idx is None or idx + 2 >= len(segs):
+            if idx is None:
+                log.warning(
+                    f"[zLoom] zPath ref '{ref}' has no zUI.<file> segment — "
+                    f"expected @.zLoom.spools.zUI.<file>.<spool>"
+                )
+                return None
+            if idx + 2 >= len(segs):
+                # zOS#93: the ref stops at the FILE — the missing spool-name tail
+                # used to fail SILENTLY (early return, no log line), and a zLoom
+                # route gated on it 404'd every request with zero diagnostics.
+                log.warning(
+                    f"[zLoom] zPath ref '{ref}' points at a spool FILE, not a "
+                    f"spool — append the read's name: '{ref}.<spool>' "
+                    f"(a zLoom route gated on this ref 404s every request)"
+                )
                 return None
             dir_segs = segs[:idx]                 # e.g. [zLoom, spools]
             filename = ".".join(segs[idx:idx + 2])  # e.g. zUI.public
@@ -164,9 +188,19 @@ class BindingOps:
             data = self.zos.loader.handle_absolute_path(fpath)
             if isinstance(data, dict) and key in data:
                 return key, data[key]
+            # zOS#93: name what IS in the file, so a typo'd spool name reads as
+            # "did you mean by_id?" instead of an anonymous miss.
+            if isinstance(data, dict):
+                available = [k for k in data if k != "zMeta"]
+                log.warning(
+                    f"[zLoom] zPath ref '{ref}': no spool '{key}' in "
+                    f"{filename} — available: {available}"
+                )
+                return None
+            log.warning(f"[zLoom] zPath ref '{ref}': file '{fpath}' missing or unparseable")
+            return None
         except Exception as exc:  # pylint: disable=broad-except
-            self.zos.logger.framework.warning(f"[zLoom] zPath ref '{ref}' failed: {exc}")
-        self.zos.logger.framework.warning(f"[zLoom] zPath ref '{ref}' did not resolve")
+            log.warning(f"[zLoom] zPath ref '{ref}' failed: {exc}")
         return None
 
     def load_zloom_registry(self) -> Dict[str, Any]:

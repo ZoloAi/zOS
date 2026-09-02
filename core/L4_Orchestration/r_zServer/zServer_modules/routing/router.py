@@ -415,7 +415,10 @@ class HTTPRouter:
         # 5. Default route
         default_route = self.meta.get(KEY_DEFAULT_ROUTE)
         if default_route:
-            route = {KEY_TYPE: ROUTE_TYPE_STATIC, KEY_FILE: default_route}
+            # '_default' marks a synthesized fallback (no declared route matched)
+            # so introspection (route-config, zOS#93) can say "no route" honestly
+            # instead of claiming a static route exists at every path.
+            route = {KEY_TYPE: ROUTE_TYPE_STATIC, KEY_FILE: default_route, '_default': True}
             self.logger.debug(LOG_MSG_ROUTE_MATCHED, path, default_route)
             return route
 

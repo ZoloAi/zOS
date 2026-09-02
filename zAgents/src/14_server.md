@@ -39,6 +39,17 @@ routing: your folders become the routes — take the wheel only when you want
     param     — a URL carrying a value, one `%placeholder`:
         `{ type: zLoom, zLoom: @.…spool, zUI: @.…PublicProfile }` — reads matching row + renders, else 404
         capture vs read — `%username` in URL = CAPTURE (routing) → read back as `%route.username` (zLoom)
+        gate ref  — `zLoom:` is a spool alias (`by_id`) or a full ref ENDING IN THE READ NAME
+            (`@.zLoom.spools.zUI.Report.by_id`); a ref that stops at the FILE resolves nothing →
+            every request 404s. Omit `zLoom:` entirely to fall back to the page's own zMeta.zSpool
+            (SSOT gate on the page — the zCloud Verify shape); zVaFolder/zVaFile/zBlock works too
+        404 triage (zOS#93, 1.7.3) — three distinct 404s, each now names itself in the app log:
+            no route match (`[HTTPRouter] No route match`) · gate-ref miss (`[zLoom] zPath ref …
+            points at a spool FILE` / `Unknown spool … available:`) · gate read EMPTY (`[RouteDispatcher]
+            zLoom gate '…' empty`). Classic silent-404: the gate's where reads a BARE `%param`
+            instead of `%route.param` → resolves None → matches nothing, forever.
+            `/api/route-config?path=…` also answers honestly now: "exists (type: zLoom), served by
+            full page load" instead of the old "No zWalker route" for every non-zWalker type
     endpoint  — a URL that is NOT a page (webhook/CLI/service), answers JSON: `{ type: zAPI, kind: zFunc, handler: &.zpush.push }`
     blueprints— split by concern (`zServer.routes.zolo` + `.api.zolo` + `.themes.zolo`); all registered+merged, live on next reload
     catalog   — `zSpark` (home `/`) · `zWalker` (one page) · `zLoom` (page+row) · `zAPI` (JSON from action/plugin) · `static` (disk file) · `template` (Jinja)
