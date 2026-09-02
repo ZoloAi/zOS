@@ -72,9 +72,9 @@ class LoopOps:
         return block
 
     def _expand_node(self, node: Dict[str, Any], resolved_data: Dict[str, Any], context: Any) -> None:
-        """Depth-first walk: recurse into children, then expand a zList on this node."""
+        """Depth-first walk: recurse into children, then expand every zList on this node."""
         for key, val in list(node.items()):
-            if key == "zList":
+            if self._zlist_ordinal(key) is not None:
                 continue
             if isinstance(val, dict):
                 self._expand_node(val, resolved_data, context)
@@ -83,14 +83,59 @@ class LoopOps:
                     if isinstance(item, dict):
                         self._expand_node(item, resolved_data, context)
 
-        # A never-yet-expanded node has `zList`; a node REVISITED later in the
-        # same process (see _ZLIST_SOURCE_KEY) only has the stashed original —
-        # either is a valid cfg to re-weave against this call's fresh data.
-        cfg = node.get("zList")
-        if not isinstance(cfg, dict):
-            cfg = self._load_zlist_source(node.get(_ZLIST_SOURCE_KEY))
-        if isinstance(cfg, dict):
-            self._expand_zlist_into(node, cfg, resolved_data, context)
+        # A never-yet-expanded list sits at a `zList` key (or a parser/shuttle
+        # suffixed `zList__dupN` when the block carries MORE than one list —
+        # zOS#50); a node REVISITED later in the same process only has the
+        # stashed original (see _ZLIST_SOURCE_KEY). Either is a valid cfg to
+        # re-weave against this call's fresh data. Snapshot the keys FIRST:
+        # each expansion rebuilds the node in place, and a stash minted by this
+        # very pass must not be re-expanded within it.
+        for key in list(node.keys()):
+            if key not in node:
+                continue  # consumed by an earlier expansion's rebuild
+            ordinal = self._zlist_ordinal(key)
+            if ordinal is not None and isinstance(node.get(key), dict):
+                self._expand_zlist_into(node, node[key], resolved_data, context, key, ordinal)
+                continue
+            ordinal = self._stash_ordinal(key)
+            if ordinal is not None:
+                cfg = self._load_zlist_source(node.get(key))
+                if isinstance(cfg, dict):
+                    self._expand_zlist_into(node, cfg, resolved_data, context, key, ordinal)
+
+    @staticmethod
+    def _zlist_ordinal(key: Any) -> Any:
+        """``zList`` → '' | ``zList__dupN`` → 'dupN' | anything else → None."""
+        if key == "zList":
+            return ""
+        if isinstance(key, str) and key.startswith("zList__"):
+            return key[len("zList__"):]
+        return None
+
+    @staticmethod
+    def _stash_ordinal(key: Any) -> Any:
+        """``__zListSource`` → '' | ``__zListSource__dupN`` → 'dupN' | else None."""
+        if key == _ZLIST_SOURCE_KEY:
+            return ""
+        prefix = _ZLIST_SOURCE_KEY + "__"
+        if isinstance(key, str) and key.startswith(prefix):
+            return key[len(prefix):]
+        return None
+
+    @staticmethod
+    def _row_belongs(key: Any, ordinal: str) -> bool:
+        """True when a ``zListItem__…`` key was woven by THE list with this ordinal.
+
+        Default list ('' ordinal) owns ``zListItem__<digits>``; an ordinal list
+        owns ``zListItem__<ordinal>_<digits>`` — so two lists on one block never
+        claim (or clean up) each other's rows.
+        """
+        if not isinstance(key, str) or not key.startswith("zListItem__"):
+            return False
+        rest = key[len("zListItem__"):]
+        if ordinal:
+            return rest.startswith(f"{ordinal}_")
+        return rest.isdigit()
 
     @staticmethod
     def _load_zlist_source(stashed: Any) -> Any:
@@ -107,66 +152,89 @@ class LoopOps:
         parent: Dict[str, Any],
         cfg: Dict[str, Any],
         resolved_data: Dict[str, Any],
-        context: Any
+        context: Any,
+        anchor_key: str = "zList",
+        ordinal: str = ""
     ) -> None:
-        """Replace ``parent``'s zList directive with one resolved each-block per row."""
+        """Replace ``parent``'s zList directive with one resolved each-block per row.
+
+        Rows are woven AT THE DIRECTIVE'S DECLARED POSITION (zOS#50 — they used
+        to append at the dict tail, so "list above a details panel" rendered
+        below it). ``anchor_key`` is the key being consumed (``zList`` /
+        ``zList__dupN`` first pass, the stash on a revisit); ``ordinal``
+        namespaces this list's rows + stash so several lists on one block never
+        clean up or overwrite each other's output.
+        """
         import copy
 
         rows = self._lookup_list_source(cfg.get("source", ""), resolved_data)
         each_tmpl = cfg.get("each", {})
         gate = cfg.get("zGate")  # optional per-row filter (jinja `{% for … if … %}`)
-        # Consume the PUBLIC directive regardless (no render-time loop primitive
-        # leaks), but stash the original so THIS SAME node — a live reference a
-        # revisit within the process shares (see _ZLIST_SOURCE_KEY) — can be
-        # re-woven against fresh data next time instead of freezing forever.
-        parent.pop("zList", None)
-        try:
-            parent[_ZLIST_SOURCE_KEY] = json.dumps(cfg)
-        except TypeError:
-            pass  # non-JSON-safe cfg (shouldn't happen for parsed zolo) — skip the stash
-        # Drop any rows woven on a PRIOR visit before reweaving — row count/
-        # content may have changed (grown, shrunk, edited) since then.
-        for stale_key in [k for k in parent if isinstance(k, str) and k.startswith("zListItem__")]:
-            del parent[stale_key]
-        if not isinstance(rows, list) or not isinstance(each_tmpl, dict) or not each_tmpl:
-            return
 
         # Weave each row through the render-scoped loop-frame stack (LoopOps-owned, in
         # context — never session). _push_row returns the context carrying the frame;
         # both the per-row gate and the token resolver read %item.* off the top of it.
         # The stack is self-restoring (push/pop per row), so the old zVars["item"] +
         # prev_item save/restore dance is gone, and nested shuttles are safe by design.
+        row_prefix = f"zListItem__{ordinal}_" if ordinal else "zListItem__"
+        woven_rows: Dict[str, Any] = {}
         out_idx = 0
-        for row in rows:
-            row_ctx = self._push_row(context, row)
-            try:
-                # Denied row is simply not woven (contiguous output keys).
-                if gate is not None and not self._row_passes_gate(gate, row_ctx):
-                    continue
-                row_copy = copy.deepcopy(each_tmpl)
-                # A NESTED zGate (e.g. an "owner actions" child block gated on
-                # `%item.<field>: %session.<field>`) must be settled HERE, while
-                # the %item frame is still live — _resolve_item_tokens below only
-                # does STRING interpolation (a resolver miss is left as the
-                # literal token, per token_resolver.py's display contract), so a
-                # denied comparison would otherwise survive as two now-unresolvable
-                # literal tokens once the loop frame pops, silently comparing
-                # None == None (always "equal") for every later walk. Pruning first
-                # means the gate is answered with the SAME live %item/%session
-                # values the row-level `zList.zGate` filter already uses above.
-                self._prune_denied_subtrees(row_copy, row_ctx)
-                woven = self._resolve_item_tokens(row_copy, row_ctx)
-                # Collapse per-row zKnots WHILE the %item frame is live (so a card's
-                # computed value / ternary sees this row). Same engine as page-scope
-                # (KnotOps.expand_knots) — sibling mixin on the zLoom facade; guarded so
-                # LoopOps stays usable in isolation (unit smokes).
-                expand_knots = getattr(self, "expand_knots", None)
-                if expand_knots is not None:
-                    expand_knots(woven, row_ctx)
-                parent[f"zListItem__{out_idx}"] = woven
-                out_idx += 1
-            finally:
-                self._pop_row(row_ctx)
+        if isinstance(rows, list) and isinstance(each_tmpl, dict) and each_tmpl:
+            for row in rows:
+                row_ctx = self._push_row(context, row)
+                try:
+                    # Denied row is simply not woven (contiguous output keys).
+                    if gate is not None and not self._row_passes_gate(gate, row_ctx):
+                        continue
+                    row_copy = copy.deepcopy(each_tmpl)
+                    # A NESTED zGate (e.g. an "owner actions" child block gated on
+                    # `%item.<field>: %session.<field>`) must be settled HERE, while
+                    # the %item frame is still live — _resolve_item_tokens below only
+                    # does STRING interpolation (a resolver miss is left as the
+                    # literal token, per token_resolver.py's display contract), so a
+                    # denied comparison would otherwise survive as two now-unresolvable
+                    # literal tokens once the loop frame pops, silently comparing
+                    # None == None (always "equal") for every later walk. Pruning first
+                    # means the gate is answered with the SAME live %item/%session
+                    # values the row-level `zList.zGate` filter already uses above.
+                    self._prune_denied_subtrees(row_copy, row_ctx)
+                    woven = self._resolve_item_tokens(row_copy, row_ctx)
+                    # Collapse per-row zKnots WHILE the %item frame is live (so a card's
+                    # computed value / ternary sees this row). Same engine as page-scope
+                    # (KnotOps.expand_knots) — sibling mixin on the zLoom facade; guarded so
+                    # LoopOps stays usable in isolation (unit smokes).
+                    expand_knots = getattr(self, "expand_knots", None)
+                    if expand_knots is not None:
+                        expand_knots(woven, row_ctx)
+                    woven_rows[f"{row_prefix}{out_idx}"] = woven
+                    out_idx += 1
+                finally:
+                    self._pop_row(row_ctx)
+
+        # Consume the PUBLIC directive (no render-time loop primitive leaks) and
+        # stash the original AT ITS POSITION so THIS SAME node — a live reference
+        # a revisit within the process shares (see _ZLIST_SOURCE_KEY) — can be
+        # re-woven against fresh data next time instead of freezing forever.
+        # The rebuild drops THIS list's prior rows (count/content may have
+        # changed since) and re-emits stash + fresh rows exactly where the
+        # directive was declared; other lists' rows/stashes pass through.
+        stash_key = f"{_ZLIST_SOURCE_KEY}__{ordinal}" if ordinal else _ZLIST_SOURCE_KEY
+        try:
+            stash_val = json.dumps(cfg)
+        except TypeError:
+            stash_val = None  # non-JSON-safe cfg (shouldn't happen for parsed zolo)
+        rebuilt: Dict[str, Any] = {}
+        for key, val in list(parent.items()):
+            if key == anchor_key:
+                if stash_val is not None:
+                    rebuilt[stash_key] = stash_val
+                rebuilt.update(woven_rows)
+                continue
+            if key == stash_key or self._row_belongs(key, ordinal):
+                continue  # this list's prior stash/rows — superseded by the rebuild
+            rebuilt[key] = val
+        parent.clear()
+        parent.update(rebuilt)
 
     def _row_passes_gate(self, gate: Any, context: Any) -> bool:
         """Ask zGate whether the current row (``%item.*`` on the loop-frame stack) passes.

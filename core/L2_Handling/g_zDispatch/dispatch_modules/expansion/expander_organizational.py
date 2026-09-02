@@ -73,6 +73,14 @@ _METADATA_KEYS = (
     | set(EVENT_BINDING_KEYS)
 )
 
+
+def _is_metadata_key(key: Any) -> bool:
+    """Exact metadata keys plus suffixed zList stashes (``__zListSource__dupN``
+    — one per list when a block carries several, zOS#50)."""
+    return key in _METADATA_KEYS or (
+        isinstance(key, str) and key.startswith('__zListSource')
+    )
+
 class OrganizationalHandler:
     """
     Handles nested organizational structures (recursion).
@@ -160,7 +168,7 @@ class OrganizationalHandler:
             - Integrates with ShorthandExpander for nested expansion
         """
         # Get ALL content keys, excluding metadata + declarative event bindings.
-        content_keys = [k for k in zHorizontal.keys() if k not in _METADATA_KEYS]
+        content_keys = [k for k in zHorizontal.keys() if not _is_metadata_key(k)]
 
         # Check if organizational (all nested)
         if not self._is_all_nested(zHorizontal, content_keys):
@@ -448,7 +456,7 @@ class OrganizationalHandler:
             # Returns: True
         """
         # Get ALL content keys, excluding metadata + declarative event bindings.
-        content_keys = [k for k in zHorizontal.keys() if k not in _METADATA_KEYS]
+        content_keys = [k for k in zHorizontal.keys() if not _is_metadata_key(k)]
 
         # Not organizational if subsystem or CRUD call
         if is_subsystem_call or is_crud_call:

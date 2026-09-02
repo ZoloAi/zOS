@@ -1735,6 +1735,11 @@ shuttle: one pattern across a whole list — `{% for %}`
     per-row filter — add `zGate:` → only passing rows get a block: bare `zGate: %item.stock` (truthy) · dict `zGate: {%item.category: audio}` (by value)
     lowers to — `zList: {source: %data.<reel>, each: {%pattern: {slots}}}` at load (each `%item.*` baked in at bind — no render-time loop)
     raw form — write `zList` directly (`source:` + `each:`) for a hand-wired per-row structure
+    in_place — woven rows land AT THE DIRECTIVE'S DECLARED POSITION among siblings ("list above a details
+        panel" renders list-then-panel, exactly as written) — order the block, not workarounds
+    two_per_block — a `zShuttle` and a raw `zList` CAN share one parent block (each weaves at its own spot,
+        rows never cross); two RAW `zList` keys on one block is a duplicate-key parse error — wrap one
+        in a named child block instead
 
 knot: a value COMPUTED on the spot — `{{ a+b }}` / ternary
     a `zKnot` ties `%` threads + literals into ONE value, declared as a step (no formula string, no eval)

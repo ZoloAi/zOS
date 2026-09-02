@@ -377,7 +377,13 @@ class CommandLauncher(RoutingHandlers, WizardDataHandlers):
             {'_zClass', '_zStyle', '_zId', 'zScripts', 'zId', '__zListSource'}
             | set(EVENT_BINDING_KEYS)
         )
-        content_keys = [k for k in zHorizontal.keys() if k not in metadata_keys]
+        # startswith also catches suffixed stashes (`__zListSource__dupN`) —
+        # one per list when a block carries several (zOS#50).
+        content_keys = [
+            k for k in zHorizontal.keys()
+            if k not in metadata_keys
+            and not (isinstance(k, str) and k.startswith('__zListSource'))
+        ]
         # zStride: remember a lone display directive BEFORE shorthand expansion.
         # The single-UI hoist (shorthand_expander early-return) collapses
         # {zH0: "..."} → bare {zDisplay: ...}, destroying the directive name and

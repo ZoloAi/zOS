@@ -81,7 +81,12 @@ def _lower_node(node: Any, registry: Dict[str, Any], zos: Any) -> Any:
             if key == _KEY_SHUTTLE and isinstance(val, dict):
                 lowered = _lower_shuttle(val, registry, zos)
                 if lowered is not None:
-                    out.update(lowered)   # replace zShuttle with the zList form
+                    # Replace zShuttle with the zList form AT ITS OWN POSITION,
+                    # under a collision-free key: a sibling authored `zList` on
+                    # the same block used to be silently overwritten by this
+                    # dict merge — the zOS#50 "second list kills the page"
+                    # shape. loop_ops treats `zList__dupN` as one more list.
+                    out[_free_zlist_key(node, out)] = lowered["zList"]
                     continue
                 # invalid shuttle — leave as-is (fails open, warned in _lower_shuttle)
                 out[key] = val
@@ -91,6 +96,18 @@ def _lower_node(node: Any, registry: Dict[str, Any], zos: Any) -> Any:
     if isinstance(node, list):
         return [_lower_node(item, registry, zos) for item in node]
     return node
+
+
+def _free_zlist_key(node: Dict[str, Any], out: Dict[str, Any]) -> str:
+    """First ``zList``/``zList__dupN`` name unused by BOTH the lowered output so
+    far and the source block (an authored ``zList`` may appear AFTER the shuttle
+    in declaration order — it must keep its own key)."""
+    if "zList" not in out and "zList" not in node:
+        return "zList"
+    n = 2
+    while f"zList__dup{n}" in out or f"zList__dup{n}" in node:
+        n += 1
+    return f"zList__dup{n}"
 
 
 def _lower_shuttle(cfg: Dict[str, Any], registry: Dict[str, Any], zos: Any) -> Any:
