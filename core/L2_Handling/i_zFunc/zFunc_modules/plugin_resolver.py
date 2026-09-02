@@ -32,6 +32,40 @@ from .plugin_executor import execute_plugin_function
 # Characters
 CHAR_AMPERSAND: str = '&'
 
+# Once-per-process memo so a content-position call (`&math.square` re-rendered
+# on every paint) warns ONCE, not per render.
+_WARNED_UNDECORATED: set = set()
+
+
+def warn_if_undecorated(func: Any, file_path: str, function_name: str, zos: Any) -> None:
+    """Say it LOUDLY when an `&` dispatch resolves to an undecorated Python callable.
+
+    zOS#91: @zfunc is what installs DI (user/files/data/params...) and the
+    return/error contract — when a refactor drops the decorator (or lands it on
+    the helper above), the function still dispatches and "succeeds" while
+    writing nothing, with zero log evidence. Not a refusal: a plain function is
+    legal in VALUE position (`&math.square(5)`), so this warns instead of
+    breaking — once per function per process, in the app's session trace.
+    JS plugins never carry the decorator, so only `.py` targets are checked.
+    """
+    if not (isinstance(file_path, str) and file_path.endswith(".py")):
+        return
+    if getattr(func, "__zfunc__", False):
+        return
+    key = (file_path, function_name)
+    if key in _WARNED_UNDECORATED:
+        return
+    _WARNED_UNDECORATED.add(key)
+    logger = getattr(zos, "logger", None)
+    log = getattr(logger, "session_framework", None) or getattr(logger, "framework", None)
+    if log is not None:
+        log.warning(
+            f"[zFunc] '{function_name}' in {file_path} is NOT @zfunc-decorated — "
+            f"it will run, but with NO injection (user/files/data/params) and no "
+            f"return contract; a save that 'succeeds' silently may be THIS. "
+            f"Decorate it with @zfunc unless it is a pure value function."
+        )
+
 
 def resolve_plugin_invocation(value: str, zos: Any, context: Optional[Any] = None) -> Any:
     """
@@ -151,6 +185,10 @@ def resolve_plugin_invocation(value: str, zos: Any, context: Optional[Any] = Non
     # Step 3: Resolve the callable through the SSOT resolver — Python via importlib
     # (gated), JavaScript via the Node executor. Identical for both languages.
     func = resolve_callable(file_path, function_name, zos.logger, zos)
+
+    # zOS#91: an undecorated Python target dispatches fine but silently loses
+    # DI + the return contract — warn loudly (once) instead of failing silent.
+    warn_if_undecorated(func, file_path, function_name, zos)
 
     # Step 4: Parse arguments
     from zOS.L2_Handling.d_zParser.parser_modules.plugin import parse_plugin_arguments

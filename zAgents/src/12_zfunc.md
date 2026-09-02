@@ -70,6 +70,13 @@ zos_plugin: want the contract handled for you? the SDK on top of `&.`
             down) — and over zAPI the response now NAMES it (zOS#90, 1.7.3): `TypeError: ...` with the
             handler in meta, never the old misleading 500 "Handler returned 'error'" (it raised, it didn't
             return; full traceback stays in the server log)
+        undecorated — `ZAbort` is honored WITHOUT the decorator too (zOS#91, 1.7.3): a plain function's
+            `raise ZAbort(..., status=404)` answers the real 404 (it used to fall through as a bare 500).
+            But @zfunc is still what installs INJECTION — an undecorated `&.plugin.fn()` dispatch runs with
+            no user/files/data/params and no return contract (the "dialog closed, nothing written" trap when
+            a refactor drops the decorator or lands it on the helper above); the dispatcher now warns loudly
+            in the app's framework log ("NOT @zfunc-decorated"), once per function. Plain functions stay
+            legal for VALUE position (`&math.square(5)`) — the warning is the tell, not a refusal
     async — decorate an `async def` and nothing changes (injection + contract carry through the await)
     seek — full door → Advanced › Extending › zos-plugin
 

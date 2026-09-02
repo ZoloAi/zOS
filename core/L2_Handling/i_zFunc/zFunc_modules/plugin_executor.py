@@ -20,6 +20,10 @@ Created: Phase 2 - Moved from g_zParser to i_zFunc
 
 from zOS import Any, Callable, Dict, List, Optional
 
+# Straight from result.py (typing-only imports) — the zos_plugin facade pulls
+# in drivers/swap machinery this Tier-1 module must not depend on.
+from zos_plugin.result import ZAbort
+
 from .executors.base_executor import ExecutionMixin
 from .func_js_executor import BrowserOnlyFunctionError
 from .func_constants import (
@@ -150,6 +154,13 @@ def execute_plugin_function(
         # so the zFunc facade renders the same clean warning on the & path as on
         # the @. path — locator parity (do NOT wrap into a ValueError traceback).
         raise
+    except ZAbort as abort:
+        # zOS#91: honor ZAbort REGARDLESS of decoration. The @zfunc wrapper
+        # already converts it for decorated plugins; an undecorated function's
+        # ZAbort used to fall through the generic wrap below into a ValueError —
+        # the structured result (and its 4xx status) silently became a bare 500.
+        # Same contract either way now: the abort's ZResult IS the return.
+        return abort.result
     except TypeError as e:
         raise ValueError(
             f"{ERROR_MSG_FUNCTION_CALL_FAILED.format(original_value)}\n"
