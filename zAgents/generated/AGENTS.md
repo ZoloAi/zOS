@@ -410,6 +410,13 @@ zbtn: a button does a thing
             (the `+` isn't a `bi-*` token, so it renders as a literal stray "+" character next to the icon)
         action — the &. call fired on CLICK (see zFunc) — we don't teach actions here, just that the key exists
         color  — semantic fill: primary · secondary · success · danger · warning · info
+    onSuccess: a plugin-action button (`action: &...`) can declare what happens AFTER the call succeeds —
+        `onSuccess: zDelta($Block)` repaints the section in place | `onSuccess: zLink(/route)` navigates
+        one-click row actions (mark done, delete, approve) need NO wrapping dialog — the button calls
+        the plugin and the page refreshes itself; a plugin that RETURNS {"zDelta": ...}/{"zLink": ...}
+        wins over the button's own onSuccess
+    per_row: buttons inside a zList/zShuttle `each:` are independent per-row actions — they never pause
+        the page walk the way a wizard gate does; pass row identity as args (`action: &.app.fn(%item.id)`)
     no_action: a zBtn with no action still returns a value — true on click (Bifrost) / y (terminal) — enough to gate a step
     submit_reset: type: submit / reset are CONTAINER-only — meaningless on a lone button (nothing to submit/reset)
         they live where a container owns them — Forms / zWizard
