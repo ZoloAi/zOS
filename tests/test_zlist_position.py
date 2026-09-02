@@ -19,7 +19,7 @@ class _Loop(LoopOps):
     """LoopOps isolated from the facade: minimal source lookup + %item binding."""
 
     def __init__(self):
-        self.zos = None
+        self.zos = _Zos()
 
     def _lookup_list_source(self, src, data):
         return data.get(src.replace('%data.', ''), None)
@@ -111,6 +111,50 @@ class TestPositionalWeave(unittest.TestCase):
         }
         self.loop.expand_list_bindings(block, self.data, {})
         self.assertEqual(list(block.keys()), ['zH1', '__zListSource', 'Panel'])
+
+
+class TestUnresolvableSource(unittest.TestCase):
+    """zOS#42 — a source that resolves to nothing weaves ZERO rows and WARNS.
+
+    Before the fix the directive could reach the renderer unexpanded (binding
+    seams skipped expansion when the binding was empty), painting the raw
+    ``each`` template once — "one phantom row with an empty %item context".
+    """
+
+    def setUp(self):
+        self.loop = _Loop()
+
+    def test_missing_reel_weaves_zero_rows_and_warns(self):
+        block = {
+            'zList': {'source': '%data.hub_threads', 'each': {'zText': '%item.name'}},
+            'Tail': {'zText': 'alive'},
+        }
+        self.loop.expand_list_bindings(block, {}, {})
+        self.assertEqual(list(block.keys()), ['__zListSource', 'Tail'])
+        warnings = self.loop.zos.logger.framework.messages
+        self.assertEqual(len(warnings), 1)
+        self.assertIn('%data.hub_threads', warnings[0])
+        self.assertIn('0 rows', warnings[0])
+
+    def test_zvars_style_source_weaves_zero_rows_and_warns(self):
+        # The issue's Bind-workaround shape: source names a zVars value, which
+        # is never a legal %data reel — zero rows, loud warning, page intact.
+        block = {
+            'zList': {'source': '%hub_threads', 'each': {'zText': '%item.name'}},
+            'Tail': {'zText': 'alive'},
+        }
+        self.loop.expand_list_bindings(block, {}, {})
+        self.assertEqual(list(block.keys()), ['__zListSource', 'Tail'])
+        self.assertEqual(len(self.loop.zos.logger.framework.messages), 1)
+
+    def test_resolved_empty_list_weaves_zero_rows_without_warning(self):
+        # A reel that RESOLVES to [] is a healthy empty list — no warning.
+        block = {
+            'zList': {'source': '%data.items', 'each': {'zText': '%item.name'}},
+        }
+        self.loop.expand_list_bindings(block, {'items': []}, {})
+        self.assertEqual(list(block.keys()), ['__zListSource'])
+        self.assertEqual(self.loop.zos.logger.framework.messages, [])
 
 
 class TestTwoListsOneBlock(unittest.TestCase):

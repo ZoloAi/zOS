@@ -168,6 +168,21 @@ class LoopOps:
         import copy
 
         rows = self._lookup_list_source(cfg.get("source", ""), resolved_data)
+        if rows is None:
+            # zOS#42: an unresolvable source weaves ZERO rows (the directive is
+            # still consumed below, so the raw each-template can never render as
+            # a phantom row) — and it SAYS so, because a nonsense reel/name is
+            # otherwise indistinguishable from "my CSS/reel is broken".
+            # session_framework, NOT framework: the latter is the GLOBAL
+            # zos-framework.log (session-agnostic, often handler-less in app
+            # runs) — this is an app-authoring fault, it belongs in the
+            # <title>.framework.log trace the developer actually reads.
+            log = getattr(self.zos.logger, "session_framework", None) \
+                or self.zos.logger.framework
+            log.warning(
+                f"[zLoom] zList source '{cfg.get('source', '')}' did not resolve "
+                f"to a list (reel missing, zVars name, or non-%data ref) — weaving 0 rows"
+            )
         each_tmpl = cfg.get("each", {})
         gate = cfg.get("zGate")  # optional per-row filter (jinja `{% for … if … %}`)
 

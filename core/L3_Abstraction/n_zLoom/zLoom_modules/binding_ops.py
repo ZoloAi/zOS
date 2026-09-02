@@ -45,28 +45,40 @@ class BindingOps:
         Returns the block_context (``{"_resolved_data": {...}}``) or the passed
         ``context`` unchanged when the block declares no binding. Fails soft — a
         binding/resolve error logs and yields the context (empty render), never raises.
+
+        Loop expansion + knot collapse run UNCONDITIONALLY (zOS#42): they used
+        to be gated on a non-empty binding/resolve, so a ``zList`` on a
+        spool-less file (or after a failed resolve) was never expanded — the
+        RAW directive reached the renderer and painted its ``each`` template
+        once, the "one phantom row with an empty %item context" bug. An
+        unresolvable ``source:`` now weaves ZERO rows (and warns — see
+        LoopOps._expand_zlist_into).
         """
         binding = self.build_binding_block(zfile_parsed)
-        if not binding:
-            return context
         block_context = context if isinstance(context, dict) else {}
+        resolved: Dict[str, Any] = {}
         try:
             # resolve_block_data (QueryOps) + expand_list_bindings (LoopOps) are
             # sibling mixins composed into the zLoom facade at runtime.
-            resolved = self.resolve_block_data(binding, block_context)  # pylint: disable=no-member
+            if binding:
+                resolved = self.resolve_block_data(binding, block_context) or {}  # pylint: disable=no-member
             if resolved:
                 block_context["_resolved_data"] = resolved
                 self.zos.session["_current_block_data"] = resolved
                 self.zos.logger.framework.debug(
                     f"[zLoom] prepare_block_render bound: {list(resolved.keys())}")
-                # SSOT loop expansion — same structural engine the zDash panel path
-                # uses, so a plain leaf and a dashboard weave lists identically.
-                self.expand_list_bindings(block, resolved)  # pylint: disable=no-member
-                # SSOT knot collapse — after loops (loop-scoped knots already baked
-                # per-row by LoopOps), finish any page-scoped zKnot value-dict.
-                self.expand_knots(block, block_context)  # pylint: disable=no-member
+            # SSOT loop expansion — same structural engine the zDash panel path
+            # uses, so a plain leaf and a dashboard weave lists identically.
+            # ALWAYS runs so the zList directive is consumed even when there is
+            # nothing to weave (zOS#42 — zero rows, never a phantom template).
+            self.expand_list_bindings(block, resolved)  # pylint: disable=no-member
+            # SSOT knot collapse — after loops (loop-scoped knots already baked
+            # per-row by LoopOps), finish any page-scoped zKnot value-dict.
+            self.expand_knots(block, block_context)  # pylint: disable=no-member
         except Exception as exc:  # pylint: disable=broad-except
             self.zos.logger.framework.warning(f"[zLoom] prepare_block_render failed: {exc}")
+        if not binding:
+            return context
         return block_context
 
     def build_binding_block(self, block: Dict[str, Any]) -> Dict[str, Any]:

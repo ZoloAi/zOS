@@ -52,6 +52,13 @@ spool: where a live value comes from — the reel a `%` thread pulls off
         so a revisit re-weaves against CURRENT rows, clearing any stale ones first. `zDemos/zDarkroom`'s History
         is the worked example (an empty-at-boot list that grows after a `zDelta($Add)` → submit → `zDelta($Main)`
         round trip) — no zolo authoring change needed, this was a framework gap, not a usage mistake
+    source_miss — a `source:` that fails to resolve to a real list (reel name typo, a zVars name — never a legal
+        source, a plugin-computed session write) weaves ZERO rows and logs `[zLoom] zList source '…' did not
+        resolve` in the app's framework log (zOS#42, 1.7.3): the directive is still consumed, so the raw `each`
+        template can never paint as "one phantom row with an empty %item context" (the pre-1.7.3 shape — it also
+        used to hit pages with NO binding at all, where expansion never ran and the raw directive reached the
+        renderer). A reel that resolves to a genuinely EMPTY list is healthy — zero rows, no warning. Feeding a
+        group_by/aggregate or plugin-computed list INTO a loop is still an open enhancement (zOS#117)
 
 dye: finish a value on its way to the page — the `|` pipe
     `%value | dye` — send through a step; chain freely (`%x | trim | title`), left-to-right
