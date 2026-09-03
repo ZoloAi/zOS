@@ -102,6 +102,12 @@ drive_web: zBifrost-only step primitives (Playwright + WS + HTTP; no terminal eq
     zOpen: zSpark            — homepage `/`; or `@.UI.Page` route; or `{type, zLoom|zUI, params}`
     zViewport: desktop       — desktop|tablet|mobile | `[w,h]` | device name; fresh context each change
     zWait: {selector, state} — state: visible|hidden|attached|detached|enabled; timeout ms
+    zWait: zRender           — the "page finished rendering" signal (zOS#97, client ≥1.7.114): waits until
+        the chunk stream ended AND every chunk painted (<html data-zrender=idle>). Rarely needed by hand:
+        the runner AUTO-settles on it after zOpen/zClick/zPick/zHistory and before every zAssert/zShot —
+        asserts can't race the repaint anymore, and the old "wait for an element known to be last on the
+        page" workaround is dead (it broke on every reorder). Old clients: no attribute → no-op, still green.
+        App JS gets the same SSOT: document 'zRender:complete' event + client.rendering flag
     zClick: {selector}       — hand-picked selector escape hatch when a bare `zPick` name won't do
     zType: {selector, value} — hand-picked selector escape hatch when a bare `zFill` field name won't do
                                `~email`/`~name`/`~uuid`/… generate unique; `$Ref` reuses

@@ -470,6 +470,28 @@ class ZRaven(BaseStepRunner):
             match_path = match_path.replace(f"%{k}", str(v)).replace(f":{k}", str(v))
         return match_path if match_path.startswith("/") else "/" + match_path
 
+    async def _settle_render(self, timeout_ms: int = 0) -> None:
+        """Wait for the client's render-lifecycle signal to leave 'busy' (zOS#97).
+
+        zbifrost-client ≥1.7.114 stamps <html data-zrender="busy|idle"> from
+        walk-send to last-chunk-painted — the SSOT that kills the chunk-stream
+        race (asserts failing while the shot shows the value; not_contains
+        passing on a page that hadn't painted YET). Waiting for "not busy"
+        rather than == "idle" keeps older clients green: no attribute → settles
+        immediately, exactly the pre-signal behavior. Best-effort by design —
+        a timeout here never fails the step (the step's own selector waits and
+        assertions still gate correctness; this only removes the race).
+        """
+        if self._page is None:
+            return
+        try:
+            await self._page.wait_for_function(
+                "() => document.documentElement.getAttribute('data-zrender') !== 'busy'",
+                timeout=timeout_ms or self.timeout * 1000,
+            )
+        except Exception:  # pylint: disable=broad-except
+            info("⚠ render-settle wait timed out (data-zrender stayed 'busy') — continuing")
+
     async def _run_open(self, route: Any) -> bool:
         await self._ensure_browser()
         base = self.http_url.rstrip("/")
@@ -497,6 +519,9 @@ class ZRaven(BaseStepRunner):
         info(f"browser.open → {url}")
 
         await self._page.goto(url, wait_until="networkidle")
+        # zOS#97: the initial walk streams chunks after load — settle before
+        # the content checks below read a half-painted page.
+        await self._settle_render()
 
         # ── Bifrost content readiness ─────────────────────────────────────────
         # zbase.css is now a server-side <link> — synchronous with page load,
@@ -655,8 +680,10 @@ class ZRaven(BaseStepRunner):
         # per-step shot.timestamp: false.
         use_ts      = cfg.get("timestamp", self._raven_opts.get("timestamp_shots", True))
 
-        # Built-in settle: sleep for explicit delay OR default, then wait for
-        # two rAF cycles so the browser has painted after any pending style recalc.
+        # Built-in settle: render-signal first (zOS#97 — a shot of a
+        # mid-stream page is a false record), then sleep for explicit delay OR
+        # default, then two rAF cycles so pending style recalc has painted.
+        await self._settle_render()
         await asyncio.sleep((delay_ms or _SHOT_SETTLE_MS) / 1000)
         try:
             await self._page.evaluate(
@@ -873,6 +900,9 @@ class ZRaven(BaseStepRunner):
             }
             return False
         await asyncio.sleep(0.2)
+        # zOS#97: a pick usually triggers a walk — settle so the next step
+        # reads the picked page, not the previous one mid-repaint.
+        await self._settle_render()
         self._last_response = {"event": "picked", "option": opt}
         return True
 
@@ -939,11 +969,19 @@ class ZRaven(BaseStepRunner):
         info(f"browser.click → {selector}")
         await self._page.click(selector)
         await asyncio.sleep(0.2)
+        await self._settle_render()  # zOS#97 — clicks can trigger a walk
         self._last_response = {"event": "clicked", "selector": selector}
         return True
 
     async def _run_wait(self, cfg: dict) -> bool:
         await self._ensure_browser()
+        # zWait: zRender — the explicit form of the render-settle signal
+        # (zOS#97): wait until the client reports the page finished painting.
+        if isinstance(cfg, str) and cfg.strip().lower() == "zrender":
+            info("browser.wait → zRender (page finished rendering)")
+            await self._settle_render()
+            self._last_response = {"event": "waited", "selector": "zRender"}
+            return True
         selector = _strip_sel(cfg.get("selector", ""))
         state    = cfg.get("state", "visible")
         timeout  = cfg.get("timeout", self.timeout * 1000)
@@ -1036,8 +1074,11 @@ class ZRaven(BaseStepRunner):
             await self._page.evaluate("() => window.history.forward()")
         else:
             await self._page.evaluate("() => window.history.back()")
-        # Nudge: let popstate → WS round-trip start; the next zWait does the real sync.
+        # Nudge: let popstate → WS round-trip start, then settle on the render
+        # signal (zOS#97) — an explicit zWait after this stays supported but is
+        # no longer required for correctness.
         await asyncio.sleep(0.3)
+        await self._settle_render()
         self._last_response = {"event": "history", "direction": direction}
         return True
 
@@ -1214,6 +1255,11 @@ class ZRaven(BaseStepRunner):
             return True
 
         if assert_cfg:
+            # zOS#97: never assert against a mid-stream page. The killer shape
+            # this closes: a not_contains PASSING because the content hadn't
+            # rendered YET — a green test on an incomplete page.
+            if self._page is not None:
+                await self._settle_render()
             passed, reason = await evaluate_assert(
                 assert_cfg, self._last_response, self._page,
                 api_response=self._last_api_response,
