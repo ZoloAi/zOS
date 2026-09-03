@@ -366,7 +366,8 @@ def _handle_commit(boot_logger, spark_path: Path, label, force: bool, verbose: b
         if label:
             print(f"   label: {label}")
         print(f"   flow-owned:  {', '.join(result['flow_owned']) or '(none)'}")
-        print(f"   shared:      {len(result['shared'])} file(s)")
+        print(f"   app tree:    {len(result['shared'])} file(s) — full tree minus "
+              f"Data/, logs/, zVersions/, run output (see manifest.json)")
         print(f"   diff.txt:    {'yes' if result['has_diff'] else 'no (genesis commit)'}")
         print(f"   shots:       {'yes' if result['has_shots'] else 'no'}")
         print(f"   log:         {'yes' if result['has_log'] else 'no'}\n")

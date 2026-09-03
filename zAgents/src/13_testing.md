@@ -181,12 +181,19 @@ zcommit: `z raven --commit 'label'` — archive a milestone snapshot of ONE flow
     gate     — blocks unless the flow's LAST run passed (0 failed steps); `--force` overrides — a commit
         is a milestone claim, an unproven/broken state needs an explicit override to record one
     where    — `zVersions/commits/<flow>/c1/, c2/, …` — cN increments per flow, never reused
-    contents — `snapshot/` full raw copy of the flow's OWN files (spark + active raven) PLUS the project's
-        shared text-source state at that moment (models/, zLoom/, zViews/, routes/ — whatever exists);
+    contents — `snapshot/` full raw copy of the flow's OWN files (spark + active raven) PLUS the WHOLE
+        app tree at that moment — exclude-based like `zolo push`, not an include list (zOS#99, 1.7.3:
+        the old four-glob list silently skipped plugins/, styles/, templates/, public/ — a plugin
+        gutted after 38 "green" commits had nothing to restore from). Skipped: Data/, logs/,
+        zVersions/, zRaven output+shots dirs, caches/receipts — everything else IS captured, so a new
+        folder convention is archived by default instead of forgotten by default; binary files copy
+        raw and appear in diff.txt as one `binary changed` line;
         `diff.txt` plain unified diff vs the PREVIOUS commit of this SAME flow (agent-only changelog,
-        absent on the genesis c1); `shots/` raw copy of that flow's zShots (Bifrost only); `<title>.log`
-        raw copy of the run log; `manifest.json` records which snapshot paths are `flow_owned` (spark +
-        raven — the ONLY paths zRevive ever restores) vs `shared` (historical record, never restored)
+        absent on the genesis c1) — now covers plugin/style edits too; `shots/` raw copy of that
+        flow's zShots (Bifrost only); `<title>.log` raw copy of the run log; `manifest.json` records
+        `flow_owned` (spark + raven — the ONLY paths zRevive ever restores) vs `shared` (historical
+        record, never restored) AND states the contract itself (`contract: full-tree` + the exclude
+        list) so any single commit is self-describing
     ledger   — `zVersions/commits.csv` — one project-wide row per commit (id, flow, commit, label,
         timestamp, spark_file, raven_file, steps_total/passed/failed, path) — full commit history in one read
     when     — suggest after an exit_gate (all zRaven green, shots reviewed+shippable) — see 00_workflow
@@ -247,7 +254,7 @@ options: `zRavenOptions:` / `zMeta:` block at top (all optional)
 
 seek_as_need: !authoring a test — only if extending zRaven
     generator  — core/zSys/cli/raven_generator.py (zUI→steps; preserves hand-added steps + zFill/zSubmit values; archives) + raven_command.py (--gen/--run/--hint/--commit, revision resolve)
-    commit     — core/L4_Orchestration/s_zRaven/zRaven_modules/utils/commit_manager.py (create_commit: gate, snapshot, diff, shots/log copy, ledger)
+    commit     — core/L4_Orchestration/s_zRaven/zRaven_modules/utils/commit_manager.py (create_commit: gate, full-tree snapshot minus _SNAPSHOT_EXCLUDES, diff, shots/log copy, ledger)
     clear      — core/L4_Orchestration/s_zRaven/zRaven_modules/utils/clear_manager.py (clear_workspace: commit-match gate, dev-flow removal, orphan zShots sweep, ledger)
     revive     — core/L4_Orchestration/s_zRaven/zRaven_modules/utils/revive_manager.py (revive_flow: commit lookup, conflict gate, flow-owned restore, shared drift note, ledger)
     runners    — core/L4_Orchestration/s_zRaven: cli/cli_runner.py (stdin/stdout, strict leaf) · ws/ws_runner.py (Playwright+WS, `_BIFROST_PRIMITIVE_ORDER`, zScreenshot→zShot, `_capture_failure_shot` on any step fail) · base_runner.py (mode, counters)

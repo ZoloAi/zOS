@@ -6,8 +6,12 @@ numbered folder (c1, c2, ...) under zVersions/commits/<flow>/, written once and
 never mutated. Every commit stores:
 
   snapshot/   full raw copy of the flow's own files (spark + active raven) AND
-              the project's shared text-source state at that moment (schemas,
-              zLoom spools, zUI views, routes) — whatever of those exist
+              the WHOLE app tree at that moment — every source file minus a
+              noise list (_SNAPSHOT_EXCLUDES): plugins, styles, templates,
+              public assets, schemas, spools, views, routes, all of it. A
+              commit is a real restore point (zOS#99 — the old include-glob
+              list covered only four .zolo folders, so a commit silently
+              missed the app's plugin logic and stylesheet entirely)
   diff.txt    a plain unified diff against the PREVIOUS commit of this SAME
               flow (agent-only changelog; absent on the genesis commit c1)
   shots/      raw copy of zRaven/zShots/<flow>/ at commit time (Bifrost only)
@@ -25,20 +29,35 @@ from __future__ import annotations
 
 import csv
 import difflib
+import fnmatch
 import json
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-# Shared project text-source globs, relative to workspace root. A commit
-# snapshots whichever of these exist — no error when a golden app has no
-# routes/ or no models/ yet.
-_SHARED_GLOBS = (
-    "models/**/*.zolo",
-    "zLoom/**/*.zolo",
-    "zViews/**/*.zolo",
-    "routes/**/*.zolo",
+# What a snapshot SKIPS — everything else in the app folder is captured.
+# Exclude-based on purpose (zOS#99): the old include-glob list (four .zolo
+# folders) meant plugins/, styles/, templates/, public/ were never archived —
+# a "restore point" that silently wasn't one. The contract now mirrors
+# `zolo push` (zguard/push/bundle.py _DEFAULT_IGNORE + full-tree walk): the
+# app IS the folder minus noise — new folder conventions are captured by
+# default instead of forgotten by default. Keep the two lists' SPIRIT in
+# sync by hand; the code can't be shared (zOS core must work without zguard).
+_SNAPSHOT_EXCLUDES = (
+    # history/output — never source (zVersions would recurse into commits!)
+    "zVersions",
+    "zRaven/output",
+    "zRaven/zShots",      # shots are copied separately, per-flow, to shots/
+    # runtime state — captured by --run's Data isolation story, not commits
+    "Data",
+    "logs",
+    "*.log",
+    # tooling noise
+    ".git", "__pycache__", "*.pyc", ".DS_Store",
+    ".venv", "venv", "node_modules",
+    # this machine's hosting link — local state, never a restore payload
+    "zProject.*.receipt.zolo",
 )
 
 _LEDGER_COLUMNS = (
@@ -77,11 +96,42 @@ def _next_commit_n(flow_dir: Path) -> int:
     return (max(nums) + 1) if nums else 1
 
 
+def _excluded(rel_posix: str) -> bool:
+    """True if a workspace-relative path matches the snapshot noise list.
+
+    Same matching spirit as push's _ignored: a pattern hits on the full
+    relative path, on any single path segment (so `__pycache__` prunes at any
+    depth), and as a directory prefix (so `zRaven/output` prunes the subtree).
+    """
+    parts = rel_posix.split("/")
+    for pat in _SNAPSHOT_EXCLUDES:
+        if fnmatch.fnmatch(rel_posix, pat):
+            return True
+        if "/" not in pat and any(fnmatch.fnmatch(seg, pat) for seg in parts):
+            return True
+        if rel_posix == pat or rel_posix.startswith(pat + "/"):
+            return True
+    return False
+
+
 def _collect_shared_files(workspace: Path) -> list[Path]:
+    """Every source file in the app tree, minus _SNAPSHOT_EXCLUDES (zOS#99)."""
     found: list[Path] = []
-    for pattern in _SHARED_GLOBS:
-        found.extend(sorted(workspace.glob(pattern)))
+    for p in sorted(workspace.rglob("*")):
+        if not p.is_file():
+            continue
+        if _excluded(p.relative_to(workspace).as_posix()):
+            continue
+        found.append(p)
     return found
+
+
+def _is_binary(path: Path) -> bool:
+    """Cheap binary sniff — a NUL byte in the first 8 KiB."""
+    try:
+        return b"\0" in path.read_bytes()[:8192]
+    except OSError:
+        return True
 
 
 def _resolve_log_path(workspace: Path, title: str, log_dir_hint: str) -> Optional[Path]:
@@ -110,6 +160,12 @@ def _write_diff(old_snapshot: Path, new_snapshot: Path, out_path: Path) -> None:
             continue
         if rel not in old_files and rel in new_files:
             lines.append(f"=== added: {rel} ===\n")
+            continue
+        # Binary (covers/fonts/images now in scope, zOS#99): note the change,
+        # never inline a byte soup into the changelog.
+        if _is_binary(old_p) or _is_binary(new_p):
+            if old_p.read_bytes() != new_p.read_bytes():
+                lines.append(f"=== binary changed: {rel} ===\n")
             continue
         old_text = old_p.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
         new_text = new_p.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
@@ -170,10 +226,12 @@ def create_commit(
         shutil.copy2(src, dest)
         flow_owned_rel.append(rel)
 
-    # ── shared project text-source state (historical record only) ─────────────
+    # ── the rest of the app tree (historical record only, zOS#99) ─────────────
     shared_rel: list[str] = []
     for src in _collect_shared_files(workspace):
         rel = src.relative_to(workspace).as_posix()
+        if rel in flow_owned_rel:
+            continue  # spark + active raven already captured above
         dest = snapshot_dir / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest)
@@ -209,6 +267,11 @@ def create_commit(
         "raven_file": raven_active.name,
         "flow_owned": flow_owned_rel,
         "shared":     shared_rel,
+        # The snapshot contract, stated in the artifact itself (zOS#99): full
+        # app tree minus these — so a reader of any single commit knows exactly
+        # what was and wasn't captured, without source archaeology.
+        "contract":   "full-tree",
+        "excluded":   list(_SNAPSHOT_EXCLUDES),
         "has_shots":  has_shots,
         "has_log":    has_log,
         "last_run":   {
