@@ -443,6 +443,12 @@ class RouteDispatcher(PageRouteHandlersMixin, EndpointRouteHandlersMixin):
                 self.logger.warning(f"[RouteDispatcher] No route match found for: {self.handler.path}")
             return self._serve_error(404, "Route not found")
 
+        # Rate limit (zOS#8) — BEFORE RBAC and the handler, so a refused
+        # request never spends a password hash, a DB read, or a render.
+        denied = self._check_rate_limit(route, clean_path)
+        if denied is not None:
+            return denied
+
         # Check RBAC
         has_access, error_page = self.router.check_access(route)
         if not has_access:
@@ -472,6 +478,67 @@ class RouteDispatcher(PageRouteHandlersMixin, EndpointRouteHandlersMixin):
 
         # Unknown route type
         return self.handler.send_error(501, f"Route type '{route_type}' not supported")
+
+    def _check_rate_limit(self, route, clean_path):
+        """Enforce a route's declared request budget (zOS#8); None = admitted.
+
+        Budget resolution: the route's own ``rate:`` wins; a blueprint-meta
+        ``rate:`` is the default for ``type: zAPI`` routes only (machine doors
+        — a page or stylesheet fetch is never throttled by default). ``rate:
+        off`` on a route opts out of the meta default. A malformed spec warns
+        ONCE (naming the route and the grammar) and leaves the door open — a
+        typo must never take a production endpoint offline.
+
+        Counting key: (route table identity, client). id(route) collapses
+        every URL a parametrized route serves into ONE bucket, so /report/1
+        …/report/999 can't be walked around a per-URL counter; clean_path is
+        only for the log line and the client-facing message.
+        """
+        from .rate_limiter import (  # pylint: disable=import-outside-toplevel
+            client_key, get_limiter, is_opt_out, parse_rate,
+        )
+
+        spec = route.get('rate')
+        if spec is None and route.get('type') == 'zAPI':
+            spec = (getattr(self.router, 'meta', None) or {}).get('rate')
+        if spec is None or is_opt_out(spec):
+            return None
+
+        parsed = parse_rate(spec)
+        if parsed is None:
+            if self.logger and not route.get('_rate_warned'):
+                route['_rate_warned'] = True
+                self.logger.warning(
+                    f"[RateLimit] Unreadable rate '{spec}' on {clean_path} — "
+                    f"expected <count>/<window> like 10/min, 100/hour, 30/5min; "
+                    f"route left UNLIMITED")
+            return None
+
+        max_requests, window_seconds = parsed
+        caller = client_key(self.handler)
+        allowed, retry_after, first = get_limiter().check(
+            (id(route), caller), max_requests, window_seconds)
+        if allowed:
+            return None
+
+        if first and self.logger:
+            self.logger.warning(
+                f"[SECURITY] Rate limit hit on {clean_path} by {caller} "
+                f"({spec}) — answering 429 until the window cools")
+
+        body = (f'{{"ok": false, "error": "Too many requests — '
+                f'retry in {retry_after}s"}}').encode('utf-8')
+        self.handler.send_response(429)
+        self.handler.send_header('Content-Type', 'application/json')
+        self.handler.send_header('Content-Length', str(len(body)))
+        self.handler.send_header('Retry-After', str(retry_after))
+        self.handler.send_header('Cache-Control', 'no-store')
+        self.handler.end_headers()
+        try:
+            self.handler.wfile.write(body)
+        except Exception:  # pylint: disable=broad-except
+            pass
+        return True
 
     def _serve_error(self, status_code: int, message: str = ""):
         """

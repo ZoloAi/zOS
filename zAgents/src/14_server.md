@@ -86,6 +86,17 @@ safety: baseline rides every response — you wrote none of it (identical dev + 
     cors      — OFF (same-origin only); opt in ONE origin `ZSERVER_CORS_ORIGIN: https://app.site.com` (or `zServer.cors_origin`), NEVER `*`; preflight answers the EXACT verbs routes accept
     framing   — no site-wide CSP by design (CDN client+theme+inline would break); always-on CSP is `frame-src` ONLY, mirrors `zEmbed` allow-list (`ZEMBED_MODE` → Media › Embedding); per-route can go stricter
     health    — `GET /zhealth` → `200 {status: ready, routes: N}` (booted + can serve, not just port-open); LBs send users only on 200; also gates the zero-downtime swap
+    rate      — per-route request budgets, one declarative key (zOS#8, 1.7.3): `rate: 10/min` on any route
+        refuses request N+1 in the window with `429` + `Retry-After`, BEFORE RBAC/handler — a refused
+        guess never spends a password hash or DB read. Grammar `<count>/<window>`: `10/min` · `100/hour` ·
+        `30/5min` · `5/sec`; blueprint `zMeta: {rate: …}` sets a default for `type: zAPI` routes only
+        (pages/static never throttled by default); per-route `rate:` wins, `rate: off` opts out of the
+        meta default. Counted per client (first `X-Forwarded-For` hop behind a proxy, else socket peer),
+        parametrized routes share ONE bucket (`/report/1`…`/report/999` can't sidestep the counter).
+        Malformed spec = LOUD no-op (one warning, door stays open — a typo never takes prod offline);
+        one `[SECURITY] Rate limit hit` log line per window per client, in-memory per process (counters
+        reset on restart — fine for brute-force: attackers don't control your restarts). The credential
+        doors are the motivating case: zCloud declares `10/min` on `/api/zlogin`, `30/min` on `/api/ztoken`
 
 caching: 2nd visit instant — browser keeps what's unchanged, zServer says what changed
     wire      — ETag (per-version fingerprint from content/mtime) + 304 check (unchanged → `304`, zero bytes); static files 304 on revalidate; PAGES always rebuild fresh + ETag but never 304 (never stale)
