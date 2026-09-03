@@ -40,7 +40,10 @@ def add_subparser(subparsers) -> argparse.ArgumentParser:
     parser.add_argument(
         "--device",
         action="store_true",
-        help="Browser device-login: open a sign-in page, approve, auto-receive a token",
+        help=(
+            "Browser device-login: open a sign-in page, approve, auto-receive a "
+            "token (not yet available on zolo.media — use password or --token)"
+        ),
     )
     parser.add_argument(
         "--server",

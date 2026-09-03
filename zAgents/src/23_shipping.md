@@ -27,6 +27,10 @@ login: `zolo login` — sign the MACHINE in, once (git-/gh-style; no app/instanc
     interactive — `zolo login <email>` prompts for the password, verifies against the platform ledger, PERSISTS the identity (zOwnership) — clears the watermark, scopes every later push
     token       — `z login --token <PAT>` — non-interactive; the PAT comes from the account page / the desktop launcher handoff / the Foundations install command
     single_key  — ONE live PAT per account: minting/logging-in ROTATES it, killing the previously issued key (an installed machine's stored PAT dies when a new one is minted — by design, not a bug)
+    device      — `z login --device` (gh/gcloud-style browser flow) is NOT YET SERVED by zolo.media (zOS#119):
+        the CLI half exists and answers honestly — "Device sign-in isn't available on <server> yet" — never a
+        crash or a retry-shaped 404 (zOS#65, 1.7.3). `--server <url>` drives the full flow against a
+        registrar that does implement `/api/zAuth/device/*`; password + `--token` are the live paths today
     scope       — this is the INSTANCE OWNER (Tier-1), not an app's own users — that's zLogin/zGate → 15_rbac three_whos
 
 push: `zolo push` — the verb; bundle the slice, upload, come up hosted
