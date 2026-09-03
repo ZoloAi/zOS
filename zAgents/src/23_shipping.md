@@ -44,6 +44,18 @@ push: `zolo push` — the verb; bundle the slice, upload, come up hosted
         so pipelines/CI flow untouched (they get a one-line note); `--yes` is the scripted consent
     data_guard — a push that would DELETE Data/ files present in the live build is REFUSED (409 names
         the exact files); `--replace-data` is the explicit consent when the wipe IS intended
+    zpersist — `zPersist: true` in the SPARK is the correct long-term shape for a stateful hosted app
+        (zOS#114, 1.7.3): the receiver relocates the build's writable Data/ onto a per-app persist
+        mount OUTSIDE the replaced bundle (`<storage root>/_persist/<owner>/<slug>/Data`, symlinked
+        into every build) — a code push never touches hosted data again. FIRST persist push seeds the
+        mount (previous LIVE build's Data/ preferred — that's production truth — else the bundle's
+        seed); after that the bundle's Data/ is seed-only and the data_guard goes quiet by
+        construction (a push physically can't delete mount files). `zolo pull --with-data` reads the
+        MOUNT (the live data), soft-delete keeps the mount so a re-push revives the app WITH its
+        data, and the push response says which of the three happened (seeded / untouched / failed).
+        The mount location is HOST policy — a spark's zPersist value is a plain opt-in, never a path
+        (one tenant must not point at another's data). Local dev: unchanged local meaning (per-machine
+        Apps/ root), no relocation outside a push receiver
     builds   — each push is a NEW build; the previous is kept server-side, so a bad ship rolls back instead of ruining your day
         retained builds keep their files until purged — the owner's MyApps push history purges a
         superseded/failed build's files on demand

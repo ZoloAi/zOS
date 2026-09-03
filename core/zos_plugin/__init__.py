@@ -70,6 +70,10 @@ from .session_store import (
 from .release import (
     ReleaseManager, ReleaseResult, instance_key, tenant_id,
 )
+from .persist import (
+    resolve_persist_root, persist_mount, spark_wants_persist,
+    relocate_data_root, data_is_relocated,
+)
 
 __version__ = "0.8.0"
 __all__ = [
@@ -84,6 +88,8 @@ __all__ = [
     "SessionStore", "InMemorySessionStore", "RedisSessionStore",
     "register_session_store", "get_session_store", "DEFAULT_SESSION_TTL",
     "ReleaseManager", "ReleaseResult", "instance_key", "tenant_id",
+    "resolve_persist_root", "persist_mount", "spark_wants_persist",
+    "relocate_data_root", "data_is_relocated",
 ]
 
 _logger = logging.getLogger("zos.plugin")

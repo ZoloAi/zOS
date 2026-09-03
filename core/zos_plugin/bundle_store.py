@@ -121,6 +121,15 @@ class BundleStore(abc.ABC):
         """
         return False
 
+    def build_dir(self, slug: str, build_id: Optional[Any] = None) -> Optional[Path]:  # pylint: disable=unused-argument
+        """Absolute dir of one stored build, if it exists on a local filesystem.
+
+        Lets a receiver LOCATE a previous build (e.g. to seed a zPersist mount
+        from the live ``Data/``, zOS#114) without re-deriving store layout.
+        None for stores with no local filesystem, or when the build is gone.
+        """
+        return None
+
     @property
     def root(self) -> Optional[Path]:
         """The root a ``StoredBundle.rel_root`` is relative to, if on a filesystem.
@@ -250,22 +259,37 @@ class LocalBundleStore(BundleStore):
 
     def list_app_files(self, slug: str, build_id: Optional[Any] = None,
                        prefix: str = "") -> list:
-        """Relative paths of a build's app files (posix), filtered by ``prefix``."""
+        """Relative paths of a build's app files (posix), filtered by ``prefix``.
+
+        Never follows directory symlinks (os.walk, not rglob — whose symlink
+        behaviour changed across Python versions): a zPersist build's ``Data``
+        link (zOS#114) points at the persist mount, and mount files are NOT the
+        build's files — enumerating them would re-arm the #63 guard against
+        data a push cannot touch.
+        """
         root = self._dest(slug, build_id)
         if not root.is_dir():
             return []
         out = []
-        for path in root.rglob("*"):
-            if not path.is_file():
-                continue
-            rel = path.relative_to(root).as_posix()
-            # _attachments/ is the dormant slice, not the app tree.
-            if rel.startswith("_attachments/"):
-                continue
-            if prefix and not rel.startswith(prefix):
-                continue
-            out.append(rel)
+        for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+            # prune symlinked dirs explicitly — os.walk lists them in dirnames
+            dirnames[:] = [d for d in dirnames
+                           if not (Path(dirpath) / d).is_symlink()]
+            for fname in filenames:
+                path = Path(dirpath) / fname
+                rel = path.relative_to(root).as_posix()
+                # _attachments/ is the dormant slice, not the app tree.
+                if rel.startswith("_attachments/"):
+                    continue
+                if prefix and not rel.startswith(prefix):
+                    continue
+                out.append(rel)
         return sorted(out)
+
+    def build_dir(self, slug: str, build_id: Optional[Any] = None) -> Optional[Path]:
+        """Absolute path of one stored build's dir, or None if not on disk."""
+        dest = self._dest(slug, build_id)
+        return dest if dest.is_dir() else None
 
     def remove_build(self, slug: str, build_id: Any) -> bool:
         """Delete one build's dir (builds/<id>/) — sibling builds untouched."""
