@@ -7,7 +7,7 @@ core: the loop — spark first, always
     --hint         — read last runs, suggest next move (rollback to archived rN, narrow scope)
     <name>         — spark middle stem (zSpark.zLogin.zolo → zLogin); optional if one spark; `--spark <path>` = full path
     scope          — one page = one zSpark that BOOTS that page; !script a journey to reach it; zOpen derived FROM spark
-    RED step       — the zUI drifted: fix source + regenerate; tuned zFill/zSubmit values survive --gen
+    RED step       — the zUI drifted: fix source + regenerate; hand-added steps AND tuned zFill/zSubmit values survive --gen (see preserve)
     dev            — !put `zRaven:` in zSpark during dev (auto-runs every boot, noisy) — run `--run` explicitly
     alpha          — --gen coverage still catching up to full grammar (inputs, gates, rich widgets)
 
@@ -141,6 +141,22 @@ shots: the shippable bar = 3 viewports that read cleanly
               the real error) — a blank/broken screenshot on a red step is itself the diagnostic;
               never author a workaround (split shot into its own step) to get one, it's automatic
 
+preserve: what survives a --gen — the ownership line is the STEP (zOS#69, 1.7.3)
+    hand steps — a step whose NAME is not part of the regenerated structure (your click-throughs,
+        content asserts, viewport shots — exactly what this file tells you to add) is spliced back
+        VERBATIM, comments included, anchored after the nearest preceding step that survived —
+        order is meaning in a raven, so position carries, not just content; console confirms
+        ("Preserved N hand-written step(s): …"). Before #69 only zFill/zSubmit VALUES survived —
+        every other hand line was silently replaced by the skeleton, every run
+    values     — inside GENERATED steps, tuned zFill fields / zSubmit answers still carry over (as before)
+    machine    — a step --gen emits is machine-owned: edits INSIDE it (a changed selector, an added
+        assert under Pick_X) are regenerated — but LOUDLY now, naming each step + the archive rN
+        holding the edits; the doctrine: custom logic goes in its OWN step (it survives), never
+        inline in a generated one (it regenerates)
+    stale      — a preserved step whose UI source was deleted is indistinguishable from hand-written
+        without history, so it is KEPT (bias: never silently delete work) — it fails its next --run
+        visibly and a human deletes it
+
 history: every --gen is reversible — archive + replay
     archive — before overwrite, --gen copies active → {app}/zVersions/tests/zRaven.<name>[uiVer]_rN.zolo (skipped when byte-identical to last rN)
     name    — [uiVer] = source zUIVersion; _rN = revision (1,2,3… per uiVer)
@@ -230,7 +246,7 @@ options: `zRavenOptions:` / `zMeta:` block at top (all optional)
     zConnect: {ws, http}     — URL overrides for standalone `zraven` entry (ignored by `z raven --run`)
 
 seek_as_need: !authoring a test — only if extending zRaven
-    generator  — core/zSys/cli/raven_generator.py (zUI→steps; preserves zFill/zSubmit values; archives) + raven_command.py (--gen/--run/--hint/--commit, revision resolve)
+    generator  — core/zSys/cli/raven_generator.py (zUI→steps; preserves hand-added steps + zFill/zSubmit values; archives) + raven_command.py (--gen/--run/--hint/--commit, revision resolve)
     commit     — core/L4_Orchestration/s_zRaven/zRaven_modules/utils/commit_manager.py (create_commit: gate, snapshot, diff, shots/log copy, ledger)
     clear      — core/L4_Orchestration/s_zRaven/zRaven_modules/utils/clear_manager.py (clear_workspace: commit-match gate, dev-flow removal, orphan zShots sweep, ledger)
     revive     — core/L4_Orchestration/s_zRaven/zRaven_modules/utils/revive_manager.py (revive_flow: commit lookup, conflict gate, flow-owned restore, shared drift note, ledger)

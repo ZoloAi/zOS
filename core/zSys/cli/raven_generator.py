@@ -34,9 +34,15 @@ and are used only where vocabulary is ambiguous (e.g. a zLogger-only assert).
 zAssert:/zMarker: steps are shared and run in both modes.
 
 Generated file is stamped: # zRavenVersion: <ui_version>
-Re-running z raven --gen regenerates structure but PRESERVES hand-tuned form
-values (zFill fields, legacy Enter_<field> zSubmit) for any step that still
-exists — extracted via the canonical zlsp parse, not regex line-scanning.
+Re-running z raven --gen regenerates structure but PRESERVES (zOS#69):
+  • hand-ADDED steps — any step whose name is not part of the regenerated
+    structure is spliced back VERBATIM, anchored after the nearest preceding
+    step that survived the regen (order is meaning in a raven);
+  • hand-tuned form values (zFill fields, legacy Enter_<field> zSubmit) for
+    any generated step that still exists — extracted via the canonical zlsp
+    parse, not regex line-scanning.
+Edits INSIDE a generated step's structure still regenerate — but loudly now,
+naming the step and pointing at the zVersions/tests/ archive that holds them.
 The active file is archived to zVersions/tests/ before each overwrite (skipped
 when byte-identical to the last archive) so a regen is always reversible via
 --run --r N / --v.
@@ -171,6 +177,155 @@ def _preserved_value(ctx: Optional[Dict[str, Any]], step_key: str,
     if tuned != default:
         ctx["kept"] = ctx.get("kept", 0) + 1
     return tuned
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Hand-written STEP preservation across --gen runs (zOS#69)
+# ─────────────────────────────────────────────────────────────────────────────
+# The value-level carry-over above only covers zFill/zSubmit. Everything else an
+# author hand-adds — click-through navigation, content assertions, viewport
+# screenshots, exactly what 13_testing tells them to add — used to be replaced
+# by the regenerated skeleton on every --gen, silently (~90 lines lost three
+# times in one field session). The contract now:
+#
+#   • a step whose NAME is not part of the regenerated structure is treated as
+#     hand-written and spliced back VERBATIM (comments attached above it too),
+#     anchored after the nearest preceding step that survived the regen — order
+#     is meaning in a raven, so position is preserved, not just content;
+#   • a step the generator DOES emit is machine-owned: it regenerates (that is
+#     --gen's job), but if its old body was hand-edited beyond the preserved
+#     form values the regen now SAYS SO, naming the step and the archive rN
+#     that holds the edits — never a silent discard;
+#   • steps whose UI source was deleted are indistinguishable from hand-written
+#     ones without history, so they are preserved too — the bias is "never
+#     silently delete work"; a genuinely stale step fails its next --run and is
+#     deleted by a human who can see it.
+
+# A top-level step key under Tests: (generator emits all steps at one indent).
+_STEP_START_RE = re.compile(r"^    ([A-Za-z_]\w*):")
+
+
+def _split_steps(text: str) -> Tuple[List[str], List[Tuple[str, List[str]]]]:
+    """Split a raven's text into (preamble_lines, [(step_name, segment_lines)]).
+
+    The preamble is everything up to and including the first step's preceding
+    content (header comments, ``Tests:``, section banners before step one).
+    Each segment is the RAW, contiguous slice from the step's key line (plus
+    any comment lines attached DIRECTLY above it — no blank between) to the
+    next step's slice. Raw slices cover the file exactly, so re-joining
+    preamble + segments reproduces the input byte-for-byte.
+    """
+    lines = text.splitlines()
+    tests_idx = next(
+        (i for i, l in enumerate(lines) if l.strip() == "Tests:" and not l.startswith(" ")),
+        None,
+    )
+    if tests_idx is None:
+        return lines, []
+
+    boundaries: List[Tuple[int, str]] = []
+    for idx in range(tests_idx + 1, len(lines)):
+        line = lines[idx]
+        if line and not line.startswith(" "):
+            break  # left the Tests: block (another top-level key)
+        m = _STEP_START_RE.match(line)
+        if not m:
+            continue
+        seg_begin = idx
+        j = idx - 1
+        while (j > tests_idx and lines[j].startswith("    ")
+               and lines[j].lstrip().startswith("#")):
+            seg_begin = j
+            j -= 1
+        boundaries.append((seg_begin, m.group(1)))
+
+    if not boundaries:
+        return lines, []
+
+    steps: List[Tuple[str, List[str]]] = []
+    for n, (begin, name) in enumerate(boundaries):
+        end = boundaries[n + 1][0] if n + 1 < len(boundaries) else len(lines)
+        steps.append((name, lines[begin:end]))
+    return lines[:boundaries[0][0]], steps
+
+
+def _trim_segment(seg: List[str]) -> List[str]:
+    """A splice-ready copy of a segment: drop trailing blanks AND trailing
+    section-banner comments (those belong to the NEXT generated section and
+    are regenerated fresh — carrying them along would duplicate banners)."""
+    out = list(seg)
+    while out and (not out[-1].strip() or out[-1].lstrip().startswith("#")):
+        out.pop()
+    return out
+
+
+def _normalized_body(seg: List[str]) -> List[str]:
+    """A segment shape for edit detection: no blanks, no trailing whitespace."""
+    return [l.rstrip() for l in _trim_segment(seg) if l.strip()]
+
+
+def _merge_hand_steps(new_text: str, old_text: str) -> Tuple[str, List[str], List[str]]:
+    """Splice the old raven's hand-written steps into freshly generated text.
+
+    Returns ``(merged_text, kept_names, edited_names)``:
+      kept_names   — old steps absent from the regenerated structure, re-emitted
+                     verbatim after their nearest surviving predecessor
+      edited_names — generated steps whose old body was hand-edited in place
+                     (they regenerate; the caller warns, naming the archive)
+    """
+    if not old_text.strip():
+        return new_text, [], []
+    _, old_steps = _split_steps(old_text)
+    if not old_steps:
+        return new_text, [], []
+    new_preamble, new_steps = _split_steps(new_text)
+    if not new_steps:
+        return new_text, [], []
+
+    new_by_name = {name: seg for name, seg in new_steps}
+
+    # Route each hand-written old step to its anchor ("" = before step one).
+    inserts: Dict[str, List[List[str]]] = {}
+    kept: List[str] = []
+    edited: List[str] = []
+    anchor = ""
+    for name, seg in old_steps:
+        if name in new_by_name:
+            anchor = name
+            if _normalized_body(seg) != _normalized_body(new_by_name[name]):
+                edited.append(name)
+            continue
+        trimmed = _trim_segment(seg)
+        if not trimmed:
+            continue
+        inserts.setdefault(anchor, []).append(trimmed)
+        kept.append(name)
+
+    if not kept:
+        return new_text, [], edited
+
+    merged: List[str] = list(new_preamble)
+    for segs in inserts.get("", []):
+        merged += [""] + segs
+    for name, seg in new_steps:
+        step_inserts = inserts.get(name)
+        if not step_inserts:
+            merged += seg
+            continue
+        # Splice BEFORE the segment's tail (trailing blanks + the NEXT
+        # section's banner ride at the end of a raw slice) so a hand step
+        # lands under its own section, not under the next one's header.
+        core = _trim_segment(seg)
+        tail = seg[len(core):]
+        merged += core
+        for segs in step_inserts:
+            merged.append("")
+            merged += segs
+        merged += tail
+    # normalize the tail: exactly one trailing newline is added by the caller
+    while merged and not merged[-1].strip():
+        merged.pop()
+    return "\n".join(merged) + "\n", kept, edited
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -394,7 +549,20 @@ def generate_raven(
     if ctx["kept"]:
         print(f"🔁 Preserved {ctx['kept']} tuned value(s) from previous raven")
 
-    out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # ── step-level preservation (zOS#69): splice hand-written steps back in ──
+    new_text, hand_kept, hand_edited = _merge_hand_steps(
+        "\n".join(lines) + "\n", old_text)
+    if hand_kept:
+        shown = ", ".join(hand_kept[:6]) + (" …" if len(hand_kept) > 6 else "")
+        print(f"🖐  Preserved {len(hand_kept)} hand-written step(s): {shown}")
+    if hand_edited:
+        shown = ", ".join(hand_edited[:6]) + (" …" if len(hand_edited) > 6 else "")
+        print(f"⚠️  {len(hand_edited)} generated step(s) had in-place edits and "
+              f"were REGENERATED: {shown} — recover the edits from "
+              f"zVersions/tests/ (z raven --run --r N), or move them into "
+              f"their own step (hand-added steps survive --gen)")
+
+    out_path.write_text(new_text, encoding="utf-8")
     return out_path
 
 
@@ -790,7 +958,10 @@ def _header_comment(version: str, filename: str,
         f"# Generated by:  z raven --gen",
         f"# Source:        {filename}",
         "# Re-run z raven --gen to regenerate structural tests.",
-        "# Hand-tuned form values (zFill fields, zSubmit) are preserved across --gen.",
+        "# Preserved across --gen: hand-ADDED steps (kept verbatim, in place) and",
+        "# hand-tuned form values (zFill fields, zSubmit) inside generated steps.",
+        "# Edits INSIDE a generated step's structure are regenerated (loudly) —",
+        "# put custom asserts/clicks/shots in their own step and they survive.",
         "# The previous version is archived to zVersions/tests/ (replay: z raven --run --r N).",
     ]
     if shots:
