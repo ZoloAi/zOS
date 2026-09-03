@@ -38,7 +38,10 @@ push: `zolo push` — the verb; bundle the slice, upload, come up hosted
     identity — authenticated by the machine's persisted PAT (`zolo login`); `--token <PAT>` overrides for one push; not signed in → clean FAIL naming the fix
         auth_first — auth is checked FIRST: a stale/rotated PAT 401s naming the re-mint path, and any
             username/slug/data findings surface only once the token is valid
-    flags    — `--dry-run` full file plan, nothing uploads (ALWAYS run it before a first ship) · `--slug <s>` one-push slug override · `--url <base>` target zCloud (default https://zolo.media; `ZOLO_ZCLOUD_URL` env too) · `-v` every shipped file
+    flags    — `--dry-run` full file plan, nothing uploads (ALWAYS run it before a first ship) · `--slug <s>` one-push slug override · `--url <base>` target zCloud (default https://zolo.media; `ZOLO_ZCLOUD_URL` env too) · `-v` every shipped file · `--yes` skip the first-public confirm
+    first_public — the FIRST push of a `visibility: public` app asks `[y/N]` before shipping (zOS#64 —
+        a wrong-cwd push once put an unrelated demo on the zFeed); fires only at a TTY with no receipt,
+        so pipelines/CI flow untouched (they get a one-line note); `--yes` is the scripted consent
     data_guard — a push that would DELETE Data/ files present in the live build is REFUSED (409 names
         the exact files); `--replace-data` is the explicit consent when the wipe IS intended
     builds   — each push is a NEW build; the previous is kept server-side, so a bad ship rolls back instead of ruining your day
@@ -54,8 +57,20 @@ pull: `zolo pull --slug <slug>` — the verb home: clone YOUR hosted app back to
     identity — the same machine PAT as push; `--url <base>` targets another zCloud
     rule     — dev verb for the CLI crowd; the dashboard's Download stays the average-joe door
 
+apps: `zolo apps` — manage what your account hosts, from the terminal (zOS#64)
+    list           — `zolo apps list`: every app you host — slug, status, visibility, URL (the "what did I ship?" answer)
+    delete         — `zolo apps delete <slug>`: SOFT delete, the drawer's ritual over the wire — type-the-slug
+        confirm (enforced SERVER-side; the prompt is just the messenger), child slept, front door 404s, build
+        bytes freed; the row stays, so a re-push of the same slug REVIVES the app · `--yes` skips the prompt
+        for scripts · hard-forget (purge) stays dashboard-only by design
+    set-visibility — `zolo apps set-visibility <slug> public|unlisted|private`: explicit target value, not a
+        toggle (idempotent, scriptable); after the first push this column is the OWNER's — a re-push never re-seeds it
+    identity — the same machine PAT as push/pull; `--url <base>` targets another zCloud; ownership re-checked
+        server-side per verb (someone else's slug reads as absent, never 403-probes)
+
 seek_as_need: !authoring a manifest — only if extending the pipeline
     resolver+bundle — zguard/push/project_resolver.py (manifest contract, required keys) · bundle.py (_DEFAULT_IGNORE, segment matching, attachments/)
     upload    — zguard/push/command.py (PAT resolve → multipart Bearer POST); server side — zCloud plugins/zpush.py (upsert + seed semantics)
     pull seam — zguard/pull/command.py (ZIP download + traversal-safe extract + receipt); server side — zCloud plugins/zpull.py (GET /api/apps/pull)
-    cli seam  — core/zSys/cli/push_command.py (public shim; no zguard → "run z patch") + args/push_args.py · pull_command.py + args/pull_args.py
+    apps seam — zguard/apps/command.py (Bearer JSON verbs); server side — zCloud plugins/apps.py cli_* (+ routes /api/apps/cli/*)
+    cli seam  — core/zSys/cli/push_command.py (public shim; no zguard → "run z patch") + args/push_args.py · pull_command.py + args/pull_args.py · apps_command.py + args/apps_args.py

@@ -14,6 +14,7 @@ from .shell_command import handle_shell_command
 from .login_command import handle_login_command
 from .push_command import handle_push_command
 from .pull_command import handle_pull_command
+from .apps_command import handle_apps_command
 from .uninstall_command import handle_uninstall_command
 from .zspark_command import handle_zspark_command
 from .ztests_command import handle_ztests_command
@@ -24,6 +25,7 @@ __all__ = [
     'handle_login_command',
     'handle_push_command',
     'handle_pull_command',
+    'handle_apps_command',
     'handle_config_command',
     'handle_ztests_command',
     'handle_migrate_command',

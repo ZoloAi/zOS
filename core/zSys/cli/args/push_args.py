@@ -52,6 +52,11 @@ def add_subparser(subparsers) -> argparse.ArgumentParser:
              "hosted files — without this flag such a push is refused)",
     )
     parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Skip the first-public-push confirmation prompt (for scripts)",
+    )
+    parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="List every shipped file and show bootstrap output",

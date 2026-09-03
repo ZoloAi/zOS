@@ -159,6 +159,7 @@ def route_command(
         "login": lambda: cli.handle_login_command(logger, args, verbose=verbose),
         "push": lambda: cli.handle_push_command(logger, args, verbose=verbose),
         "pull": lambda: cli.handle_pull_command(logger, args, verbose=verbose),
+        "apps": lambda: cli.handle_apps_command(logger, args, verbose=verbose),
         "config": lambda: cli.handle_config_command(logger, verbose=verbose),
         "ztests": lambda: cli.handle_ztests_command(
             logger, Path, zos_package, verbose=verbose
