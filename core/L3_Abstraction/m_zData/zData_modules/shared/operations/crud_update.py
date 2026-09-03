@@ -228,6 +228,7 @@ try:
         surface_errors_to_session,
         apply_transforms,
         normalize_write_values,
+        apply_zhash_fields,
     )
     from .crud_helpers import _display_returning
     from .crud_update_cond import has_conditional_set, handle_conditional_update
@@ -245,6 +246,7 @@ except ImportError:
         surface_errors_to_session,
         apply_transforms,
         normalize_write_values,
+        apply_zhash_fields,
     )
     from crud_helpers import _display_returning
     from crud_update_cond import has_conditional_set, handle_conditional_update
@@ -416,6 +418,23 @@ def handle_update(request: Dict[str, Any], ops: Any) -> bool:
     if uuid_modified:
         fields = list(data.keys())
         values = list(data.values())
+
+    # ============================================================
+    # Phase 3.8: Auto-hash zHash fields (zOS#41) — UPDATE was the plaintext
+    # trap: insert hashed, update didn't, so the natural change-password call
+    # (`data.update("Users", {"password": new}, …)`) silently stored plaintext.
+    # Same shared step as insert; already-hashed digests pass through untouched
+    # (a fetched-row re-write or hand-hashed caller must never double-hash).
+    # ============================================================
+    data, hash_error = apply_zhash_fields(table, data, table_schema, ops)
+    if hash_error:
+        hash_violations = {"zHash": hash_error}
+        ops.logger.error("[zData] Update rejected: %s", hash_error)
+        display_validation_errors(table, hash_violations, ops)
+        surface_errors_to_session(hash_violations, ops)
+        return False
+    fields = list(data.keys())
+    values = list(data.values())
 
     # ============================================================
     # Phase 3.9: Apply field-level transforms (pre-validate normalisation)

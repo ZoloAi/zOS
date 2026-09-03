@@ -33,7 +33,7 @@ rules: type says WHAT KIND, rules say whether it's any good — zData runs EVERY
     field-level  — required: true · unique: true (queries backend) · enum: [a,b,c] (renders picker)
     rules: block — min_length · max_length · min · max · pattern (regex, full match) · pattern_message · format (email/url/phone/date/time/datetime/uuid)
     rules: more  — validator: &.plugin.fn (returns (ok,msg)) · error_message · max_size + blob_input (raw|base64|path) · version (uuid v1/v4)
-    field extras — default: <value> (pre-fill/empty) · nullable: false (reject empty even if not required) · immutable: true (write-once) · transform: trim|lowercase|uppercase|slug|capitalize · zHash: bcrypt (scramble on insert via zAuth, plaintext never stored)
+    field extras — default: <value> (pre-fill/empty) · nullable: false (reject empty even if not required) · immutable: true (write-once) · transform: trim|lowercase|uppercase|slug|capitalize · zHash: bcrypt (auto-hash on insert AND update via zAuth — plaintext never stored on ANY write verb (zOS#41: update used to skip it, so change-password wrote plaintext); an already-bcrypt-shaped value passes through untouched, so re-writing a fetched row / hand-hashed callers never double-hash)
     table-level  — zConstraints → unique: [a,b] (combination unique) · check: <zFilters expr> (cross-field)
 
 relationships: two tables hold hands — foreign keys + on_delete

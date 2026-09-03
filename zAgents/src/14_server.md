@@ -56,6 +56,14 @@ routing: your folders become the routes — take the wheel only when you want
             `/api/route-config?path=…` also answers honestly now: "exists (type: zLoom), served by
             full page load" instead of the old "No zWalker route" for every non-zWalker type
     endpoint  — a URL that is NOT a page (webhook/CLI/service), answers JSON: `{ type: zAPI, kind: zFunc, handler: &.zpush.push }`
+        method — GET by default; `method: POST` on the route block IS honored (JSON body parsed into
+            params). RULE: secrets ride in a BODY — a password/token in a query string lands in access
+            logs, browser history and referrers, so any credential-bearing endpoint declares
+            `method: POST` (zOS#41; the sign-in doors on zolo.media are all POST + `rate:`)
+        refusals — reserve `error` for genuine faults: a handler returning `{"error": …}` maps to HTTP
+            500, so "wrong password" as `error` makes a NORMAL refusal read as a crash (and pollutes
+            monitoring). Express refusals as domain fields on 200 — `{"changed": false, "message": …}`
+            — envelope stays `{ok: true, data: {…}}` (zOS#41)
     blueprints— split by concern (`zServer.routes.zolo` + `.api.zolo` + `.themes.zolo`); all registered+merged, live on next reload
     catalog   — `zSpark` (home `/`) · `zWalker` (one page) · `zLoom` (page+row) · `zAPI` (JSON from action/plugin) · `static` (disk file) · `template` (Jinja)
     !scope    — `zProxy` (hand to ANOTHER hosted app) is hosting-level → Advanced › Hosting

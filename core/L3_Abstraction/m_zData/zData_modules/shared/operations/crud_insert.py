@@ -208,6 +208,7 @@ try:
         apply_transforms,
         apply_defaults,
         normalize_write_values,
+        apply_zhash_fields,
     )
     from .crud_helpers import _display_returning
     from .blob_ops import coerce_blob_fields, store_blob_fields
@@ -223,6 +224,7 @@ except ImportError:
         apply_transforms,
         apply_defaults,
         normalize_write_values,
+        apply_zhash_fields,
     )
     from crud_helpers import _display_returning
     from blob_ops import coerce_blob_fields, store_blob_fields
@@ -251,17 +253,11 @@ def _process_row(table: str, raw_data: Dict[str, Any], table_schema: Dict[str, A
     # defaults — fill omitted/empty fields so required+default columns satisfy NOT NULL
     data = apply_defaults(table, data, table_schema, ops)
 
-    # hash
-    for field_name, field_value in list(data.items()):
-        field_def = table_schema.get(field_name, {})
-        if isinstance(field_def, dict) and field_def.get('zHash') == 'bcrypt':
-            if ops.zos and hasattr(ops.zos, 'auth'):
-                try:
-                    data[field_name] = ops.zos.auth.hash_password(str(field_value))
-                except Exception as e:
-                    return None, f"Failed to hash '{field_name}': {e}"
-            else:
-                return None, f"zHash: bcrypt on '{field_name}' but zAuth not available"
+    # hash — shared with the UPDATE path (zOS#41): one step, both verbs, so a
+    # change-password update can never store plaintext while signup hashes.
+    data, hash_error = apply_zhash_fields(table, data, table_schema, ops)
+    if hash_error:
+        return None, hash_error
 
     # UUID auto-gen
     for field_name, field_def in table_schema.items():
@@ -497,36 +493,13 @@ def handle_insert(request: Dict[str, Any], ops: Any) -> bool:
     fields = list(data.keys())
     values = list(data.values())
 
-    # Phase 2.5: Auto-hash password fields (if zHash: bcrypt in schema)
-    hash_modified = False
-    for field_name, field_value in list(data.items()):
-        field_def = table_schema.get(field_name, {})
-        if isinstance(field_def, dict) and field_def.get('zHash') == 'bcrypt':
-            # Hash the password using zAuth
-            if ops.zos and hasattr(ops.zos, 'auth'):
-                try:
-                    ops.logger.info(
-                        f"[zData] Auto-hashing field '{field_name}' with bcrypt "
-                        f"(plaintext MASKED for security)"
-                    )
-                    hashed_value = ops.zos.auth.hash_password(str(field_value))
-                    data[field_name] = hashed_value
-                    hash_modified = True
-                    ops.logger.debug(
-                        f"[zData] Field '{field_name}' hashed successfully "
-                        f"(hash length: {len(hashed_value)} chars)"
-                    )
-                except Exception as e:
-                    ops.logger.error(f"[zData] Failed to hash field '{field_name}': {e}")
-                    return False
-            else:
-                ops.logger.error(f"[zData] zHash: bcrypt specified for '{field_name}' but zAuth not available")
-                return False
-
-    # Rebuild fields/values from potentially modified data
-    if hash_modified:
-        fields = list(data.keys())
-        values = list(data.values())
+    # Phase 2.5: Auto-hash zHash fields — the ONE step shared with UPDATE (zOS#41)
+    data, hash_error = apply_zhash_fields(table, data, table_schema, ops)
+    if hash_error:
+        ops.logger.error(f"[zData] {hash_error}")
+        return False
+    fields = list(data.keys())
+    values = list(data.values())
 
     # Phase 2.75: Auto-generate UUID v4 for uuid-typed fields that are empty / absent
     uuid_modified = False

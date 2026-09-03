@@ -65,6 +65,24 @@ proven: exercised by a fresh isolated app (`Tests/zRBAC_app`, Bifrost)
         update/delete `where:` (`where: id = %item.Posts.id zAND author_id = %session.zVisitor.id`) so a forged
         request against someone else's row still bounces even if the button were somehow clicked
 
+identity_hardening: passwords are a CREDENTIAL problem before they are a stack problem (zOS#41, from the zWorld saga)
+    diagnosis_lesson — a browser warning at login ("password found in a data breach") is about the
+        PASSWORD STRING, not your stack: Google/Safari check the credential client-side against a breach
+        corpus, independent of transport/store/server. Before auditing waitress/TLS/csv-vs-sqlite, ask
+        "is this about our server, or about the credential?" — three infra diagnoses were wrong before
+        anyone checked that the password was `123456` (the bcrypt digests on disk were fine all along)
+    salt — `zHash: bcrypt` ALWAYS salts: the `$2b$12$…` digest embeds a fresh random per-password salt,
+        two identical passwords never share a digest. There is no zSALT knob because it can't be off;
+        the salt is stored WITH the hash by design (verification needs it) — hiding/interleaving it adds
+        nothing (pepper — a server-side secret NOT stored with hashes — is the real next lever, tracked
+        as an enhancement)
+    change_password — write it as a plain `update()` on the `zHash` field: since zOS#41 the update path
+        hashes exactly like insert (it used to store PLAINTEXT — the trap that motivated the issue).
+        Doctrine for the flow: require the CURRENT password even in an authed session (a borrowed tab is
+        the one thing a session can't rule out) · identical message for "no such account" and "wrong
+        password" (never confirm usernames) · secrets over `method: POST` (14_server endpoint rule) ·
+        refusals are domain fields on 200, never `error` (that maps to 500)
+
 routing_gotcha: a gated page needs its OWN route to actually redirect in Bifrost
     rule    — `onDenied`/zLogin `onSuccess`/zLogout `onSuccess` are always a `zLink` — Bifrost resolves it to a router URL, never an in-page swap (identity moves the SESSION, so the page must move too; a plain zDialog's `onSuccess` is the opposite tool — an in-place `zDelta` re-walk → Forms `onsuccess`)
     trap    — Login/Vault/Logout as BLOCKS inside the home zVaFile share ITS one URL (14_server.md "one file = one URL"); a redirect to another block in the SAME file resolves back to `/` and silently re-renders the home block instead
