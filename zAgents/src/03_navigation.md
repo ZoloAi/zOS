@@ -15,6 +15,12 @@ verbs: four moves — where does this take you?
     zAlpha — cross-FILE: a zPath, zOS loads that file + runs from that block (behind menu picks + page buttons)
         zPath — last segment = BLOCK, segment before (after `zUI.`) = zVaFile → Cross Platform owns the grammar
         + a permissions dict → the move becomes role-gated → Identity
+        zCLI works (zOS#19, 1.7.3) — a zBtn `action: zAlpha(@.path)` answered y and a navbar/menu pick to
+            another file both LOAD AND WALK the target in the terminal now; pre-1.7.3 the button string was
+            silently dropped (only `zLink(`/`zDelta(` were recognized on the action ladder) and a navbar pick
+            ended the session ("Walker session completed") because the staged trampoline hop was swallowed —
+            zDelta was the only live nav verb in zCLI, capping a terminal app at one file. No authoring
+            change: the grammar above was always the right way to write it
     zDelta — same-FILE hop: mark target with `$` (`$Block`); runs it, nothing loads, route NEVER moves; reversible with zBack
     zOmega — land on a zKey, not the top: NOT its own verb — an ADJECTIVE on a zAlpha/zDelta saying WHERE to arrive
         matches a block's DIRECT keys | browser scrolls to it · terminal opens the block at that key, skips above

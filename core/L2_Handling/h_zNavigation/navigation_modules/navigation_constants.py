@@ -141,6 +141,16 @@ STATUS_NAVIGATED: str = "navigated"
 STATUS_ERROR: str = "error"
 STATUS_STOP: str = CONTROL_RETURN_STOP  # SSOT: zVocabulary.CONTROL_RETURN_STOP
 
+# Trampoline signal (PUBLIC — SSOT for the zCLI REPLACE-navigation hop).
+# A staged navigation (zLink/zDelta/zBack/zPsi) returns this sentinel; the
+# executor bubbles it up to zWalker.run()'s trampoline, which re-enters
+# execute_loop with the destination staged in session["_pending_nav"].
+# MUST equal zWalker.NAV_SIGNAL and zGuard zengine's _SIGNAL_NAVIGATE.
+# Any seam that consumes a dispatch result (menus, buttons, wizards) must
+# PROPAGATE this value, never swallow it — swallowing it ends the session
+# with the landed page never rendered (zOS#19).
+NAV_SIGNAL: str = "navigate"
+
 # Operation Types (PUBLIC - 5, used by breadcrumb API)
 OP_RESET: str = "RESET"
 OP_APPEND: str = "APPEND"
@@ -431,6 +441,7 @@ __all__ = [
     "STATUS_NAVIGATED",
     "STATUS_ERROR",
     "STATUS_STOP",
+    "NAV_SIGNAL",
 
     # Operation Types (5) - Used by breadcrumb API
     "OP_RESET",

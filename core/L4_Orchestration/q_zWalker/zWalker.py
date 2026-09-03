@@ -314,8 +314,11 @@ DICT_VALUE_COMPLETED = "completed"
 # hop now stashes its destination in session[SESSION_KEY_PENDING_NAV] and returns
 # NAV_SIGNAL; the executor bubbles that straight up to the trampoline loop in
 # run(), which re-enters execute_loop with the staged target — a flat stack
-# regardless of navigation count. NAV_SIGNAL must equal zGuard's _SIGNAL_NAVIGATE.
-NAV_SIGNAL = "navigate"
+# regardless of navigation count. SSOT: navigation_constants.NAV_SIGNAL (which
+# must equal zGuard's _SIGNAL_NAVIGATE); re-exported here for existing callers.
+from zOS.L2_Handling.h_zNavigation.navigation_modules.navigation_constants import (
+    NAV_SIGNAL,
+)
 SESSION_KEY_PENDING_NAV = "_pending_nav"
 
 # ============================================================

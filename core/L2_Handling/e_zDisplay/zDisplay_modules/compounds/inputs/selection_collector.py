@@ -208,6 +208,16 @@ class SelectionCollector:
                         # already navigates on (_handle_navigation_result → dispatch),
                         # mirroring the Bifrost client's zLink( click intercept.
                         return {'zLink': action[len('zLink('):-1].strip()}
+                    elif action.startswith('zAlpha('):
+                        # zAlpha is the FIRST-CLASS Greek name for the zLink event
+                        # (03_navigation: "different file → zAlpha"). It was missing
+                        # from this ladder, so a zBtn `action: zAlpha(@.path)` fell
+                        # through to the step-jump return below, matched no sibling
+                        # key, and was silently dropped (zOS#19) — the one verb the
+                        # docs teach for cross-file buttons was the one that did
+                        # nothing in zCLI. Normalize to the zLink dict form here,
+                        # exactly like the dispatch seam does for authored zAlpha keys.
+                        return {'zLink': action[len('zAlpha('):-1].strip()}
                     elif action.startswith('zDelta('):
                         # Imperative zDelta string — same-file block hop. Symmetric
                         # with zLink( above: return the dict form so the wizard

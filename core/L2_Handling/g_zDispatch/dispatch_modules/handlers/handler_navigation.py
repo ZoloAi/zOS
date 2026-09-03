@@ -69,8 +69,11 @@ from zOS.zVocabulary import CONTROL_RETURN_STOP
 
 # Navbar Done affordance (SSOT in zNavigation): the "exit-forward" row every
 # navbar carries in the terminal (a blocking menu there needs a way to step past).
+# NAV_SIGNAL: the zCLI REPLACE-hop trampoline sentinel — a menu pick whose
+# dispatch STAGED a navigation must propagate it, never swallow it (zOS#19).
 from zOS.L2_Handling.h_zNavigation.navigation_modules.navigation_constants import (
     NAV_ZDONE,
+    NAV_SIGNAL,
 )
 
 class NavigationHandler:
@@ -294,8 +297,21 @@ class NavigationHandler:
                 if result == "zBack":
                     self._pop_last_crumb()
                     continue
+                # zCLI trampoline (zOS#19): the zLink hop did NOT render — it
+                # STAGED the target in session and returned NAV_SIGNAL for
+                # zWalker.run()'s trampoline to re-enter execute_loop with.
+                # Returning STOP here swallowed the signal: the staged page was
+                # never walked and the session ended ("Walker session
+                # completed") right after the pick. Bubble it up instead — the
+                # host block halts anyway because the executor exits on it.
+                if result == NAV_SIGNAL:
+                    self.logger.debug(
+                        "[zMenu] Pick staged a navigation — bubbling NAV_SIGNAL"
+                    )
+                    return NAV_SIGNAL
                 # Navbar pick is terminal: the target already rendered inside
-                # launch(); halt the host block so it does not re-render the keys.
+                # launch() (zBifrost / direct-call paths); halt the host block
+                # so it does not re-render the keys.
                 if is_navbar:
                     self.logger.debug(
                         "[zMenu] Navbar pick dispatched — halting host block (stop)"
