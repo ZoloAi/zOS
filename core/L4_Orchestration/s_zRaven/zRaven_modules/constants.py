@@ -23,8 +23,12 @@ BIFROST_ONLY_PREFIXES = ("Browser_", "Bifrost_", "zBifrost_")
 # zCLI:/zBifrost: step wrappers are optional. Wrappers remain honored and are
 # still needed for the genuinely ambiguous cases (e.g. a zLogger-only assert
 # step that must be scoped to one mode).
+# zCapture is DUAL-MODE since zOS#98: in zCLI it regexes the terminal output
+# (as always); in zBifrost it reads the rendered DOM ({var, selector, property})
+# or regexes the page text when only {var, pattern} is given — the SAME step
+# can drive both surfaces, like zPick/zFill.
 CLI_ONLY_STEP_KEYS = frozenset({
-    "zExpect", "zCapture", "zVar", "zAllowError", "zMenu", "zWizard",
+    "zExpect", "zVar", "zAllowError", "zMenu", "zWizard",
 })
 BIFROST_ONLY_STEP_KEYS = frozenset({
     "zOpen", "zViewport", "zType", "zClick", "zWait", "zShot", "zScreenshot",

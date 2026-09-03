@@ -3,7 +3,7 @@
 
 Transport contexts:
   WS layer   — zBoot, zExecute, zSubmit, zAssert.ws  (WebSocket protocol)
-  Browser    — zOpen, zViewport, zType, zClick, zWait, zShot, zDrag (Playwright)
+  Browser    — zOpen, zViewport, zType, zClick, zWait, zCapture, zShot, zDrag (Playwright)
 
 zOpen: zSpark is the SSOT for URL resolution — no URL args required.
 """
@@ -166,7 +166,7 @@ _VALUE_GENERATORS: dict[str, Any] = {
 _BIFROST_PRIMITIVE_ORDER = (
     "zViewport", "zOpen", "zBoot", "zExecute", "zFetch", "zClean",
     "zType", "zFill", "zUpload", "zClick", "zPick", "zDrag", "zSubmit", "zHistory",
-    "zWait", "zShot", "zScreenshot", "zMarker",
+    "zWait", "zCapture", "zShot", "zScreenshot", "zMarker",
 )
 # Deprecated primitive aliases → canonical grammar key. Recognized so strict mode
 # does not fail legacy suites, but a one-line warning nudges migration.
@@ -336,6 +336,16 @@ class ZRaven(BaseStepRunner):
 
         base   = self.http_url.rstrip("/")
         url    = str(cfg.get("url", "/"))
+        # $var URL — a value lifted off the page by zCapture (zOS#98), e.g. a
+        # minted share link. Unknown var fails loud, never fetches literally.
+        if url.startswith("$"):
+            captured = self._test_vars.get(url[1:])
+            if captured is None:
+                reason = f"zFetch url {url!r} — no captured value (add a zCapture step first)"
+                info(reason)
+                self._last_api_response = {"status": 0, "body": reason, "json": None}
+                return False
+            url = str(captured)
         if not url.startswith("http"):
             url = base + ("" if url.startswith("/") else "/") + url
 
@@ -495,6 +505,17 @@ class ZRaven(BaseStepRunner):
     async def _run_open(self, route: Any) -> bool:
         await self._ensure_browser()
         base = self.http_url.rstrip("/")
+        # $var route — open a URL lifted off the page by zCapture (zOS#98): the
+        # "mint a share link, then OPEN it" leg that used to be hand-tested
+        # forever. Unknown var fails loud, never navigates to the literal '$x'.
+        if isinstance(route, str) and route.startswith("$"):
+            captured = self._test_vars.get(route[1:])
+            if captured is None:
+                reason = f"zOpen {route!r} — no captured value (add a zCapture step first)"
+                info(reason)
+                self._last_response = {"event": "open_failed", "error": reason}
+                return False
+            route = str(captured)
         if isinstance(route, dict):
             url = base + self._url_from_descriptor(route)
         elif route is True or str(route).strip().lower() == "zspark":
@@ -1003,6 +1024,91 @@ class ZRaven(BaseStepRunner):
         self._last_response = {"event": "waited", "selector": selector}
         return True
 
+    async def _run_capture(self, cfg: dict, step_name: str = "zCapture") -> bool:
+        """zCapture (Bifrost, zOS#98): lift a rendered value into a $var.
+
+        The dual-mode sibling of zCLI's zCapture (regex over terminal output).
+        A generated value the APP minted at runtime — share token, id, URL —
+        can now drive later steps: `zOpen: $share_url`, `zFetch: {url: $api}`,
+        `zFill: {code: $ref}`. Before this, that last leg ("open the GOOD
+        link") was hand-tested forever.
+
+        cfg:
+          var:      share_url                 # stored as $share_url (required)
+          selector: "[data-zkey='Link'] a"    # DOM read (waits for attached)
+          property: href                      # innerText (default) | value |
+                                              #   any attribute, then JS property
+          pattern:  "token=(\\S+)"            # optional regex refine; group(1)
+                                              #   if grouped, else whole match
+        No selector → pattern regexes the whole page innerText (the Bifrost
+        analog of the terminal buffer — the SAME {var, pattern} step runs in
+        both modes). Settles on the render signal first (zOS#97): never
+        captures off a half-painted page.
+        """
+        await self._ensure_browser()
+        var      = str(cfg.get("var") or "").strip()
+        selector = cfg.get("selector")
+        pattern  = cfg.get("pattern")
+        prop     = str(cfg.get("property", "innerText"))
+        if not var or not (selector or pattern):
+            self._last_response = {
+                "event": "capture_failed",
+                "error": "zCapture requires 'var' plus 'selector' (DOM read) "
+                         "and/or 'pattern' (regex over page text)",
+            }
+            return False
+
+        await self._settle_render()  # zOS#97 — the value must have painted
+
+        if selector:
+            sel = _strip_sel(str(selector))
+            info(f"browser.capture → {sel} [{prop}]")
+            try:
+                # 'attached' not 'visible': hrefs/values on hidden inputs are
+                # legitimate capture targets.
+                el = await self._page.wait_for_selector(
+                    sel, state="attached", timeout=self.timeout * 1000)
+                raw = await el.evaluate(
+                    """(el, prop) => {
+                        if (prop === 'innerText') return el.innerText;
+                        if (prop === 'value') return el.value ?? '';
+                        const attr = el.getAttribute(prop);
+                        if (attr !== null) return attr;
+                        const v = el[prop];
+                        return v == null ? '' : String(v);
+                    }""",
+                    prop,
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                self._last_response = {
+                    "event": "capture_failed",
+                    "error": f"zCapture: element not found ({sel}): {exc}",
+                }
+                return False
+        else:
+            info(f"browser.capture → page text ~ /{pattern}/")
+            raw = await self._page.evaluate(
+                "() => document.body ? document.body.innerText : ''")
+
+        value = str(raw or "").strip()
+        if pattern:
+            m = _re.search(str(pattern), value, _re.IGNORECASE | _re.MULTILINE)
+            if not m:
+                tail = value[-400:].strip() if len(value) > 400 else value
+                self._last_response = {
+                    "event": "capture_failed",
+                    "error": f"zCapture: pattern {pattern!r} not found in "
+                             f"captured text\n  Text was:\n{tail}",
+                }
+                return False
+            value = m.group(1) if m.lastindex else m.group(0)
+
+        self._test_vars[var] = value
+        shown = "«masked»" if _looks_secret(var) else repr(value)
+        info(f"captured ${var} = {shown}")
+        self._last_response = {"event": "captured", "var": var, "value": value}
+        return True
+
     async def _run_upload(self, cfg: dict) -> bool:
         """zUpload: set a file on a file input (Playwright set_input_files).
 
@@ -1189,6 +1295,8 @@ class ZRaven(BaseStepRunner):
             return await self._run_pick(val)
         if key == "zWait":
             return await self._run_wait(val)
+        if key == "zCapture":
+            return await self._run_capture(val, step_name)
         if key in ("zShot", "zScreenshot"):
             if key == "zScreenshot":
                 info("⚠ zScreenshot is deprecated — use zShot (grammar SSOT). "

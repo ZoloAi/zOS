@@ -114,6 +114,14 @@ drive_web: zBifrost-only step primitives (Playwright + WS + HTTP; no terminal eq
     zUpload: {selector, path}— set a file (relative paths resolve to app dir)
     zDrag: {selector, from, to} — drag by pixel offsets
     zHistory: back|forward   — browser Back/Forward (popstate); follow with zWait
+    zCapture: {var, selector, property, pattern} — lift a RENDERED value into $var (zOS#98): the app minted
+        a share token/id/URL at runtime and no step could know it ahead of time — capture it, then USE it:
+        `zOpen: $share_url` · `zFetch: {url: $api_url}` · `zFill: {code: $ref}`. property: innerText
+        (default) | value | any attribute (href, data-*); pattern: optional regex refine (group(1) if
+        grouped). No selector → pattern regexes the whole page text — the SAME `{var, pattern}` step is
+        the zCLI zCapture (dual-mode, like zPick/zFill: terminal buffer there, rendered page here).
+        Settles on the render signal first (zOS#97) — never captures off a half-painted page; unknown
+        $var at a consumer fails LOUD, never navigates/fetches the literal '$x'
     zShot: {full_page, …}    — → zRaven/zShots/<name>/<viewport>/ (format/quality/delay/selector/burst)
     ws_leg                   — zBoot (walk a zUI block) · zExecute (run a zFunc) · zSubmit ({path, gate, value}) — need zGuard
     http_leg                 — zFetch ({url, method, headers, params, body}) · zClean ({model, match}) trims a CSV mid-run
