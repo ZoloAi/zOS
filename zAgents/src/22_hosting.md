@@ -11,7 +11,12 @@ driver: the whole control plane rests on ONE contract — swap the backend, call
     contract  — a `ComputeDriver` answers three: `wake(app)` (ensure up, return where to reach) · `sleep(app_id)` (tear down) · `status(app_id)` (asleep/waking/running)
     seam      — the rest of the system talks ONLY to this contract; control flow identical everywhere, only the driver differs
     dev       — `LocalProcessDriver`: each app a child `zolo` process on its own free ports (ports via OS env, tenant's project folder never mutated)
-    prod      — `register_driver('k8s', K8sDriver)` and EVERY caller stays identical (`core/zos_plugin/drivers.py`)
+    orphans   — the instance table is IN-PROCESS but children (own session groups) survive a host crash/restart; every
+        spawn drops a pidfile under the runtime dir and a fresh driver SWEEPS them on construction — command-line
+        provenance check first (never signals a recycled pid), TERM → bounded wait → KILL escalation, one
+        `[zHost] reaped orphan…` log line per kill, and a pidfile is KEPT if the kill could not be confirmed so the
+        next boot retries (zOS#2, 1.7.3 hardening; the sweep itself shipped 1.6.15-era). Duplicate wakes for the
+        same build dir can't happen post-sweep: the registry rebuilds empty AFTER strays are gone
     selection — `ZHOST_DRIVER` env → zos config → default `local`; one driver instance reused (in-process instance table survives calls)
     payoff    — test on your laptop, deploy to a cluster later — same wake/sleep/status, different engine
 

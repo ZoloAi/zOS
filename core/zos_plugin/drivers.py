@@ -363,12 +363,24 @@ class LocalProcessDriver(ComputeDriver):
         The driver's instance table is in-process, but children run in their own
         session groups and survive a host crash/restart. Every spawn drops a
         pidfile under the runtime dir; a fresh driver walks them, SIGTERMs any
-        pid that is still alive AND still looks like a zolo child, and clears
-        the files. Windows lacks killpg/ps -o command semantics — stale files
-        are cleared there but processes are left alone.
+        pid that is still alive AND still looks like a zolo child, escalates to
+        SIGKILL if it lingers, and clears the files. Windows lacks killpg/ps -o
+        command semantics — stale files are cleared there but processes are
+        left alone.
+
+        zOS#2 hardening: the first cut fired ONE SIGTERM and unlinked the
+        pidfile unconditionally — a child that survived the signal became a
+        permanently invisible orphan (still serving, no record anywhere: the
+        exact failure this sweep exists to prevent). Now every signaled pid is
+        confirmed dead (bounded wait → SIGKILL escalation) and a pidfile is
+        KEPT when its process could not be killed, so the next boot retries
+        instead of forgetting. Each reap logs one line for ops visibility.
         """
         if not self._runtime.is_dir():
             return
+        # Phase 1 — classify + SIGTERM every live orphan (parallel shutdowns).
+        stale: list = []       # pidfiles safe to clear (dead / not ours / no pid)
+        signaled: list = []    # (pidfile, pid) TERMed, pending confirmation
         for pidfile in self._runtime.glob("*/instance_*.pid"):
             try:
                 pid = int(pidfile.read_text().strip() or 0)
@@ -382,10 +394,55 @@ class LocalProcessDriver(ComputeDriver):
                         os.kill(pid, 15)
                     except OSError:
                         pass
+                signaled.append((pidfile, pid))
+            else:
+                stale.append(pidfile)
+
+        # Phase 2 — confirm each TERMed pid is gone; escalate to SIGKILL once.
+        # One shared deadline (not per-pid) keeps a many-orphan boot bounded.
+        # Confirmation reuses _looks_like_child, NOT a bare kill(pid, 0): a
+        # reaped-by-nobody child lingers as a zombie (signal-visible but not
+        # serving), and its ps command line no longer carries the markers —
+        # so a zombie correctly reads as dead here.
+        deadline = time.time() + 5.0
+        for pidfile, pid in signaled:
+            while self._looks_like_child(pid) and time.time() < deadline:
+                time.sleep(0.25)
+            if self._looks_like_child(pid):
+                try:
+                    os.killpg(os.getpgid(pid), 9)
+                except (ProcessLookupError, PermissionError, OSError):
+                    try:
+                        os.kill(pid, 9)
+                    except OSError:
+                        pass
+                time.sleep(0.25)
+            if self._looks_like_child(pid):
+                # Unkillable (permissions?) — KEEP the pidfile so the next
+                # boot sees it again; deleting it here is how an orphan
+                # becomes invisible forever.
+                self._log_sweep(
+                    f"orphan pid {pid} ({pidfile.parent.name}) survived "
+                    f"SIGTERM+SIGKILL — pidfile kept for the next sweep"
+                )
+                continue
+            self._log_sweep(
+                f"reaped orphan instance pid {pid} ({pidfile.parent.name}) "
+                f"from a previous host life"
+            )
+            stale.append(pidfile)
+
+        for pidfile in stale:
             try:
                 pidfile.unlink()
             except OSError:
                 pass
+
+    @staticmethod
+    def _log_sweep(msg: str) -> None:
+        """One ops-visible line per reap (stdlib logging — the SDK has no zos)."""
+        import logging  # pylint: disable=import-outside-toplevel
+        logging.getLogger("zos.zhost").warning("[zHost] %s", msg)
 
     @classmethod
     def _looks_like_child(cls, pid: int) -> bool:
