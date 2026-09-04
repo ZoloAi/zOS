@@ -4,7 +4,7 @@
 #
 # What it does (and nothing more):
 #   1. Confirms this OS/arch is a supported zOS platform
-#   2. Finds a CPython 3.10-3.12 (the range zGuard ships binaries for) —
+#   2. Finds a CPython 3.10-3.13 (the range zGuard ships binaries for) —
 #      or provisions Python 3.12 via uv when none exists (fresh-PC path)
 #   3. Creates an isolated venv at %USERPROFILE%\.zolo\venv
 #   4. Installs zolo-os from PyPI into it
@@ -29,7 +29,9 @@ if ($arch -notin @("AMD64", "ARM64")) {
 }
 Say "-> platform: Windows/$arch - supported"
 
-# -- 2. find CPython 3.10-3.12 --------------------------------------------------
+# -- 2. find CPython 3.10-3.13 --------------------------------------------------
+# 3.13 included since zGuard ships cp313 binaries (PYMESS sim, 2026-09-04).
+# Ceiling stays BELOW 3.14 (no zGuard binaries there).
 # $Py ends up as a launcher spec ("py -3.12"), a bare command ("python"), or a
 # full interpreter path (the uv rescue below) — which may contain spaces.
 # All invocations go through this ONE helper (the old Split(" ") slice broke
@@ -41,10 +43,10 @@ function Invoke-Py {
 }
 
 $Py = $null
-foreach ($cand in @("py -3.12", "py -3.11", "py -3.10", "python")) {
+foreach ($cand in @("py -3.13", "py -3.12", "py -3.11", "py -3.10", "python")) {
     try {
         $ver = Invoke-Py $cand @("-c", "import sys; print('%d.%d' % sys.version_info[:2])") 2>$null
-        if ($ver -in @("3.10", "3.11", "3.12")) { $Py = $cand; break }
+        if ($ver -in @("3.10", "3.11", "3.12", "3.13")) { $Py = $cand; break }
     } catch { continue }
 }
 # No suitable CPython? Provision one with uv (standalone builds, no admin) —
@@ -76,6 +78,17 @@ if (-not $Py) {
 Say "-> python: $Py"
 
 # -- 3. venv --------------------------------------------------------------------
+# A reused venv must actually RUN, not merely exist: a venv whose base python
+# was uninstalled still has its files, but every exe in it is dead (PYMESS sim
+# GAP-2, 2026-09-04). Probe the interpreter; rebuild on failure.
+$VenvPy = Join-Path $Scripts "python.exe"
+if ((Test-Path (Join-Path $Scripts "pip.exe"))) {
+    & $VenvPy -c "" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Say "-> existing venv is broken (its Python was removed) - rebuilding"
+        Remove-Item -Recurse -Force $Venv
+    }
+}
 if (-not (Test-Path (Join-Path $Scripts "pip.exe"))) {
     Say "-> creating venv: $Venv"
     Invoke-Py $Py @("-m", "venv", $Venv)

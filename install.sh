@@ -5,7 +5,7 @@
 #
 # What it does (and nothing more):
 #   1. Confirms this OS/arch is a supported zOS platform
-#   2. Finds a CPython 3.10–3.12 (the range zGuard ships binaries for)
+#   2. Finds a CPython 3.10–3.13 (the range zGuard ships binaries for)
 #   3. Creates an isolated venv at ~/.zolo/venv
 #   4. Installs zolo-os from PyPI into it
 #   5. Links the `z` CLI into ~/.local/bin
@@ -30,11 +30,14 @@ case "$OS/$ARCH" in
 esac
 say "→ platform: $OS/$ARCH — supported"
 
-# ── 2. find CPython 3.10–3.12 ────────────────────────────────────────────────
+# ── 2. find CPython 3.10–3.13 ────────────────────────────────────────────────
+# 3.13 included since zGuard ships cp313 binaries (PYMESS sim, 2026-09-04):
+# today's Homebrew default IS 3.13 — before this, such machines downloaded a
+# redundant uv python. Ceiling stays BELOW 3.14 (no zGuard binaries there).
 PY=""
-for cand in python3.12 python3.11 python3.10 python3; do
+for cand in python3.13 python3.12 python3.11 python3.10 python3; do
     if command -v "$cand" >/dev/null 2>&1; then
-        if "$cand" -c 'import sys; sys.exit(0 if (3,10) <= sys.version_info[:2] <= (3,12) else 1)' 2>/dev/null; then
+        if "$cand" -c 'import sys; sys.exit(0 if (3,10) <= sys.version_info[:2] <= (3,13) else 1)' 2>/dev/null; then
             PY="$(command -v "$cand")"
             break
         fi
@@ -71,6 +74,16 @@ ensure_venv_support() {
         fail "python venv support is missing. Run:  sudo apt install python${PYMM}-venv  — then re-run this installer."
     fi
 }
+
+# A reused venv must actually RUN, not merely exist: a venv whose base python
+# vanished (brew upgrade deletes the old minor; conda env removed) still has
+# its files, but every binary in it is dead — "pip: cannot execute" with no
+# remediation (PYMESS sim GAP-2, 2026-09-04). Probe the interpreter; rebuild
+# on failure exactly like the half-created case.
+if [ -x "$VENV/bin/pip" ] && ! "$VENV/bin/python" -c '' >/dev/null 2>&1; then
+    say "→ existing venv is broken (its python was removed — e.g. a brew upgrade); rebuilding"
+    rm -rf "$VENV"
+fi
 
 if [ ! -x "$VENV/bin/pip" ]; then
     ensure_venv_support
