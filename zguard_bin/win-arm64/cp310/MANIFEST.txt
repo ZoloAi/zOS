@@ -1,4 +1,6 @@
 zguard/__init__.py
+zguard/apps/__init__.py
+zguard/apps/command.cp310-win_arm64.pyd
 zguard/auth/__init__.py
 zguard/auth/api_key_auth.cp310-win_arm64.pyd
 zguard/auth/boot_identity.cp310-win_arm64.pyd
@@ -40,6 +42,7 @@ zguard/bifrost/zBifrost_modules/server/client_handler.cp310-win_arm64.pyd
 zguard/bifrost/zBifrost_modules/server/lifecycle.cp310-win_arm64.pyd
 zguard/bifrost/zBifrost_modules/server/message_router.cp310-win_arm64.pyd
 zguard/bifrost/zBifrost_modules/ws_server.cp310-win_arm64.pyd
+zguard/cloud_http.cp310-win_arm64.pyd
 zguard/display/__init__.py
 zguard/display/embed_trust.cp310-win_arm64.pyd
 zguard/display/terminal_trust.cp310-win_arm64.pyd
@@ -47,6 +50,8 @@ zguard/loader/__init__.py
 zguard/loader/plugin_trust.cp310-win_arm64.pyd
 zguard/parser/__init__.py
 zguard/parser/path_trust.cp310-win_arm64.pyd
+zguard/pull/__init__.py
+zguard/pull/command.cp310-win_arm64.pyd
 zguard/push/__init__.py
 zguard/push/bundle.cp310-win_arm64.pyd
 zguard/push/command.cp310-win_arm64.pyd

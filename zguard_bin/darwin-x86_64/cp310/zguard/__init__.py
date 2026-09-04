@@ -5,7 +5,7 @@
 # subpackages re-export it, and zOS's zguard_bin/<platform>/<py>/VERSION files
 # are stamped from the wheel built at this version. Bump ONLY here.
 
-__version__ = "1.0.11"
+__version__ = "1.0.12"
 
 # Grammar capabilities this build understands. zOS core checks this set at
 # boot (zguard_provision.zguard_capability_gap) and warns LOUDLY when the

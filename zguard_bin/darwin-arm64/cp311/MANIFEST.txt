@@ -1,4 +1,6 @@
 zguard/__init__.py
+zguard/apps/__init__.py
+zguard/apps/command.cpython-311-darwin.so
 zguard/auth/__init__.py
 zguard/auth/api_key_auth.cpython-311-darwin.so
 zguard/auth/boot_identity.cpython-311-darwin.so
@@ -40,6 +42,7 @@ zguard/bifrost/zBifrost_modules/server/client_handler.cpython-311-darwin.so
 zguard/bifrost/zBifrost_modules/server/lifecycle.cpython-311-darwin.so
 zguard/bifrost/zBifrost_modules/server/message_router.cpython-311-darwin.so
 zguard/bifrost/zBifrost_modules/ws_server.cpython-311-darwin.so
+zguard/cloud_http.cpython-311-darwin.so
 zguard/display/__init__.py
 zguard/display/embed_trust.cpython-311-darwin.so
 zguard/display/terminal_trust.cpython-311-darwin.so
@@ -47,6 +50,8 @@ zguard/loader/__init__.py
 zguard/loader/plugin_trust.cpython-311-darwin.so
 zguard/parser/__init__.py
 zguard/parser/path_trust.cpython-311-darwin.so
+zguard/pull/__init__.py
+zguard/pull/command.cpython-311-darwin.so
 zguard/push/__init__.py
 zguard/push/bundle.cpython-311-darwin.so
 zguard/push/command.cpython-311-darwin.so

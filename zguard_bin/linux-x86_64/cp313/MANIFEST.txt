@@ -1,4 +1,6 @@
 zguard/__init__.py
+zguard/apps/__init__.py
+zguard/apps/command.cpython-313-x86_64-linux-gnu.so
 zguard/auth/__init__.py
 zguard/auth/api_key_auth.cpython-313-x86_64-linux-gnu.so
 zguard/auth/boot_identity.cpython-313-x86_64-linux-gnu.so
@@ -40,6 +42,7 @@ zguard/bifrost/zBifrost_modules/server/client_handler.cpython-313-x86_64-linux-g
 zguard/bifrost/zBifrost_modules/server/lifecycle.cpython-313-x86_64-linux-gnu.so
 zguard/bifrost/zBifrost_modules/server/message_router.cpython-313-x86_64-linux-gnu.so
 zguard/bifrost/zBifrost_modules/ws_server.cpython-313-x86_64-linux-gnu.so
+zguard/cloud_http.cpython-313-x86_64-linux-gnu.so
 zguard/display/__init__.py
 zguard/display/embed_trust.cpython-313-x86_64-linux-gnu.so
 zguard/display/terminal_trust.cpython-313-x86_64-linux-gnu.so
@@ -47,6 +50,8 @@ zguard/loader/__init__.py
 zguard/loader/plugin_trust.cpython-313-x86_64-linux-gnu.so
 zguard/parser/__init__.py
 zguard/parser/path_trust.cpython-313-x86_64-linux-gnu.so
+zguard/pull/__init__.py
+zguard/pull/command.cpython-313-x86_64-linux-gnu.so
 zguard/push/__init__.py
 zguard/push/bundle.cpython-313-x86_64-linux-gnu.so
 zguard/push/command.cpython-313-x86_64-linux-gnu.so
