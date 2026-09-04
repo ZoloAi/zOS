@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zolo-os"
-version = "1.7.2"
+version = "1.7.3"
 description = "Zolo Operating System - A full-stack application framework with declarative configuration, layered architecture, and rich subsystems"
 authors = [
     {name = "Gal Nachshon", email = "gal@zolo.media"}
@@ -32,7 +32,11 @@ classifiers = [
 ]
 keywords = ["cli", "framework", "yaml", "interactive", "shell", "declarative", "configuration", "menu-driven", "plugin-system", "session-management"]
 dependencies = [
-    "zolo-lsp>=1.2.0",
+    # >=1.2.3: the strict boot gate + z lint delegate duplicate-block/unclosed-
+    # comment detection to zLSP Error diagnostics that only exist since 1.2.2
+    # (1.2.3 = 1.2.2 + the zOS#82 paren fix). An older zlsp silently no-ops
+    # the gate (PYMESS/venv finding, 2026-09-04).
+    "zolo-lsp>=1.2.3",
     "PyYAML>=6.0",
     "websockets>=15.0",
     "requests>=2.32",
