@@ -59,6 +59,9 @@ from ..display_constants import (  # pylint: disable=relative-beyond-top-level
     _FORMAT_FIELD_PROMPT
 )
 
+# Boolean-attr contract SSOT (zOS#92) — membership + falsy set live here
+from ..io.inputs import field_rules  # pylint: disable=relative-beyond-top-level
+
 
 class DialogEvents:
     """
@@ -550,8 +553,12 @@ class DialogEvents:
     # bool arrives as False (or the strings "False"/"false" from a string-first
     # zolo file) — Python truthiness would read "False" as ON, locking every
     # row (zOS#92). Coerce here: falsy → the attr is simply absent.
-    _BOOLISH_FIELD_KEYS = ('readonly', 'disabled', 'multiple')
-    _FALSY_ATTR_STRINGS = ('false', '0', 'no', 'off', 'none', 'null', '')
+    # Membership + falsy set come from the field_rules SSOT; this surface
+    # deliberately EXCLUDES 'required' — the collector owns the required gate
+    # (see _PASSTHROUGH_FIELD_KEYS note above), so it must not leak into kwargs.
+    _BOOLISH_FIELD_KEYS = tuple(
+        k for k in field_rules.BOOLISH_ATTR_KEYS if k != 'required'
+    )
 
     def _build_input_kwargs(self, field_attrs: Dict[str, Any], field_type: str) -> Dict[str, Any]:
         """Build the read_string kwargs for a dialog field from its declared attrs."""
@@ -561,9 +568,7 @@ class DialogEvents:
             if value is None:
                 continue
             if key in self._BOOLISH_FIELD_KEYS:
-                if value is False or (
-                    isinstance(value, str) and value.strip().lower() in self._FALSY_ATTR_STRINGS
-                ):
+                if field_rules.is_falsy_attr(value):
                     continue  # falsy bool → attr absent (the falsy state)
                 kwargs[key] = True
                 continue

@@ -532,13 +532,10 @@ class zPrimitives:
         if not isinstance(fields, list) or not fields:
             return data
 
-        from .inputs.field_rules import html_attrs  # SSOT for field rules
-
-        # Boolean-semantic attrs: JS truthiness reads the string "False" as ON
-        # (same trap as Python — zOS#92), so falsy values must not ship at all;
-        # truthy strings normalize to a real true.
-        boolish_keys = ('readonly', 'disabled', 'multiple', 'required')
-        falsy_strings = ('false', '0', 'no', 'off', 'none', 'null', '')
+        # SSOT for field rules AND the boolean-attr contract (zOS#92): JS
+        # truthiness reads the string "False" as ON (same trap as Python), so
+        # falsy values must not ship at all; truthy strings normalize to True.
+        from .inputs.field_rules import html_attrs, is_falsy_attr, BOOLISH_ATTR_KEYS
 
         enriched = []
         changed = False
@@ -546,13 +543,11 @@ class zPrimitives:
             attrs = html_attrs(field)
             base = dict(field) if isinstance(field, dict) else None
             if base is not None:
-                for key in boolish_keys:
+                for key in BOOLISH_ATTR_KEYS:
                     value = base.get(key)
                     if value is None or value is True:
                         continue
-                    if value is False or (
-                        isinstance(value, str) and value.strip().lower() in falsy_strings
-                    ):
+                    if is_falsy_attr(value):
                         base.pop(key)
                     else:
                         base[key] = True

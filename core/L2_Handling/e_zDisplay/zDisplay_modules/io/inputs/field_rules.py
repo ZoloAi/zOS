@@ -58,6 +58,32 @@ CONSTRAINT_KEYS = ('pattern', 'min', 'max', 'step', 'minlength', 'maxlength')
 # zCLI-internal and never go on the wire.
 _HTML_ATTR_KEYS = ('pattern', 'min', 'max', 'step', 'minlength', 'maxlength')
 
+# ── Boolean-semantic field attrs (zOS#92) — the cross-surface SSOT ───────────
+# Attrs whose FALSY state is ABSENCE (a missing HTML attribute / kwarg).
+# String-first zolo files hand these over as strings, and both Python and JS
+# truthiness read "False" as ON — so a falsy value must never ship; a truthy
+# one normalizes to a real True. Consumed by:
+#   - display_primitives._resolve_dialog_field_rules  (Bifrost wire payload)
+#   - system_event_dialog._build_input_kwargs         (zCLI read_string kwargs;
+#     deliberately EXCLUDES 'required' — the collector owns the required gate)
+#   - zDialog._resolve_field_tokens                   (whole-%token miss → drop)
+# Membership drifted while these lived as three private tuples — any change
+# here now reaches all three surfaces at once.
+BOOLISH_ATTR_KEYS = ('required', 'readonly', 'disabled', 'multiple', 'multi')
+FALSY_STRINGS = ('false', '0', 'no', 'off', 'none', 'null', '')
+
+
+def is_falsy_attr(value) -> bool:
+    """True when a boolean-semantic attr value means OFF (drop the attr).
+
+    False (real bool) and any string in FALSY_STRINGS (case/space-insensitive)
+    are the falsy states; everything else — True, "yes", "1", a stray token —
+    is the caller's concern (normalize truthy → True, keep tokens visible).
+    """
+    return value is False or (
+        isinstance(value, str) and value.strip().lower() in FALSY_STRINGS
+    )
+
 _NUMBER = _re.compile(NUMBER_RE)
 
 

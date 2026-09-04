@@ -138,6 +138,10 @@ Version History
 __version__ = "1.0.0"
 from zOS import Any, Dict, Optional
 from zOS.L1_Foundation.a_zConfig.zConfig_modules.config_constants import SESSION_KEY_ZMODE
+# Boolean-attr contract SSOT (zOS#92) — one membership list for all surfaces
+from zOS.L2_Handling.e_zDisplay.zDisplay_modules.io.inputs.field_rules import (
+    BOOLISH_ATTR_KEYS as _BOOLISH_ATTR_KEYS,
+)
 from .dialog_modules import create_dialog_context, handle_submit
 from .dialog_modules.dialog_constants import (
     COLOR_ZDIALOG,
@@ -704,7 +708,9 @@ class zDialog:
     # Field props whose ABSENCE is the falsy state in both renderers (a missing
     # HTML attribute / kwarg) — a %token that resolves to nothing drops the key
     # rather than shipping a literal token the renderer would treat as truthy.
-    _FIELD_BOOLISH_KEYS = ('required', 'readonly', 'disabled', 'multiple', 'multi')
+    # Membership comes from the field_rules SSOT (zOS#92) — shared with the
+    # Bifrost wire coercion and the zCLI kwargs builder.
+    _FIELD_BOOLISH_KEYS = _BOOLISH_ATTR_KEYS
 
     def _resolve_field_tokens(self, fields: list) -> list:
         """Resolve whole-value ``%tokens`` in field properties to NATIVE values.
