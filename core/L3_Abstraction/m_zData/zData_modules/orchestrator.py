@@ -23,6 +23,7 @@ Responsibilities:
 from zOS import Any, Dict, List, Optional
 
 from .shared.data_keys import SCHEMA_KEY_META
+from .shared.operations.write_prep import apply_defaults
 
 # Module Constants
 _LOG_PREFIX = "[DataOrchestrator]"
@@ -209,16 +210,46 @@ class DataOrchestrator:
     # CRUD OPERATIONS (Delegate to operations facade)
     # ═══════════════════════════════════════════════════════════════════════════════
 
+    def _with_defaults(self, table: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Fill omitted/empty fields from the table's declared ``default:`` (zOS#23B).
+
+        The DECLARATIVE door (``handle_insert``) runs ``apply_defaults`` in its own
+        pipeline and reaches the adapter via ``operations.insert`` — it never passes
+        through here, so this is not a second application for that path. This is the
+        THIN door: ``zos.data.insert(table=, fields=, values=)``, the raw signature a
+        plugin gets off the ``zos`` handle (zCloud's register.py, dad's MedTrack).
+        Half A (48b8f8d) fixed only ``DataFacade``, the *other* plugin door — the
+        dict-shaped ``data.insert(table, {...})`` injection — leaving this one a
+        straight pass-through where ``default: now`` silently never fired.
+
+        Fail-open, exactly like the facade: a table absent from the loaded schema
+        keeps the old pass-through behavior (no defaults, no error), so an
+        unregistered write can never start failing because of this.
+        """
+        table_schema = (self.schema or {}).get(table)
+        if not isinstance(table_schema, dict):
+            return data
+        return apply_defaults(table, data, table_schema, self.operations)
+
     def insert(self, table: str, fields: List[str], values: List[Any]) -> Any:
         """Insert rows into table. Delegates to operations facade."""
         if not self.operations:
             raise RuntimeError("No operations handler initialized")
+        # Only reshape when fields/values actually pair up — a mismatched call is
+        # the adapter's error to report, not ours to mangle via zip() truncation.
+        if len(fields) == len(values):
+            data = self._with_defaults(table, dict(zip(fields, values)))
+            fields, values = list(data.keys()), list(data.values())
         return self.operations.insert(table, fields, values)
 
     def insert_many(self, table: str, rows_data: List[Dict[str, Any]]) -> List[Any]:
         """Insert multiple row dicts in one write pass. Delegates to operations facade."""
         if not self.operations:
             raise RuntimeError("No operations handler initialized")
+        rows_data = [
+            self._with_defaults(table, r) if isinstance(r, dict) else r
+            for r in (rows_data or [])
+        ]
         return self.operations.insert_many(table, rows_data)
 
     def select(self, table: str, fields: Optional[List[str]] = None, **kwargs: Any) -> List[Dict[str, Any]]:
