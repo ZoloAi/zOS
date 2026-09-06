@@ -249,6 +249,12 @@ def _build_where_from_filters(z_filters: Dict) -> Dict:
         zBetween:  [min,max] → {col: {"$gte": min, "$lte": max}}
         zNull:     true → {col: None}                   IS NULL
         zKnown:    true → {col: {"$notnull": True}}     IS NOT NULL
+        zIfSet:    val  → set: scalar → equality, list → IN;
+                          UNSET (None/''/[]) → condition DROPPED (match all).
+                          The opt-in "no filter when the token is empty" form
+                          (zPlanner#20) — plain equality keeps the secure
+                          default (unresolved token matches NOTHING), so a
+                          board-wide filter must ASK for match-all explicitly.
         zWhere:    str  → parsed raw SQL string, merged into result dict
 
     Returns a dict compatible with csv_helpers/where_filtering.py.
@@ -284,6 +290,13 @@ def _build_where_from_filters(z_filters: Dict) -> Dict:
             elif op == 'zStarts':   col_cond[OP_LIKE] = f'{val}%'
             elif op == 'zEnds':     col_cond[OP_LIKE] = f'%{val}'
             elif op == 'zIN':       simple_eq = val if isinstance(val, list) else [val]
+            elif op == 'zIfSet':
+                # Unset (None / '' / []) → NO condition for this column at all
+                # (match everything). Set → shape-aware: list is IN, scalar is
+                # equality. False and 0 are SET values — only emptiness drops.
+                if val is None or val == '' or (isinstance(val, list) and not val):
+                    continue
+                simple_eq = val
             elif op == 'zBetween' and isinstance(val, list) and len(val) == 2:
                 col_cond[OP_GTE] = val[0]
                 col_cond[OP_LTE] = val[1]

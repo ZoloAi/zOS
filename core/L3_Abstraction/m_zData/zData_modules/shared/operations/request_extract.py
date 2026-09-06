@@ -60,7 +60,7 @@ _LOG_WARN_NO_WHERE = "[WARN] No WHERE clause - operation will affect ALL rows!"
 # rule dialect, not a literal — it must compile, never compare by equality.
 _ZFILTER_RULE_TOKENS = frozenset({
     "zAbove", "zBelow", "zIs", "zIncludes", "zStarts", "zEnds",
-    "zIN", "zBetween", "zNull", "zKnown",
+    "zIN", "zBetween", "zNull", "zKnown", "zIfSet",
 })
 # Flat unary spellings: `where: {deleted_at: zNull}` — the condensed-doc form.
 _ZFILTER_FLAT_TOKENS = frozenset({"zNull", "zKnown"})
@@ -104,6 +104,15 @@ def _normalize_rule_dialect(where: Dict[str, Any], ops: Any) -> Dict[str, Any]:
                 ops.logger.debug(
                     "[zData] where: rule dialect compiled on '%s': %r → %r",
                     col, cond, compiled[col],
+                )
+        elif "zIfSet" in rules:
+            # zIfSet with an unset operand compiles to NO condition — dropping
+            # the column IS the successful result (match all, zPlanner#20).
+            # Falling back to the raw rule dict here would ship {zIfSet: None}
+            # to the adapter as a literal equality and match nothing.
+            if ops and getattr(ops, "logger", None):
+                ops.logger.debug(
+                    "[zData] where: zIfSet unset on '%s' — condition dropped", col,
                 )
         else:
             out[col] = cond

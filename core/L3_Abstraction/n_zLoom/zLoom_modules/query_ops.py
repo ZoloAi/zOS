@@ -7,9 +7,15 @@ Turns the three spool-def forms (declarative dict, shorthand string, explicit
 facade; cross-calls ``self._zsession_path`` (ValueOps) for %session interpolation.
 """
 
-from zOS import Any, Dict
+from zOS import Any, Dict, re
 # zPath grammar — Layer-0 SSOT for sigil/segment decomposition.
 from zSys import zpath
+
+# A WHERE token is %identifier(.identifier)* — NOTHING else resolves. The
+# strictness is load-bearing: operator operands can be LIKE patterns
+# ('%John%'), and a leading-% pattern mistaken for a token would resolve to
+# None and silently break the filter (zPlanner#20 recursion hazard).
+_WHERE_TOKEN_RE = re.compile(r'^%[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*$')
 
 
 class QueryOps:
@@ -125,40 +131,46 @@ class QueryOps:
         Uses the shared navigator (``_zsession_path`` → ``deep_nav``) so WHERE
         reads zSession identically to render tokens and gate values. A missing
         path resolves to None (secure default — never the instance owner's value).
+
+        Recurses into operator dicts and lists (zPlanner#20): a zFilters rule
+        like ``stage: {zIN: %stages}`` or ``score: {zBetween: [%lo, %hi]}`` used
+        to pass through VERBATIM — only top-level string values interpolated —
+        so the literal '%stages' reached the adapter and silently matched
+        nothing. Now every string at any depth resolves by the same three rules.
         """
-        interpolated = {}
-        for field, value in where_clause.items():
-            if isinstance(value, str) and value.startswith("%session."):
-                # _zsession_path is provided by ValueOps on the composed facade.
-                session_value = self._zsession_path(value[9:])  # pylint: disable=no-member
-                interpolated[field] = session_value
-                self.zos.logger.framework.debug(
-                    f"[zLoom] Interpolated {value} → {session_value}"
-                )
-            elif isinstance(value, str) and value.startswith("%route."):
-                # Dynamic-route params resolve through the token SSOT (RouteOps store),
-                # NOT the zVars bag — ONE navigator for render, gates, and WHERE, so a
-                # %route read in a where-clause can't drift from a %route read on a page.
-                resolved = self.resolve_value(value)  # pylint: disable=no-member
-                interpolated[field] = resolved
-                self.zos.logger.framework.debug(
-                    f"[zLoom] Interpolated {value} → {resolved}"
-                )
-            elif isinstance(value, str) and value.startswith("%") and not value.startswith("%session.") and not value.startswith("%data."):
-                # Bare `%var` (+ dotted) → resolve through the token SSOT, NOT a local
-                # re-read of zVars. This heals the historical dup (WHERE used to re-read
-                # session["zVars"] by hand, diverging from render/gate reads) AND, via
-                # _lookup's P2 net, lets a not-yet-migrated `%username` fall back to the
-                # zLoom route store now that zServer stopped copying params into zVars.
-                # Miss → None (secure default; a literal %token never matched a row anyway).
-                resolved = self.resolve_value(value)  # pylint: disable=no-member
-                interpolated[field] = resolved
-                self.zos.logger.framework.debug(
-                    f"[zLoom] Interpolated {value} → {resolved}"
-                )
-            else:
-                interpolated[field] = value
-        return interpolated
+        return {
+            field: self._resolve_where_value(value)
+            for field, value in where_clause.items()
+        }
+
+    def _resolve_where_value(self, value: Any) -> Any:
+        """Resolve one WHERE value — token strings at any nesting depth.
+
+        Three token spellings, ONE navigator each (same SSOT as render/gates):
+        - ``%session.*`` → _zsession_path (deep-nav)
+        - ``%route.*``   → resolve_value (RouteOps store, not the zVars bag)
+        - bare ``%var``  → resolve_value (heals the historical zVars re-read dup;
+          _lookup's P2 net still catches a not-yet-migrated ``%username``)
+        Miss → None (secure default; a literal %token never matched a row anyway).
+        ``%data.*`` is untouched — a WHERE cannot key off its own result.
+        """
+        if isinstance(value, dict):
+            # Operator/rule dict ({zIN: ...}, {zAbove: ...}) — resolve the
+            # operands, keep the operator keys.
+            return {k: self._resolve_where_value(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._resolve_where_value(v) for v in value]
+        if not isinstance(value, str) or not _WHERE_TOKEN_RE.match(value):
+            return value
+        if value.startswith("%session."):
+            # _zsession_path is provided by ValueOps on the composed facade.
+            resolved = self._zsession_path(value[9:])  # pylint: disable=no-member
+        elif not value.startswith("%data."):
+            resolved = self.resolve_value(value)  # pylint: disable=no-member
+        else:
+            return value
+        self.zos.logger.framework.debug(f"[zLoom] Interpolated {value} → {resolved}")
+        return resolved
 
     def _execute_data_query(
         self,
