@@ -4,7 +4,24 @@ Status: MVP PROVEN (2026-09-06, Gal approved the baseline to experiment).
 The zlag rig's jack raven is green end to end: a button with NO onSuccess
 writes a row and the subscribed block repaints twice consecutively — write →
 DataOrchestrator broadcast → client scoped re-walk (`zlag/c3`). Grammar as
-proposed below; `zJack: true` auto-derive and `every:` heartbeat not yet wired.
+proposed below — all three forms now proven on the rig (zlag/c4):
+- `zJack: {on: [Tables]}` — explicit watch (zlag/c3, the MVP).
+- `zJack: true` — auto-derive: the watch list is read off the file's own
+  `zMeta.zSpool` reels (`zloom.build_binding_block` → each reel's
+  `zData.table`), so what the page READS is what it watches — no second
+  declaration to drift (jackauto raven).
+- `zJack: {on: …, every: 2s}` — heartbeat for data changed OUTSIDE the app's
+  write doors: a per-block server timer broadcasts an invalidation each
+  interval, cancel-and-replace on every re-registration so a block holds
+  exactly one live beat. Proven by the ghost-table rig (jackbeat raven): the
+  block watches a never-written table, a real write lands elsewhere, and the
+  count still climbs — the clock is the only repaint vector. Known edge: a
+  beat outlives its page (harmless — the client relevance filter drops the
+  frames — but the timer runs until app shutdown; connection-scoped teardown
+  is 1.7.5 work).
+Not yet pinned: the two-window fanout (broadcast IS all-connections by
+construction, but zRaven drives a single page — filed as a zRaven
+enhancement), write coalescing, and a real zPlanner consumer.
 Bring-up findings that shaped the implementation:
 - Registration lives at the message_walker seam (the only place holding both
   the block dict and its NAME) into the SESSION dict, read LIVE at emit time —
