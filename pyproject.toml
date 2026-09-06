@@ -36,7 +36,11 @@ dependencies = [
     # comment detection to zLSP Error diagnostics that only exist since 1.2.2
     # (1.2.3 = 1.2.2 + the zOS#82 paren fix). An older zlsp silently no-ops
     # the gate (PYMESS/venv finding, 2026-09-04).
-    "zolo-lsp>=1.2.3",
+    # >=1.2.4: a bare "" / '' value parses as EMPTY STRING, not a two-char
+    # quote literal — schema `default: ""` and where-clause `field: ""` depend
+    # on it (zPlanner board #18, 2026-09-06). Pre-1.2.4 every such default
+    # stored '""' (truthy) and emptiness checks lied.
+    "zolo-lsp>=1.2.4",
     "PyYAML>=6.0",
     "websockets>=15.0",
     "requests>=2.32",
