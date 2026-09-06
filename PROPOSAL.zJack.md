@@ -15,13 +15,19 @@ proposed below — all three forms now proven on the rig (zlag/c4):
   interval, cancel-and-replace on every re-registration so a block holds
   exactly one live beat. Proven by the ghost-table rig (jackbeat raven): the
   block watches a never-written table, a real write lands elsewhere, and the
-  count still climbs — the clock is the only repaint vector. Known edge: a
-  beat outlives its page (harmless — the client relevance filter drops the
-  frames — but the timer runs until app shutdown; connection-scoped teardown
-  is 1.7.5 work).
+  count still climbs — the clock is the only repaint vector.
+- Coalescing (zlag/c5): client-side 80ms trailing debounce per target — a
+  write burst (tap5 loop) emits five invalidations but repaints ONCE with the
+  final count; the walk re-reads live data so trailing-edge is always correct.
+  Six vitest pins in zbifrost-client (zjack_coalesce.test.js).
+- Teardown (zlag/c5): last Bifrost client out → every heartbeat cancelled +
+  the subscription registry dropped (client_handler._cleanup_client →
+  clear_zjack_state). Subscriptions aren't connection-keyed by design, so
+  zero-clients is the honest granularity; a reconnect re-registers on its
+  first walk.
 Not yet pinned: the two-window fanout (broadcast IS all-connections by
 construction, but zRaven drives a single page — filed as a zRaven
-enhancement), write coalescing, and a real zPlanner consumer.
+enhancement) and a real zPlanner consumer (held until #17 clears the tree).
 Bring-up findings that shaped the implementation:
 - Registration lives at the message_walker seam (the only place holding both
   the block dict and its NAME) into the SESSION dict, read LIVE at emit time —
