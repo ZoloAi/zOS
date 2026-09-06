@@ -188,6 +188,17 @@ class zData:
         """Insert rows into table."""
         return self.orchestrator.insert(table, fields, values)
 
+    def insert_many(self, table: str, rows_data: List[Dict[str, Any]]) -> List[Any]:
+        """Bulk-insert row dicts in one write pass.
+
+        The missing delegate (zPlanner#15): DataFacade.insert_many has called
+        ``self._d.insert_many(...)`` since 33b81b8, but this class never exposed
+        it — every plugin bulk insert died with AttributeError, so the bulk path
+        has never worked. The orchestrator underneath always had one (and since
+        zOS#23B it also applies schema defaults, mirroring ``insert``).
+        """
+        return self.orchestrator.insert_many(table, rows_data)
+
     def select(self, table: str, fields: Optional[List[str]] = None, **kwargs: Any) -> List[Dict[str, Any]]:
         """Select rows from table."""
         return self.orchestrator.select(table, fields, **kwargs)
