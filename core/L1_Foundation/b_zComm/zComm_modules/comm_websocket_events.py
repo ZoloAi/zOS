@@ -87,18 +87,25 @@ class WebSocketEvents:
             # Get running event loop and schedule broadcast
             try:
                 loop = asyncio.get_running_loop()
-                asyncio.run_coroutine_threadsafe(
-                    websocket_server.broadcast(message),
-                    loop
-                )
-                return True
             except RuntimeError:
-                # No running event loop - can't broadcast
-                if self.logger:
-                    self.logger.framework.debug(
-                        "[WebSocketEvents] No event loop running, skipping broadcast"
-                    )
-                return False
+                # Not on the loop thread — the NORMAL case for a plugin zfunc
+                # (they run via asyncio.to_thread). Fall back to the loop the
+                # WebSocket server stored at start (zJack, 1.7.4): without
+                # this, every server-initiated frame emitted from a worker
+                # thread — zjack_invalidate above all — was silently dropped.
+                loop = getattr(websocket_server, "_loop", None)
+                if loop is None or not loop.is_running():
+                    if self.logger:
+                        self.logger.framework.debug(
+                            "[WebSocketEvents] No event loop available, skipping broadcast"
+                        )
+                    return False
+
+            asyncio.run_coroutine_threadsafe(
+                websocket_server.broadcast(message),
+                loop
+            )
+            return True
 
         except Exception as e:
             if self.logger:

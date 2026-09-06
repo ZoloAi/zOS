@@ -267,6 +267,13 @@ class WebSocketServer:
         loop = asyncio.get_event_loop()
         loop.set_exception_handler(self._custom_exception_handler)
 
+        # Remember the serving loop so send_event() can broadcast from WORKER
+        # THREADS (zJack, 1.7.4): a plugin zfunc runs via asyncio.to_thread, so
+        # asyncio.get_running_loop() raises there and every server-initiated
+        # frame (e.g. zjack_invalidate after a write) was silently dropped.
+        # run_coroutine_threadsafe onto THIS loop is the thread-safe rail.
+        self._loop = loop
+
         # Inbound message ceiling (zConfig SSOT: zSocket.max_message_mb /
         # WEBSOCKET_MAX_MESSAGE_MB). The library default (1 MiB) silently drops
         # the connection (close code 1009) on any zDialog file upload past

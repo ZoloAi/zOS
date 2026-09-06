@@ -231,6 +231,57 @@ class DataOrchestrator:
             return data
         return apply_defaults(table, data, table_schema, self.operations)
 
+    def _zjack_touch(self, table: str) -> None:
+        """Broadcast a zJack invalidation for every block subscribed to ``table``.
+
+        zJack (zOS 1.7.4, PROPOSAL.zJack.md): a zUI block declaring
+        ``zJack: {on: [Table, ...]}`` subscribes itself — the Bifrost walker
+        records the subscription on ``zos.zjack_subscriptions`` at render time
+        — and every successful write through this orchestrator broadcasts one
+        ``zjack_invalidate`` frame per watching block. The client re-fires the
+        block's scoped walk (the same rail as ``onSuccess: zDelta``), so the
+        repaint reads post-write state by construction: this emit runs AFTER
+        the adapter call returned.
+
+        Fail-silent by design, mirroring emit_websocket_event: no registry, no
+        comm, or zCLI mode (no websocket_events) all mean zJack is inert —
+        a write must NEVER fail because a repaint could not be announced.
+        Table-level granularity on purpose (the approved alpha cut): one write
+        to a watched table repaints the whole subscribed block.
+
+        Registry home is the SESSION dict — read LIVE off ``self.zos.session``
+        at emit time, never the ``self.session`` constructor snapshot: this
+        orchestrator is built once at boot, but zGuard installs a fresh session
+        per Bifrost connection, so the snapshot and the session the walker
+        registered on are two different dicts (proven by id() instrumentation:
+        registration on one id, emit reading another — silent no-emit).
+        """
+        live_session = getattr(self.zos, "session", None)
+        subs = live_session.get("_zjack_subscriptions") if isinstance(live_session, dict) else None
+        if not subs:
+            self.logger.framework.debug(
+                f"{_LOG_PREFIX} zJack: no subscriptions (session id={id(live_session)})"
+            )
+            return
+        # Emit rail: the Bifrost bridge's broadcast callable, installed on the
+        # zos handle at server start (zGuard lifecycle). zos.comm.websocket is
+        # the SYNC server — a different object with no browser clients — so
+        # websocket_events.send_event() can never reach a page (proven:
+        # sent=False on every write during the rig bring-up). No rail = zCLI
+        # or serverless = zJack inert.
+        broadcast = getattr(self.zos, "bifrost_broadcast", None)
+        if not callable(broadcast):
+            self.logger.framework.debug(f"{_LOG_PREFIX} zJack: no broadcast rail — inert")
+            return
+        for block, tables in subs.items():
+            if table in tables:
+                sent = broadcast(
+                    {"event": "zjack_invalidate", "target": block, "table": table}
+                )
+                self.logger.info(
+                    f"{_LOG_PREFIX} zJack invalidate → '{block}' (write to '{table}', sent={sent})"
+                )
+
     def insert(self, table: str, fields: List[str], values: List[Any]) -> Any:
         """Insert rows into table. Delegates to operations facade."""
         if not self.operations:
@@ -240,7 +291,9 @@ class DataOrchestrator:
         if len(fields) == len(values):
             data = self._with_defaults(table, dict(zip(fields, values)))
             fields, values = list(data.keys()), list(data.values())
-        return self.operations.insert(table, fields, values)
+        result = self.operations.insert(table, fields, values)
+        self._zjack_touch(table)
+        return result
 
     def insert_many(self, table: str, rows_data: List[Dict[str, Any]]) -> List[Any]:
         """Insert multiple row dicts in one write pass. Delegates to operations facade."""
@@ -250,7 +303,9 @@ class DataOrchestrator:
             self._with_defaults(table, r) if isinstance(r, dict) else r
             for r in (rows_data or [])
         ]
-        return self.operations.insert_many(table, rows_data)
+        result = self.operations.insert_many(table, rows_data)
+        self._zjack_touch(table)
+        return result
 
     def select(self, table: str, fields: Optional[List[str]] = None, **kwargs: Any) -> List[Dict[str, Any]]:
         """Select rows from table. Delegates to operations facade."""
@@ -262,19 +317,25 @@ class DataOrchestrator:
         """Update rows in table. Delegates to operations facade."""
         if not self.operations:
             raise RuntimeError("No operations handler initialized")
-        return self.operations.update(table, fields, values, where)
+        result = self.operations.update(table, fields, values, where)
+        self._zjack_touch(table)
+        return result
 
     def delete(self, table: str, where: Any) -> Any:
         """Delete rows from table. Delegates to operations facade."""
         if not self.operations:
             raise RuntimeError("No operations handler initialized")
-        return self.operations.delete(table, where)
+        result = self.operations.delete(table, where)
+        self._zjack_touch(table)
+        return result
 
     def upsert(self, table: str, fields: List[str], values: List[Any], conflict_fields: List[str]) -> Any:
         """Upsert rows into table. Delegates to operations facade."""
         if not self.operations:
             raise RuntimeError("No operations handler initialized")
-        return self.operations.upsert(table, fields, values, conflict_fields)
+        result = self.operations.upsert(table, fields, values, conflict_fields)
+        self._zjack_touch(table)
+        return result
 
     def list_tables(self) -> List[str]:
         """List all tables. Delegates to operations facade."""
