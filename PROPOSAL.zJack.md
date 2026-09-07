@@ -25,9 +25,15 @@ proposed below — all three forms now proven on the rig (zlag/c4):
   clear_zjack_state). Subscriptions aren't connection-keyed by design, so
   zero-clients is the honest granularity; a reconnect re-registers on its
   first walk.
+- Consumer (2026-09-07): zPlanner's board is the first REAL consumer —
+  `zJack: true` on the Main block auto-derives `['Items']` from the leaf's
+  twelve reels, and the always-on 9091 instance serves it with the local
+  client. Proven in the app raven run: subscription registered on walk, the
+  File_A_Report insert broadcast `invalidate → 'Main' (sent=True)`, teardown
+  fired between page loads, 60/60 green.
 Not yet pinned: the two-window fanout (broadcast IS all-connections by
 construction, but zRaven drives a single page — filed as a zRaven
-enhancement) and a real zPlanner consumer (held until #17 clears the tree).
+enhancement).
 Bring-up findings that shaped the implementation:
 - Registration lives at the message_walker seam (the only place holding both
   the block dict and its NAME) into the SESSION dict, read LIVE at emit time —

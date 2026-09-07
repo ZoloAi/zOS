@@ -415,6 +415,19 @@ class RouteDispatcher(PageRouteHandlersMixin, EndpointRouteHandlersMixin):
         if clean_path == '/api/route-config':
             return self._handle_route_config_request()
 
+        # Built-in zOAuth doors (PROPOSAL.zOAuth.md) — /zauth/<provider>/<hop>.
+        # Same shadowing rule as the SEO endpoints: an app's own explicit route
+        # for the path wins. Runs INSIDE the per-request session scope, so the
+        # callback sees the caller's durable _zsid and the login write-through
+        # lands in the session_store for the next page load to rehydrate.
+        if clean_path.startswith('/zauth/'):
+            _explicit = (clean_path in (self.router.route_map or {})
+                         or clean_path in (self.router.auto_discovered_routes or {}))
+            if not _explicit:
+                from .oauth_endpoints import handle_oauth_request
+                return handle_oauth_request(
+                    self.handler, self.router, clean_path, logger=self.logger)
+
         # Per-request dispatch chatter is framework-internal noise → framework.debug
         # (not INFO — this fires on every hit and drowns the console at INFO level).
         if self.logger:
