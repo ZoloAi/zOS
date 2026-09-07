@@ -492,8 +492,12 @@ class SQLiteAdapter(SQLAdapter):
         if column_def.get("required") and not column_def.get("primary_key"):
             col_def += " NOT NULL"
 
+        # Quoted via the shared formatter (zOS#14): a raw f-string here emitted
+        # `DEFAULT ` for default:"" — sqlite answers "incomplete input" and the
+        # whole migration dies. The parent SQLAdapter was fixed; this override
+        # had the same bug independently.
         if column_def.get("default") is not None:
-            col_def += f" DEFAULT {column_def['default']}"
+            col_def += f" DEFAULT {self._format_default_sql(column_def['default'])}"
 
         return col_def
 
@@ -532,12 +536,17 @@ class SQLiteAdapter(SQLAdapter):
         field_type = self._map_field_type(column_def.get("type", "str"))
         sql = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {field_type}"
 
-        # SQLite-specific: Handle required columns (need default)
+        # SQLite-specific: required columns need a DEFAULT for existing rows.
+        # Values go through the shared quoting formatter (zOS#14 — a raw ""
+        # default emitted `DEFAULT ` → "incomplete input"); the no-default
+        # fallback stays the bare NULL *keyword*, not a 'NULL' string literal.
         if column_def.get("required"):
-            default = column_def.get("default", "NULL")
-            sql += f" DEFAULT {default}"
+            if column_def.get("default") is None:
+                sql += " DEFAULT NULL"
+            else:
+                sql += f" DEFAULT {self._format_default_sql(column_def['default'])}"
         elif column_def.get("default") is not None:
-            sql += f" DEFAULT {column_def['default']}"
+            sql += f" DEFAULT {self._format_default_sql(column_def['default'])}"
 
         return sql
 
