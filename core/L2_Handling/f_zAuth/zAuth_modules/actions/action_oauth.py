@@ -66,6 +66,22 @@ _PROVIDERS: Dict[str, Dict[str, Any]] = {
         "scope": "public_profile email",
         "pkce": False,
     },
+    # zolo's OWN identity provider — zCloud grows the /zid/* authorization-
+    # server doors (tracked on the zPlanner board; not the consumer /zauth/
+    # prefix, which every zApp already claims for the client half). The
+    # contract is plain OIDC: authorize → code → token → userinfo with
+    # {sub, name, email, email_verified}. Until those doors exist, the entry
+    # is inert exactly like the others without credentials: is_configured()
+    # answers False and the start door refuses. Endpoints are env-overridable
+    # (ZOAUTH_ZCLOUD_*) like every provider — the pytest seam and the
+    # self-hosted-zCloud escape hatch.
+    "zcloud": {
+        "auth_url": "https://zolo.media/zid/authorize",
+        "token_url": "https://zolo.media/zid/token",
+        "userinfo_url": "https://zolo.media/zid/userinfo",
+        "scope": "openid email profile",
+        "pkce": True,
+    },
 }
 
 # The two ledger columns the linking rule REQUIRES (proposal §link).
@@ -320,10 +336,14 @@ def _fetch_identity(provider: str, cfg: Dict[str, Any], token: str,
         if logger:
             logger.warning(f"{_LOG} userinfo for {provider} carries no subject id")
         return None
-    if provider == "google" and payload.get("email") \
+    # Providers that DECLARE verification (google, our own zcloud) get held
+    # to it: an unverified email is refused because the ledger's username
+    # derives from that email. Facebook doesn't carry the field — its emails
+    # are verified by policy.
+    if provider in ("google", "zcloud") and payload.get("email") \
             and payload.get("email_verified") is False:
         if logger:
-            logger.warning(f"{_LOG} refused google identity with unverified email")
+            logger.warning(f"{_LOG} refused {provider} identity with unverified email")
         return None
     return {
         "sub": str(sub),

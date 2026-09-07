@@ -324,5 +324,38 @@ class TestEndpointOverrides(_ZOAuthCase):
             os.environ.pop("ZOAUTH_GOOGLE_AUTH_URL")
 
 
+class TestZCloudProvider(_ZOAuthCase):
+    """zolo's OWN provider — same lane, /zid/* contract, PKCE, verified email."""
+
+    def test_inert_without_credentials(self):
+        # setUp configures google+facebook only — zcloud must refuse like any
+        # unconfigured provider (the landing's button stays 'soon' for free).
+        self.assertFalse(action_oauth.is_configured("zcloud"))
+        self.assertIsNone(action_oauth.begin(
+            _Zos(), "zcloud", REDIRECT.replace("google", "zcloud")))
+
+    def test_authorize_contract_pkce_and_zid_doors(self):
+        os.environ["ZOAUTH_ZCLOUD_CLIENT_ID"] = "zc-id"
+        os.environ["ZOAUTH_ZCLOUD_SECRET"] = "zc-secret"
+        try:
+            url = action_oauth.begin(
+                _Zos(), "zcloud", REDIRECT.replace("google", "zcloud"))
+            self.assertTrue(url.startswith("https://zolo.media/zid/authorize?"))
+            self.assertIn("code_challenge_method=S256", url)
+            self.assertIn("client_id=zc-id", url)
+        finally:
+            os.environ.pop("ZOAUTH_ZCLOUD_CLIENT_ID")
+            os.environ.pop("ZOAUTH_ZCLOUD_SECRET")
+
+    def test_unverified_zcloud_email_refused(self):
+        # We hold our own provider to the rule we hold google to.
+        action_oauth._http_json = _fake_http([
+            {"sub": "zc-7", "email": "new@user.dev", "email_verified": False},
+        ])
+        cfg = action_oauth.provider_config("zcloud")
+        info = action_oauth._fetch_identity("zcloud", cfg, "tok", _Logger())
+        self.assertIsNone(info)
+
+
 if __name__ == "__main__":
     unittest.main()
