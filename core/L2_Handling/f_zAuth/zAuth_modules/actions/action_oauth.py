@@ -297,7 +297,15 @@ def _http_json(url: str, data: Optional[Dict[str, str]] = None,
                 detail = "<unreadable body>"
             logger.warning(f"{_LOG} provider HTTP {exc.code} from {url}: {detail}")
         return None
-    except Exception:  # pylint: disable=broad-except
+    except Exception as exc:  # pylint: disable=broad-except
+        # Name the failure or it reads "answered nothing" — a missing SSL
+        # trust store (URLError: CERTIFICATE_VERIFY_FAILED on a python.org
+        # framework install) hid behind that phrase for a whole morning.
+        # Remedy for that case: SSL_CERT_FILE=<certifi cacert.pem> in the
+        # service env, or run Install Certificates.command once.
+        if logger:
+            logger.warning(f"{_LOG} provider unreachable "
+                           f"({type(exc).__name__}: {str(exc)[:200]}) from {url}")
         return None
 
 
