@@ -33,6 +33,7 @@ import os
 import secrets
 import time
 from typing import Any, Dict, Optional, Tuple
+from urllib import error as _uerr
 from urllib import parse as _uparse
 from urllib import request as _ureq
 
@@ -275,16 +276,27 @@ def _sanitize_next(next_path: Any) -> str:
 
 def _http_json(url: str, data: Optional[Dict[str, str]] = None,
                headers: Optional[Dict[str, str]] = None,
-               timeout: float = 10.0) -> Optional[Dict[str, Any]]:
+               timeout: float = 10.0,
+               logger: Any = None) -> Optional[Dict[str, Any]]:
     """POST (form) when ``data`` is given, else GET; parse JSON; None on any error.
 
     stdlib urllib on purpose — no new dependency for two small TLS calls.
+    A provider's 4xx carries its diagnosis in the BODY (Google says exactly
+    which field it hated) — log it, or every failure reads "answered nothing".
     """
     try:
         body = _uparse.urlencode(data).encode("ascii") if data is not None else None
         req = _ureq.Request(url, data=body, headers=headers or {})
         with _ureq.urlopen(req, timeout=timeout) as resp:  # nosec: fixed provider URLs
             return json.loads(resp.read().decode("utf-8"))
+    except _uerr.HTTPError as exc:
+        if logger:
+            try:
+                detail = exc.read().decode("utf-8", errors="replace")[:500]
+            except Exception:  # pylint: disable=broad-except
+                detail = "<unreadable body>"
+            logger.warning(f"{_LOG} provider HTTP {exc.code} from {url}: {detail}")
+        return None
     except Exception:  # pylint: disable=broad-except
         return None
 
@@ -303,7 +315,7 @@ def _exchange_code(provider: str, cfg: Dict[str, Any], code: str,
     }
     if verifier:
         form["code_verifier"] = verifier
-    payload = _http_json(cfg["token_url"], data=form)
+    payload = _http_json(cfg["token_url"], data=form, logger=logger)
     token = (payload or {}).get("access_token")
     if not token and logger:
         logger.warning(f"{_LOG} token exchange failed for {provider} "
@@ -325,7 +337,7 @@ def _fetch_identity(provider: str, cfg: Dict[str, Any], token: str,
         # Graph API also accepts the token as a query param; the header works
         # too — keep the header form (never logs the token via URL).
         pass
-    payload = _http_json(url, headers=headers)
+    payload = _http_json(url, headers=headers, logger=logger)
     if not payload:
         if logger:
             logger.warning(f"{_LOG} userinfo fetch failed for {provider}")
@@ -412,7 +424,9 @@ def _find_or_create_user(zos: Any, provider: str, info: Dict[str, Any],
         ).decode("utf-8")
 
     try:
-        zos.data.insert(table, row)
+        # zData.insert is (table, fields, values) — not (table, dict). The dict
+        # form is the DataFacade's (plugin-DI) signature, a different door.
+        zos.data.insert(table, list(row.keys()), list(row.values()))
         rows = zos.data.select(table, where=where)
         if rows and rows != "error" and len(rows) > 0:
             if logger:

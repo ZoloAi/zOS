@@ -57,8 +57,11 @@ class _Data:
                 out.append(row)
         return out
 
-    def insert(self, table, row):
-        stored = dict(row)
+    def insert(self, table, fields, values):
+        # The REAL zData signature — (table, fields, values), never a dict.
+        # The fake used to accept (table, row) and let the dict-form bug
+        # through to production ("ledger create failed: missing 'values'").
+        stored = dict(zip(fields, values))
         stored["id"] = len(self.rows) + 1
         self.rows.append(stored)
         self.inserted.append(stored)
@@ -108,7 +111,7 @@ def _fake_http(responses):
     """Return a _http_json stand-in that pops canned responses in order."""
     calls = []
 
-    def fake(url, data=None, headers=None, timeout=10.0):
+    def fake(url, data=None, headers=None, timeout=10.0, logger=None):
         calls.append({"url": url, "data": data, "headers": headers})
         return responses.pop(0) if responses else None
     fake.calls = calls

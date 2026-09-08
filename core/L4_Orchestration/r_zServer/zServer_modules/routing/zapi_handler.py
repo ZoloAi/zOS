@@ -115,6 +115,19 @@ def handle(handler, route: dict, zos) -> None:
         _send_binary(handler, zres)
         return
 
+    # A handler may answer with a BROWSER redirect (ZResult.redirect) — an
+    # OAuth authorize hop, a post-action bounce. Location is written verbatim
+    # (the handler owns sanitising it); never cached.
+    if getattr(zres, "is_redirect", False):
+        location = (zres.meta or {}).get("location", "/")
+        zos.logger.info(f"[zAPI] {method} {handler.path} → {zres.status} redirect  (kind={kind})")
+        handler.send_response(zres.status)
+        handler.send_header("Location", location)
+        handler.send_header("Cache-Control", "no-store")
+        handler.send_header("Content-Length", "0")
+        handler.end_headers()
+        return
+
     if kind == "zData":
         status_out, payload = _serialize_zdata(zres)
     else:
@@ -364,6 +377,12 @@ def _parse_params(handler, method: str, zos):
         from zOS.L4_Orchestration.r_zServer.zServer_modules.rendering.form_utils import parse_multipart
         parsed = parse_multipart(body, content_type, zos.logger)
         return parsed.get("fields", {}), parsed.get("files", {})
+
+    # Form-urlencoded body — the OAuth2 token exchange's wire format (and any
+    # plain HTML <form> POST). Parsed like a query string.
+    if "application/x-www-form-urlencoded" in content_type.lower():
+        qs = parse_qs(body.decode("utf-8"))
+        return {k: (v[0] if len(v) == 1 else v) for k, v in qs.items()}, {}
 
     # JSON body (default)
     if not body:

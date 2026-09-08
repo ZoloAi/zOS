@@ -83,6 +83,27 @@ class ZResult:
                    content_type=content_type, filename=filename)
 
     @classmethod
+    def redirect(cls, location: str, status: int = 302,
+                 meta: Optional[dict] = None) -> "ZResult":
+        """A BROWSER redirect — the transport answers with Location, no body.
+
+        Generic across subsystems: any HTTP-reachable handler whose outcome is
+        "go there" (an OAuth authorize hop, a post-action bounce) returns this
+        instead of a JSON envelope. ``location`` is emitted verbatim as the
+        Location header — the HANDLER owns sanitising it (same-origin rules are
+        app policy, not transport policy). Redirect responses are never cached
+        (the transport adds Cache-Control: no-store).
+        """
+        merged = dict(meta or {})
+        merged["location"] = location
+        return cls(ok=True, status=status, meta=merged)
+
+    @property
+    def is_redirect(self) -> bool:
+        return self.status in (301, 302, 303, 307, 308) \
+            and bool((self.meta or {}).get("location"))
+
+    @classmethod
     def coerce(cls, value: Any) -> "ZResult":
         """Normalise an arbitrary handler/plugin return into a ZResult."""
         if isinstance(value, ZResult):
