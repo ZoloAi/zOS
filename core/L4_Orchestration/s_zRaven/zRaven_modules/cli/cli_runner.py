@@ -553,6 +553,20 @@ class CLIRunner(BaseStepRunner):
                     return True
                 self._record_fail(f"{label} [error]", reason)
                 return False
+            # A select/enum prompt REJECTS a bad value with the engine's own
+            # "⚠ Invalid choice." line and re-prompts — no ERROR: ever prints,
+            # so this sailed through green while nothing was selected
+            # (zPlanner#25, "briefly made a broken filter look green").
+            # The rejection string has ONE source (system_event_dialog's select
+            # loop) — treat it as the step failure it is.
+            if "Invalid choice" in post_buf:
+                reason = (f"select rejected value {send_value!r} — the prompt "
+                          f"re-asked (Invalid choice), nothing was selected")
+                if soft:
+                    self._record_warn(f"{label} [select]", reason)
+                    return True
+                self._record_fail(f"{label} [select]", reason)
+                return False
         self._record_pass(step_name)
         return True
 
