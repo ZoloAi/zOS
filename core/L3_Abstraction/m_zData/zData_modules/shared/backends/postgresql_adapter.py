@@ -622,6 +622,27 @@ class PostgreSQLAdapter(SQLAdapter):
         # Update project info file with new table
         self.update_project_info()
 
+    def _pg_default_sql(self, attrs):
+        """DEFAULT literal for a schema field — CURRENT_TIMESTAMP for
+        temporal `now` (a quoted 'now' is parsed ONCE, freezing table-creation
+        time into every future row), the shared quoting formatter otherwise."""
+        value = attrs.get("default")
+        if (str(value).lower() == "now"
+                and str(attrs.get("type", "")).lower() in
+                ("datetime", "date", "time", "timestamp")):
+            return "CURRENT_TIMESTAMP"
+        return self._format_default_sql(value)
+
+    def _build_add_column_sql(self, table_name, column_name, column_def):
+        """Postgres override of the parent's ADD COLUMN: same shape, but the
+        DEFAULT rides _pg_default_sql so a temporal `now` becomes the keyword
+        instead of a parse-time-frozen 'now' literal."""
+        field_type = self._map_field_type(column_def.get("type", "str"))
+        sql = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {field_type}"
+        if column_def.get("default") is not None:
+            sql += f" DEFAULT {self._pg_default_sql(column_def)}"
+        return sql
+
     def _get_composite_pk(self, schema):
         """Extract composite primary key from schema."""
         if "primary_key" in schema:
@@ -658,6 +679,15 @@ class PostgreSQLAdapter(SQLAdapter):
                     column += " UNIQUE"
                 if attrs.get("required") is True:
                     column += " NOT NULL"
+                # DEFAULT was silently DROPPED here (found writing the first
+                # pg test suite): a schema's `default: viewer` created a
+                # column with no default at all — inserts relying on the DB
+                # backstop got NULLs. Values ride the shared quoting
+                # formatter (zOS#14). One Postgres nuance: a QUOTED 'now' on
+                # a temporal column freezes at parse time (the constant is
+                # evaluated once, at CREATE TABLE) — map it to the keyword.
+                if attrs.get("default") is not None:
+                    column += f" DEFAULT {self._pg_default_sql(attrs)}"
 
             field_defs.append(column)
 
