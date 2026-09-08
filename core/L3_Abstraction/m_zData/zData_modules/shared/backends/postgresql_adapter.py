@@ -610,7 +610,17 @@ class PostgreSQLAdapter(SQLAdapter):
         ddl = f"CREATE TABLE {table_name} ({', '.join(all_defs)});"
 
         self._log('info', "Executing DDL: %s", ddl)
-        cur.execute(ddl)
+        try:
+            cur.execute(ddl)
+        except Exception:
+            # A failed statement leaves the psycopg2 connection in an ABORTED
+            # transaction: without this rollback every later write "succeeds"
+            # into the doomed transaction and silently vanishes at disconnect
+            # (watched live: green raven, empty table). Roll back, then let
+            # the caller hear the original error.
+            if self.connection:
+                self.connection.rollback()
+            raise
         if self.connection:
             self.connection.commit()
         self._log('info', "Table created: %s", table_name)
@@ -702,11 +712,16 @@ class PostgreSQLAdapter(SQLAdapter):
     def table_exists(self, table_name):
         """Check if a table exists in PostgreSQL."""
         cur = self.get_cursor()
+        # lower(): DDL emits UNQUOTED identifiers, which Postgres folds to
+        # lowercase in the catalog — a zolo table 'PgPicks' is stored as
+        # 'pgpicks'. Comparing verbatim answered False for every mixed-case
+        # table, so boot re-ran CREATE TABLE into "already exists" forever
+        # (the zlag pg rig's first live walk caught it).
         cur.execute(
             """SELECT EXISTS (
                 SELECT FROM information_schema.tables 
                 WHERE table_schema = 'public'
-                AND table_name = %s
+                AND table_name = lower(%s)
             )""",
             (table_name,)
         )
@@ -742,8 +757,9 @@ class PostgreSQLAdapter(SQLAdapter):
         from .type_mapping import reverse_sql_type
         cur = self.get_cursor()
         cur.execute(
+            # lower(): catalog names are folded (see table_exists)
             "SELECT column_name, data_type FROM information_schema.columns "
-            "WHERE table_name = %s ORDER BY ordinal_position",
+            "WHERE table_name = lower(%s) ORDER BY ordinal_position",
             (table_name,),
         )
         return {name: {"type": reverse_sql_type(dtype)} for name, dtype in cur.fetchall()}
@@ -756,8 +772,9 @@ class PostgreSQLAdapter(SQLAdapter):
         """
         cur = self.get_cursor()
         cur.execute(
+            # lower(): catalog names are folded (see table_exists)
             "SELECT indexname FROM pg_indexes "
-            "WHERE tablename = %s AND schemaname NOT IN ('pg_catalog')",
+            "WHERE tablename = lower(%s) AND schemaname NOT IN ('pg_catalog')",
             (table_name,),
         )
         return [row[0] for row in cur.fetchall() if not str(row[0]).endswith("_pkey")]

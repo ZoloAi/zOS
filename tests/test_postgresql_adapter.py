@@ -187,6 +187,27 @@ class TestLiveAgainstPostgres(unittest.TestCase):
             with self.assertRaises(Exception):
                 cur.execute("CREATE TABLE bad_t (role TEXT DEFAULT viewer)")
 
+    def test_table_exists_folds_case(self):
+        # DDL emits unquoted identifiers → Postgres stores 'pgpicks' for a
+        # zolo table 'PgPicks'. The verbatim comparison answered False
+        # forever, so boot re-ran CREATE into "already exists" AND left the
+        # connection in an aborted transaction (green raven, empty table).
+        a = _adapter()
+        a.logger = None
+        a.connection = self.conn
+        a.get_cursor = self.conn.cursor
+        # table_exists checks table_schema='public' — create there, clean up.
+        table = f"mixed_{self.schema_name}"   # unique per run
+        with self.conn.cursor() as cur:
+            cur.execute(f"CREATE TABLE public.{table} (id SERIAL PRIMARY KEY)")
+        try:
+            self.assertTrue(a.table_exists(table.capitalize()))  # 'Mixed_…'
+            self.assertTrue(a.table_exists(table))
+            self.assertFalse(a.table_exists("Never_Made"))
+        finally:
+            with self.conn.cursor() as cur:
+                cur.execute(f"DROP TABLE public.{table}")
+
     def test_temporal_now_default_is_live_not_frozen(self):
         a = _adapter()
         field_defs, _ = a._build_field_definitions(
