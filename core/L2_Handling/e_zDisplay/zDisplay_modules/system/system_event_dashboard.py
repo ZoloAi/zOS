@@ -51,6 +51,72 @@ Extracted From:
 
 from zOS import Any, Optional, Dict, List
 
+
+def flatten_zdash_sidebar(sidebar: List[Any], zos: Any = None) -> tuple:
+    """Expand ``%token`` slots in a zDash ``sidebar:`` list.
+
+    Static names stay. A whole-value ``%data.*`` list splices in place (empty
+    reel → nothing). Dict rows use ``name`` as the rail title and ``id`` as
+    the key so two panels can share a label. No new zDash keys — sidebar only.
+    """
+    keys: List[str] = []
+    extra_meta: Dict[str, Dict[str, Any]] = {}
+    if not sidebar:
+        return keys, extra_meta
+
+    zloom = getattr(zos, "zloom", None) if zos is not None else None
+    session = getattr(zos, "session", None) if zos is not None else None
+    resolved = session.get("_current_block_data") if isinstance(session, dict) else None
+    context = {"_resolved_data": resolved} if resolved else None
+
+    def _resolve(item: str):
+        if zloom is not None:
+            return zloom.resolve_whole_token(item, context)
+        from zOS.L3_Abstraction.n_zLoom.zLoom_modules.token_resolver import (
+            resolve_whole_token as _rwt,
+        )
+        return _rwt(item, zos, context)
+
+    def _row_get(row: Dict[str, Any], *names: str) -> Any:
+        for name in names:
+            if name in row and row[name] is not None:
+                return row[name]
+            for key, val in row.items():
+                if val is not None and str(key).split(".")[-1] == name:
+                    return val
+        return None
+
+    def _row_entry(row: Any) -> Optional[tuple]:
+        if isinstance(row, str) and row.strip():
+            return row, {"title": row}
+        if isinstance(row, dict):
+            title = _row_get(row, "name", "title", "slug")
+            if title is None:
+                return None
+            label = str(title)
+            return label, {"title": label}
+        return None
+
+    for item in sidebar:
+        if not isinstance(item, str) or not item:
+            continue
+        is_whole, raw = _resolve(item) if item.startswith("%") else (False, None)
+        if not is_whole:
+            keys.append(item)
+            extra_meta[item] = {"title": item}
+            continue
+        if raw is None:
+            continue
+        rows = raw if isinstance(raw, list) else [raw]
+        for row in rows:
+            entry = _row_entry(row)
+            if entry is None:
+                continue
+            key, meta = entry
+            keys.append(key)
+            extra_meta[key] = meta
+    return keys, extra_meta
+
 # Import Tier 0 infrastructure utilities (none needed - uses primitives/basic directly)
 
 # Import constants
@@ -207,10 +273,26 @@ class DashboardEvents:
 
         logger = self._get_logger()
 
+        # sidebar: [new-plan, %data.plan_selector, …] — % slots splice here.
+        # Mutate the authored list in place so the walker/zGuard wire sees
+        # the same flattened names (Bifrost extracts the node, not this event).
+        flat, loom_meta = flatten_zdash_sidebar(sidebar, _zos)
+        if isinstance(sidebar, list):
+            sidebar[:] = flat
+        sidebar = flat
+
+        if not sidebar:
+            if logger:
+                logger.warning("[zDash] Sidebar empty after %token flatten")
+            return None
+
         # Filter panels based on RBAC access and collect metadata
         accessible_panels, panel_metadata = self._filter_accessible_panels(
             sidebar, folder, _zcli, _zos, logger
         )
+        for key, meta in loom_meta.items():
+            if key in panel_metadata and meta.get("title"):
+                panel_metadata[key]["title"] = meta["title"]
 
         if not accessible_panels:
             if logger:
@@ -295,22 +377,38 @@ class DashboardEvents:
                 panel_file = _zcli.loader.handle(zPath=zLink_path) if hasattr(_zcli, 'loader') else {}
 
                 # Get the panel's main block
-                panel_block = panel_file.get(panel_name, {})
+                panel_block = panel_file.get(panel_name, {}) if isinstance(panel_file, dict) else {}
 
                 # Enforce root-level zRBAC only in Bifrost mode
-                if _in_bifrost and not self._check_panel_rbac(panel_block, _zos):
+                if panel_block and _in_bifrost and not self._check_panel_rbac(panel_block, _zos):
                     if logger:
                         logger.debug(f"[zDash] Panel '{panel_name}' filtered out by RBAC (Bifrost)")
                     continue
 
                 accessible_panels.append(panel_name)
-                panel_metadata[panel_name] = self._build_panel_metadata(
-                    panel_name, panel_file, folder, logger
-                )
+                if panel_block:
+                    panel_metadata[panel_name] = self._build_panel_metadata(
+                        panel_name, panel_file, folder, logger
+                    )
+                else:
+                    # Loom-spliced / static name with no kind file yet — show the label
+                    panel_metadata[panel_name] = {
+                        "title": panel_name,
+                        "icon": "bi-window",
+                        "description": "",
+                        "zLink": zLink_path,
+                    }
 
             except Exception as e:  # pylint: disable=broad-except
                 if logger:
-                    logger.error(f"[zDash] Error loading panel '{panel_name}': {e}")
+                    logger.debug(f"[zDash] No kind file for '{panel_name}' — rail label only: {e}")
+                accessible_panels.append(panel_name)
+                panel_metadata[panel_name] = {
+                    "title": panel_name,
+                    "icon": "bi-window",
+                    "description": "",
+                    "zLink": f"{folder}.zUI.{panel_name}",
+                }
 
         return accessible_panels, panel_metadata
 

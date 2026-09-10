@@ -53,6 +53,8 @@ KEY_MODEL: str = "model"
 KEY_TABLE: str = "table"
 KEY_FIELDS: str = "fields"
 KEY_ONSUBMIT: str = "onSubmit"
+KEY_ONSUCCESS: str = "onSuccess"  # sibling of onSubmit — dict zEvent, CLI follow-up
+KEY_RETRY: str = "retry"     # bool flag → on a RED onSubmit, zBtn y/n to re-collect (not field required)
 KEY_ZRESET: str = "zReset"   # bool flag → offer a Reset control (restart the form loop)
 KEY_WEBSOCKET_DATA: str = "websocket_data"
 KEY_DATA: str = "data"
@@ -76,8 +78,16 @@ _CONTROL_SUBMIT: str = "submit"   # commit zConv (run onSubmit) and proceed
 _CONTROL_RESET: str = "reset"     # discard zConv and re-run field collection
 _LABEL_SUBMIT: str = "Submit"
 _LABEL_RESET: str = "Reset"
-# Truthy spellings for `zReset: true` (string-first .zolo may keep it as a string)
+_LABEL_DIALOG_RETRY: str = "would you like to retry"  # zBtn after a red onSubmit (zCLI)
+# Truthy spellings for bool flags (string-first .zolo may keep them as a string)
 _TRUTHY: tuple = ("true", "yes", "1", "on")
+
+
+def flag_on(value) -> bool:
+    """True for authored `true` / yes / 1 / on (bool or string-first)."""
+    if value is True:
+        return True
+    return isinstance(value, str) and value.strip().lower() in _TRUTHY
 
 
 # ============================================================================
@@ -205,6 +215,8 @@ _LOG_ONSUBMIT_EXECUTE: str = "Found onSubmit => Executing via handle_submit()"
 _LOG_ONSUBMIT_FAILED: str = "zDialog onSubmit failed: %s"
 _LOG_WEBSOCKET_BROADCAST_FAILED: str = "Failed to broadcast validation errors via WebSocket: %s"
 _LOG_DIALOG_RESET: str = "[zDialog] reset — discarding zConv, re-running field collection"
+_LOG_DIALOG_RETRY: str = "[zDialog] retry — operator chose y, re-collecting"
+_LOG_DIALOG_RETRY_DECLINE: str = "[zDialog] retry — operator chose n, leaving"
 
 
 # ============================================================================
@@ -270,6 +282,8 @@ __all__ = [
     "KEY_TABLE",
     "KEY_FIELDS",
     "KEY_ONSUBMIT",
+    "KEY_ONSUCCESS",
+    "KEY_RETRY",
     "KEY_ZRESET",
     "KEY_WEBSOCKET_DATA",
     "KEY_DATA",

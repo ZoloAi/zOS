@@ -106,7 +106,12 @@ from .dialog_constants import (
     _STYLE_TILDE,
 )
 
-__all__ = ["handle_submit", "coerce_submit_result", "render_submit_signal"]
+__all__ = [
+    "handle_submit",
+    "dispatch_onsuccess_followup",
+    "coerce_submit_result",
+    "render_submit_signal",
+]
 
 
 # ============================================================================
@@ -295,6 +300,40 @@ def handle_submit(
     # Invalid type: Log error and return False
     logger.error(_ERROR_INVALID_TYPE_SUBMIT, type(submit_expr))
     return False
+
+
+def dispatch_onsuccess_followup(
+    on_success: Any,
+    submit_expr: Dict[str, Any],
+    submit_result: Any,
+    *,
+    zos: Any,
+    walker: Optional[Any],
+    session: Optional[Dict[str, Any]],
+    logger: Any,
+    is_bifrost: bool,
+) -> Any:
+    """CLI: fire a sibling onSuccess zEvent after a GREEN submit (zLogin shape).
+
+    Bifrost form_submit already cues ``zdelta`` — do not dispatch here.
+    Authored form is a dict (``{zDelta: $Block}``); a string call is ignored.
+    The follow-up result REPLACES the submit return so a zDelta NAV_SIGNAL
+    trampolines out of a zModal detour.
+    """
+    if is_bifrost or not isinstance(on_success, dict):
+        return submit_result
+    zr = coerce_submit_result(submit_expr, submit_result, session)
+    if not zr.ok:
+        return submit_result
+    try:
+        follow = handle_zDispatch(
+            "onSuccess", on_success, zos=zos, walker=walker, context={},
+        )
+    except Exception as nav_err:  # pylint: disable=broad-except
+        if logger:
+            logger.warning("[zDialog] onSuccess dispatch failed: %s", nav_err)
+        return submit_result
+    return follow if follow is not None else submit_result
 
 
 # ============================================================================

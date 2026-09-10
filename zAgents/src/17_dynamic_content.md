@@ -78,8 +78,9 @@ shuttle: one pattern across a whole list — `{% for %}`
     `zShuttle: {zSpool: <list reel>, zPattern: <name>}` — one copy per row
     auto-fill — reads the pattern's slots, feeds each `%item.<slot>` from the matching COLUMN (you never write `%item`)
     per-row filter — add `zGate:` → only passing rows get a block: bare `zGate: %item.stock` (truthy) · dict `zGate: {%item.category: audio}` (by value)
-    lowers to — `zList: {source: %data.<reel>, each: {%pattern: {slots}}}` at load (each `%item.*` baked in at bind — no render-time loop)
-    raw form — write `zList` directly (`source:` + `each:`) for a hand-wired per-row structure
+    lowers to — `zList: {source: %data.<reel>, zEach: {%pattern: {slots}}}` at load (each `%item.*` baked in at bind — no render-time loop)
+    raw form — write `zList` directly (`source:` + `zEach:`) for a hand-wired per-row structure
+    alias — `each:` still weaves (golden demos); new authoring is `zEach`
     in_place — woven rows land AT THE DIRECTIVE'S DECLARED POSITION among siblings ("list above a details
         panel" renders list-then-panel, exactly as written) — order the block, not workarounds
     two_per_block — a `zShuttle` and a raw `zList` CAN share one parent block (each weaves at its own spot,

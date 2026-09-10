@@ -185,8 +185,8 @@ from .dialog_context import create_dialog_context, inject_placeholders
 # Tier 2: Foundation - Submission Handling
 # ============================================================================
 
-from .dialog_submit import handle_submit
-from .submit_result import coerce_submit_result, render_submit_signal
+from .dialog_submit import dispatch_onsuccess_followup, handle_submit
+from .submit_result import coerce_submit_result, render_submit_signal, submit_failed
 
 # ============================================================================
 # Public API
@@ -196,6 +196,8 @@ __all__ = [
     "create_dialog_context",   # Context creation + placeholder setup (Tier 1)
     "inject_placeholders",      # 5 placeholder types: zConv.*, zConv[*], etc. (Tier 1)
     "handle_submit",            # Dict-based submission via zDispatch (Tier 2, pure declarative)
+    "dispatch_onsuccess_followup",  # CLI: sibling onSuccess after a GREEN submit (zOS#128)
     "coerce_submit_result",     # onSubmit outcome → ONE ZResult (SSOT — shared with Bifrost)
     "render_submit_signal",     # zCLI: render a submit ZResult as one signal
+    "submit_failed",            # red onSubmit (no hop) → retry: true may offer zBtn y/n
 ]

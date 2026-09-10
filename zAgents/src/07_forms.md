@@ -7,6 +7,7 @@ zdialog: the first event that COLLECTS
     fields   — the things to collect (see fields)
     onSubmit — the action run when the form is submitted (see result)
     onSuccess— OPTIONAL follow-up fired only on a GREEN result (see onsuccess)
+    retry    — OPTIONAL: on a RED onSubmit, zCLI asks a zBtn y/n to re-collect. Not field required. (see retry)
     runs the whole exchange: zCLI asks field by field, the browser shows one real form — same block, both surfaces
 
 fields: each entry is a bare key or a small dict
@@ -37,6 +38,15 @@ submit_reset: the zDialog owns its button — you never write one
     zReset: true — adds a Reset beside it (zCLI re-asks every field; Bifrost clears to defaults; nothing is sent)
     these are the submit / reset button types -> Buttons — now in the container that gives them meaning
 
+retry: `retry: true` — on a RED onSubmit, zCLI offers a stock zBtn (`Click [would you like to retry]? (y/n)`)
+    y → re-collect · n → fail returns, the walk / hosting zModal continues
+    not auto-loop — the chooser is the hold; Bifrost needs none (red inline, form stays)
+    not field `required` — that is empty-before-submit on a field
+    zBack / cancel still leave (unlike the retired `!` walk-blocker)
+    a hop (zLink / zDelta / navigate) is a leave, never a retry
+    not zReset — Reset is pre-submit clear; retry is post-red y/n
+    opt-in for now — later the same key can ride zLogin / a required zInput
+
 confirm: a zDialog with NO fields is just a confirm button
     leave fields off -> one button, an onSubmit, nothing collected — "Delete this?", "Send it?"
     the action still fires and still returns its green/red line; there's just no zConv to hand over
@@ -52,8 +62,8 @@ onsuccess: the form's "and then" — a follow-up zEvent fired only on a GREEN re
     `onSuccess: zDelta($Block)` — a SIBLING of onSubmit; a successful submit dismisses the hosting
         modal by itself and re-walks the target block (the same self-hop a Refresh button fires) —
         the page updates live, zero manual close/refresh clicks
-    failure — nothing fires: the red line renders, the form stays armed for an in-place retry
-        (the follow-up can never leak on a failed submit)
+    failure — nothing fires: the red line renders; with retry: true zCLI asks y/n
+        before re-collecting. Absent retry (or n), fail returns and the walk / modal continues.
     trust   — the target registers SERVER-side beside onSubmit in the dialog registry; the response
         only echoes the block name and the CLIENT re-fires its own zDelta — the server never pushes
         unsolicited content

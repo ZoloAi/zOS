@@ -86,6 +86,14 @@ class TestPositionalWeave(unittest.TestCase):
         self.assertEqual(block['zListItem__0'], {'zText': 'A'})
         self.assertEqual(block['zListItem__1'], {'zText': 'B'})
 
+    def test_zeach_weaves_like_each(self):
+        block = {
+            'zList': {'source': '%data.items', 'zEach': {'zText': '%item.name'}},
+        }
+        self.loop.expand_list_bindings(block, self.data, {})
+        self.assertEqual(block['zListItem__0'], {'zText': 'A'})
+        self.assertEqual(block['zListItem__1'], {'zText': 'B'})
+
     def test_revisit_reweaves_in_place(self):
         block = {
             'zH1': 'Top',

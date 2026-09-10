@@ -75,6 +75,11 @@ class BindingOps:
             # SSOT knot collapse — after loops (loop-scoped knots already baked
             # per-row by LoopOps), finish any page-scoped zKnot value-dict.
             self.expand_knots(block, block_context)  # pylint: disable=no-member
+            # zDash sidebar is a STRUCTURAL list (same contract as options:).
+            # Splice %data.* here so CLI + Bifrost see the same flattened names.
+            self._flatten_zdash_sidebar(block)
+            # zOS#57 for a PAGE zSelect (dialog fields already bake in zDialog)
+            self._resolve_select_options(block)
         except Exception as exc:  # pylint: disable=broad-except
             self.zos.logger.framework.warning(f"[zLoom] prepare_block_render failed: {exc}")
         if not binding:
@@ -202,6 +207,87 @@ class BindingOps:
         except Exception as exc:  # pylint: disable=broad-except
             log.warning(f"[zLoom] zPath ref '{ref}' failed: {exc}")
         return None
+
+    def _flatten_zdash_sidebar(self, block: Dict[str, Any]) -> None:
+        """Expand ``%data.*`` slots on a landed block's ``zDash.sidebar``.
+
+        Mutates the authored list in place so both the CLI zDash() path and
+        the Bifrost walker extract see the same names.
+        """
+        dash = block.get("zDash") if isinstance(block, dict) else None
+        sidebar = dash.get("sidebar") if isinstance(dash, dict) else None
+        if not isinstance(sidebar, list):
+            return
+        from zOS.L2_Handling.e_zDisplay.zDisplay_modules.system.system_event_dashboard import (
+            flatten_zdash_sidebar,
+        )
+        flat, _meta = flatten_zdash_sidebar(sidebar, self.zos)
+        sidebar[:] = flat
+
+    def _resolve_select_options(self, node: Any) -> None:
+        """Bake ``zSelect.options: %data.*`` to a string list before the wire.
+
+        Page zSelect used to ship the token string; CDN ``forEach`` then crashed
+        (zOS#57 lived only on zDialog fields). Same contract as controls.md
+        live_options: miss → ``[]``; dict rows → ``name`` / ``label`` / ``title``.
+        """
+        if isinstance(node, list):
+            for item in node:
+                self._resolve_select_options(item)
+            return
+        if not isinstance(node, dict):
+            return
+        select = node.get("zSelect")
+        if isinstance(select, dict):
+            self._bake_select_props(select)
+        display = node.get("zDisplay")
+        if isinstance(display, dict) and display.get("event") == "selection":
+            self._bake_select_props(display)
+        for val in node.values():
+            if isinstance(val, (dict, list)):
+                self._resolve_select_options(val)
+
+    def _bake_select_props(self, select: Dict[str, Any]) -> None:
+        raw = select.get("options")
+        if isinstance(raw, str) and raw.startswith("%"):
+            is_whole, resolved = self.resolve_whole_token(raw)  # pylint: disable=no-member
+            select["options"] = self.select_option_labels(resolved) if is_whole else []
+        default = select.get("default")
+        if isinstance(default, str) and default.startswith("%"):
+            is_whole, resolved = self.resolve_whole_token(default)  # pylint: disable=no-member
+            if is_whole:
+                if isinstance(resolved, dict):
+                    labels = self.select_option_labels([resolved])
+                    select["default"] = labels[0] if labels else None
+                else:
+                    select["default"] = resolved
+
+    @staticmethod
+    def select_option_labels(raw: Any) -> list:
+        """Reduce a spool (list of rows) to dropdown labels. Empty on miss."""
+        if raw is None:
+            return []
+        rows = raw if isinstance(raw, list) else [raw]
+        labels = []
+        for row in rows:
+            if isinstance(row, str) and row.strip():
+                labels.append(row)
+                continue
+            if not isinstance(row, dict):
+                if row is not None:
+                    labels.append(str(row))
+                continue
+            label = row.get("name") or row.get("label") or row.get("title") or row.get("slug")
+            if label is None:
+                for key, val in row.items():
+                    if val is not None and str(key).split(".")[-1] in (
+                        "name", "label", "title", "slug",
+                    ):
+                        label = val
+                        break
+            if label is not None:
+                labels.append(str(label))
+        return labels
 
     def load_zloom_registry(self) -> Dict[str, Any]:
         """Load the zSpool registry — the SSOT for named reads.

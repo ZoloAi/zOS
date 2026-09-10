@@ -12,6 +12,8 @@ Provides input collection logic:
 
 from zOS import Any, List, Set, Optional, Dict
 
+from zOS.L3_Abstraction.l_zEngine import sense_force
+
 from ...display_constants import (  # pylint: disable=relative-beyond-top-level
     _PROMPT_INPUT,
     _PROMPT_SINGLE_SELECT_TEMPLATE,
@@ -24,6 +26,16 @@ from ...display_constants import (  # pylint: disable=relative-beyond-top-level
     _MSG_BUTTON_CANCELLED,
     MODE_ZCLI,
 )
+
+
+def _action_result_steers(result: Any) -> bool:
+    """True when a dispatched button action staged a hop the walk must honor.
+
+    CALL/return (plain True, MODAL_COMPLETED, None) stays a glance. A REPLACE
+    from inside that CALL — navigate, {zLink}, {zDelta}, {zCrumb} — wins.
+    zURL compiles to {zLink}/{zDelta}, so it rides the same check.
+    """
+    return sense_force(result).has_vector
 
 
 class SelectionCollector:
@@ -165,7 +177,8 @@ class SelectionCollector:
             
         Returns:
             bool: True if confirmed (y/yes only), False otherwise
-            str: confirmed + step-key action — returned as wizard jump target
+            str: confirmed + step-key action — returned as wizard jump target;
+                 or NAV_SIGNAL ("navigate") when a dict/zModal action staged a hop
             dict: confirmed + zLink(...)/zDelta(...) action — {'zLink': path} or
                   {'zDelta': target} navigation result consumed by the wizard engine
         """
@@ -194,7 +207,9 @@ class SelectionCollector:
                 #     zDispatch brain (SSOT). Exactly one event, zWizard for many.
                 #   • string verb (&plugin / zLink(...) / step-jump key) → ladder.
                 if isinstance(action, dict):
-                    self._execute_button_action_event(action)
+                    result = self._execute_button_action_event(action)
+                    if _action_result_steers(result):
+                        return result
                 elif action and isinstance(action, str):
                     if action.startswith('&'):
                         if zProgress is not None:
@@ -227,13 +242,16 @@ class SelectionCollector:
                         # in zCLI/zTerminal while the Bifrost click intercept worked.
                         return {'zDelta': action[len('zDelta('):-1].strip()}
                     elif action.startswith('zModal('):
-                        # Imperative zModal string — the CALL verb. Unlike the GOTOs
-                        # above, nothing to hand the wizard engine: run the detour
-                        # inline (dispatch dict branch → zNavigation run_modal) and
-                        # resume right here — the auto-back IS the semantics.
-                        self._execute_button_action_event(
+                        # Imperative zModal string — the CALL verb. Default is
+                        # resume right here (auto-back). A REPLACE hop staged
+                        # inside the modal (onSuccess or a raw zLink/zDelta/zURL)
+                        # outlives the CALL — surface it so the org handler
+                        # stops walking siblings of this button.
+                        result = self._execute_button_action_event(
                             {'zModal': action[len('zModal('):-1].strip()}
                         )
+                        if _action_result_steers(result):
+                            return result
                     elif action != '#':
                         # Return action as navigation/jump target for wizard step-jumps
                         return action

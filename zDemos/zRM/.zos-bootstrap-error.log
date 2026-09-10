@@ -1,0 +1,40 @@
+======================================================================
+zCLI Bootstrap Failure Log
+Timestamp: 2026-09-01T12:08:57.740718
+======================================================================
+
+Exception: 'utf-8' codec can't decode byte 0xa3 in position 45: invalid start byte
+
+Traceback (most recent call last):
+  File "/Users/galnachshon/Projects/zOS/core/main.py", line 187, in main
+    return route_command(
+           ^^^^^^^^^^^^^^
+  File "/Users/galnachshon/Projects/zOS/core/zSys/cli/route_command.py", line 185, in route_command
+    return handlers[args.command]()
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/galnachshon/Projects/zOS/core/zSys/cli/route_command.py", line 177, in <lambda>
+    "lint": lambda: _handle_lint_command(args, verbose),
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/galnachshon/Projects/zOS/core/zSys/cli/route_command.py", line 117, in _handle_lint_command
+    return handle_lint_command(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/galnachshon/Projects/zOS/core/zSys/cli/lint_command.py", line 25, in handle_lint_command
+    faults = lint_app(app_dir)
+             ^^^^^^^^^^^^^^^^^
+  File "/Users/galnachshon/Projects/zOS/core/zSys/cli/lint_core.py", line 81, in lint_app
+    content = path.read_text(encoding="utf-8")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/pathlib.py", line 1028, in read_text
+    return f.read()
+           ^^^^^^^^
+  File "<frozen codecs>", line 322, in decode
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xa3 in position 45: invalid start byte
+
+Pre-boot Log Buffer:
+----------------------------------------------------------------------
+
+[12:08:57.731] DEBUG: Python: 3.12.4
+[12:08:57.731] DEBUG: Installation: editable (pip -e) at /Users/galnachshon/Projects/zOS/core
+[12:08:57.731] INFO: zGuard: dev:/Users/galnachshon/Projects/zGuard
+[12:08:57.734] DEBUG: Execution: command (lint), Verbose: False, Dev: False
+[12:08:57.738] CRITICAL: Unhandled exception: 'utf-8' codec can't decode byte 0xa3 in position 45: invalid start byte

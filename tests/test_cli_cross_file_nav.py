@@ -178,3 +178,65 @@ def test_zlink_action_unchanged(monkeypatch):
 def test_zdelta_action_unchanged(monkeypatch):
     result = _collect_with_action(monkeypatch, "zDelta($Details)")
     assert result == {"zDelta": "$Details"}
+
+
+# ---------------------------------------------------------------------------
+# Seam 3 — a zModal CALL that staged a REPLACE must not flatten to True.
+# Default remains resume (True / MODAL_COMPLETED). onSuccess AND a raw
+# in-modal zLink/zDelta/zURL all return a vector the org handler already
+# bubbles — the button used to throw that result away.
+# ---------------------------------------------------------------------------
+
+def _collect_with_dispatched_action(monkeypatch, action, dispatch_result):
+    from zOS.L2_Handling.e_zDisplay.zDisplay_modules.compounds.inputs import (
+        selection_collector as sc,
+    )
+
+    collector = sc.SelectionCollector.__new__(sc.SelectionCollector)
+    collector.display = types.SimpleNamespace(zos=None)
+    collector._execute_button_action_event = lambda _action: dispatch_result
+    monkeypatch.setattr(
+        "zOS.L2_Handling.e_zDisplay.zDisplay_modules.utils.confirm_gate.confirm_gate",
+        lambda display, kind, label=None, color=None: True,
+    )
+    renderer = types.SimpleNamespace(display_feedback=lambda *a, **k: None)
+    return collector.collect_button_confirmation(
+        label="Go", color="info", action=action, renderer=renderer,
+    )
+
+
+def test_zmodal_dict_action_propagates_navigate(monkeypatch):
+    result = _collect_with_dispatched_action(
+        monkeypatch, {"zModal": "$NewPlan"}, "navigate",
+    )
+    assert result == "navigate"
+
+
+def test_zmodal_dict_action_propagates_zlink_dict(monkeypatch):
+    hop = {"zLink": "@.zViews.zUI.zPlanner.zPlanner"}
+    result = _collect_with_dispatched_action(
+        monkeypatch, {"zModal": "$NewPlan"}, hop,
+    )
+    assert result == hop
+
+
+def test_zmodal_dict_action_propagates_zdelta_dict(monkeypatch):
+    hop = {"zDelta": "$zPlanner"}
+    result = _collect_with_dispatched_action(
+        monkeypatch, {"zModal": "$NewPlan"}, hop,
+    )
+    assert result == hop
+
+
+def test_zmodal_string_action_propagates_navigate(monkeypatch):
+    result = _collect_with_dispatched_action(
+        monkeypatch, "zModal($NewPlan)", "navigate",
+    )
+    assert result == "navigate"
+
+
+def test_zmodal_completed_still_resumes(monkeypatch):
+    result = _collect_with_dispatched_action(
+        monkeypatch, {"zModal": "$NewPlan"}, {"zModal": "completed"},
+    )
+    assert result is True

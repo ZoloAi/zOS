@@ -1,0 +1,17 @@
+# .zolo — NOT YAML: string-first, no quotes needed, indentation-only nesting.
+
+zSpark:
+    title:     Hello World
+    zMode:     zBifrost
+    zLog:      INFO
+    zLogPath:  @.logs
+    zVaFolder: @.zViews
+    zVaFile:   zUI.zhello
+    zBlock:    zVaF
+    zServer:
+        enabled: true
+
+zInfo:
+    description: Golden reference — smallest possible zOS app
+    tags: [zH1, zText]
+    author: zAgents

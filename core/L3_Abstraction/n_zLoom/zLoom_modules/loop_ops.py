@@ -33,6 +33,16 @@ from .token_resolver import LOOP_FRAME_KEY
 _ZLIST_SOURCE_KEY = "__zListSource"
 
 
+def list_each_template(cfg: Dict) -> Dict:
+    """zList body: ``zEach`` is canonical; ``each`` stays the demo/legacy alias."""
+    if not isinstance(cfg, dict):
+        return {}
+    tmpl = cfg.get("zEach")
+    if tmpl is None:
+        tmpl = cfg.get("each")
+    return tmpl if isinstance(tmpl, dict) else {}
+
+
 class LoopOps:
     """zList expansion methods for zLoom (expects ``self.zos``)."""
 
@@ -183,7 +193,7 @@ class LoopOps:
                 f"[zLoom] zList source '{cfg.get('source', '')}' did not resolve "
                 f"to a list (reel missing, zVars name, or non-%data ref) — weaving 0 rows"
             )
-        each_tmpl = cfg.get("each", {})
+        each_tmpl = list_each_template(cfg)
         gate = cfg.get("zGate")  # optional per-row filter (jinja `{% for … if … %}`)
 
         # Weave each row through the render-scoped loop-frame stack (LoopOps-owned, in

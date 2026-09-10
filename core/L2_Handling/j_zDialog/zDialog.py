@@ -142,7 +142,8 @@ from zOS.L1_Foundation.a_zConfig.zConfig_modules.config_constants import SESSION
 from zOS.L2_Handling.e_zDisplay.zDisplay_modules.io.inputs.field_rules import (
     BOOLISH_ATTR_KEYS as _BOOLISH_ATTR_KEYS,
 )
-from .dialog_modules import create_dialog_context, handle_submit
+from .dialog_modules import create_dialog_context, dispatch_onsuccess_followup, handle_submit
+from .dialog_modules.submit_result import submit_failed
 from .dialog_modules.dialog_constants import (
     COLOR_ZDIALOG,
     DIALOG_MODE_CONFIRM,
@@ -152,6 +153,8 @@ from .dialog_modules.dialog_constants import (
     KEY_MODEL,
     KEY_TABLE,
     KEY_ONSUBMIT,
+    KEY_ONSUCCESS,
+    KEY_RETRY,
     KEY_TITLE,
     KEY_WEBSOCKET_DATA,
     KEY_ZCONV,
@@ -159,11 +162,14 @@ from .dialog_modules.dialog_constants import (
     KEY_ZRESET,
     _CONTROL_RESET,
     _CONTROL_SUBMIT,
+    _LABEL_DIALOG_RETRY,
     _LABEL_RESET,
     _LABEL_SUBMIT,
     _LOG_DIALOG_RESET,
+    _LOG_DIALOG_RETRY,
+    _LOG_DIALOG_RETRY_DECLINE,
     _MSG_DIALOG_CONTROLS,
-    _TRUTHY,
+    flag_on,
     _ERROR_INVALID_TYPE_DIALOG,
     _ERROR_INVALID_ZCLI,
     _ERROR_NO_ZCLI,
@@ -461,10 +467,7 @@ class zDialog:
         # Forward the Reset opt-in to Bifrost. The FormRenderer renders a Reset
         # button ONLY when the author declared `zReset: true` — parity with the
         # zCLI Submit/Reset chooser below. Normalize string-first truthy values.
-        _reset_flag = zDialog_obj.get(KEY_ZRESET)
-        if _reset_flag is True or (
-            isinstance(_reset_flag, str) and _reset_flag.strip().lower() in _TRUTHY
-        ):
+        if flag_on(zDialog_obj.get(KEY_ZRESET)):
             zContext[KEY_ZRESET] = True
 
         # fields: [] → confirm mode (no collection, just confirm-and-fire)
@@ -475,193 +478,237 @@ class zDialog:
 
         self.logger.info(_LOG_ZCONTEXT, zContext)
 
-        # Check if data is pre-provided (zBifrost mode with WebSocket data)
-        if context and KEY_WEBSOCKET_DATA in context:
-            ws_data = context[KEY_WEBSOCKET_DATA]
-            if KEY_DATA in ws_data:
-                zConv = ws_data[KEY_DATA]
-                self.logger.info(_LOG_WEBSOCKET_DATA, zConv)
-            else:
-                zConv = {}
-        else:
-            # Render form and collect input (zCLI mode)
-            if zContext.get(KEY_DIALOG_MODE) == DIALOG_MODE_CONFIRM:
-                # Bifrost: send dialog event — frontend reads dialog_mode and renders
-                # confirm button (not a form). Returns {} as usual; onSubmit fires on
-                # form_submit from the frontend click.
-                # zCLI: no form — prompt y/n directly using read_string.
-                is_bifrost = self.session.get(SESSION_KEY_ZMODE) == _SESSION_VALUE_ZBIFROST
-                if is_bifrost:
-                    self.display.zDialog(zContext, self.zcli, self.walker)
-                    zConv = {}
-                else:
-                    action_label = ""
-                    if isinstance(on_submit, dict):
-                        action_label = (on_submit.get("zData") or {}).get("action", "")
-                    prompt = f"  {title or 'Confirm'}{' [' + action_label + ']' if action_label else ''} — proceed? (y/n): "
-                    raw = self.display.zPrimitives.read_string(prompt).strip().lower()
-                    if raw not in ("y", "yes"):
-                        self.logger.info("[zDialog] confirm mode — user cancelled")
-                        return None
-                    zConv = {}
-            else:
-                # zCLI form collection — with an optional Reset loop.
-                # `zReset: true` turns the post-collection step into a
-                # Submit/Reset chooser: Reset is the terminal truth of a form
-                # reset — discard zConv and re-run collection from field one
-                # (mirrors the GUI "clear to defaults"). Controls are offered
-                # in declaration order (their key order in the zDialog block).
-                _reset_val = zDialog_obj.get(KEY_ZRESET)
-                is_bifrost_mode = (
-                    self.session.get(SESSION_KEY_ZMODE) == _SESSION_VALUE_ZBIFROST
-                )
-                reset_enabled = (
-                    (_reset_val is True
-                     or (isinstance(_reset_val, str)
-                         and _reset_val.strip().lower() in _TRUTHY))
-                    and not is_bifrost_mode
-                )
-                control_order = [
-                    k for k in zDialog_obj.keys()
-                    if k in (KEY_ONSUBMIT, KEY_ZRESET)
-                ]
-                while True:
-                    zConv = self.display.zDialog(zContext, self.zcli, self.walker)
-                    if not reset_enabled:
-                        break
-                    if self._offer_dialog_controls(control_order) == _CONTROL_RESET:
-                        self.logger.info(_LOG_DIALOG_RESET)
-                        continue
-                    break
-
-        # Add collected data to context
-        zContext[KEY_ZCONV] = zConv
-
-        # ──────────────────────────────────────────────────────────────────
-        # AUTO-VALIDATION (Week 5.2): Validate form data against zSchema
-        # ──────────────────────────────────────────────────────────────────
-        # Only auto-validate for zData insert operations (registration)
-        # For login/custom operations, let the onSubmit handler validate
-        is_insert_operation = (
-            on_submit and
-            isinstance(on_submit, dict) and
-            'zData' in on_submit and 
-            on_submit['zData'].get('action') == 'insert'
+        retry_cli = (
+            flag_on(zDialog_obj.get(KEY_RETRY))
+            and self.session.get(SESSION_KEY_ZMODE) != _SESSION_VALUE_ZBIFROST
         )
+        ws_payload = None
+        if context and KEY_WEBSOCKET_DATA in context:
+            ws_payload = context[KEY_WEBSOCKET_DATA].get(KEY_DATA)
 
-        if model and isinstance(model, str) and model.startswith('@') and is_insert_operation:
-            self.logger.info(_LOG_AUTO_VALIDATION_ENABLED, model)
-
-            try:
-                # Load schema using stripped path (block already resolved above)
-                schema_dict = self.zcli.loader.handle(_schema_path or model)
-
-                # Resolve table name: explicit > Data_Label from schema > path tail fallback
-                if table:
-                    table_name = table
-                elif schema_dict and isinstance(schema_dict.get('zMeta'), dict):
-                    table_name = schema_dict['zMeta'].get('Data_Label') or model.split(_SCHEMA_PATH_SEPARATOR)[-1]
-                else:
-                    table_name = model.split(_SCHEMA_PATH_SEPARATOR)[-1]
-
-                # A field the onSubmit `data:` map supplies itself (e.g.
-                # `author_id: %session.zVisitor.id`) is NEVER a dialog
-                # `fields:` control, so it can never be in zConv — validating
-                # it here against the raw form input would always misfire as
-                # "required" even though onSubmit is about to fill it in.
-                # Its real value (session/ambient token or literal) is
-                # resolved later, at submit time (handle_submit); the zData
-                # insert layer still enforces type/required/FK on the FINAL
-                # merged row, so nothing is actually left unchecked — this
-                # only defers the check past the fields the form never asked
-                # the user for.
-                onsubmit_data_keys = set(on_submit.get('zData', {}).get('data', {}).keys()) if isinstance(on_submit, dict) else set()
-                table_schema = schema_dict.get(table_name) if isinstance(schema_dict, dict) else None
-                if onsubmit_data_keys and isinstance(table_schema, dict):
-                    schema_dict = dict(schema_dict)
-                    patched_table_schema = dict(table_schema)
-                    for field_name in onsubmit_data_keys:
-                        field_def = patched_table_schema.get(field_name)
-                        if isinstance(field_def, dict) and field_def.get('required'):
-                            patched_table_schema[field_name] = {**field_def, 'required': False}
-                    schema_dict[table_name] = patched_table_schema
-
-                # Create lightweight validator (no database connection needed)
-                from zOS.L3_Abstraction.m_zData.zData_modules.shared.validator import DataValidator
-                validator = DataValidator(schema_dict, self.logger)
-
-                # Validate collected form data (use validate_insert for new data)
-                is_valid, errors = validator.validate_insert(table_name, zConv)
-
-                if not is_valid:
-                    self.logger.warning(_LOG_AUTO_VALIDATION_FAILED, len(errors))
-
-                    # Display validation errors (zDialog has required interface: zcli, logger, display)
-                    from zOS.L3_Abstraction.m_zData.zData_modules.shared.operations.helpers import (
-                        display_validation_errors
-                    )
-                    display_validation_errors(table_name, errors, self)
-
-                    # For zBifrost mode, also emit WebSocket event.
-                    # NOTE: websocket.broadcast() is async — this method is sync,
-                    # so call through websocket_events.send_event(), the SSOT sync
-                    # wrapper (JSON-serializes + asyncio.run_coroutine_threadsafe).
-                    # Calling websocket.broadcast() directly here (a dict, unawaited)
-                    # silently no-ops and prints a RuntimeWarning on every dialog
-                    # navigation with a model but no submitted data yet.
-                    if self.session.get(SESSION_KEY_ZMODE) == _SESSION_VALUE_ZBIFROST:
-                        try:
-                            self.zcli.comm.websocket_events.send_event({
-                                'event': _EVENT_VALIDATION_ERROR,
-                                'table': table_name,
-                                'errors': errors,
-                                'fields': list(errors.keys())
-                            })
-                        except Exception as ws_err:
-                            self.logger.warning(_LOG_WEBSOCKET_BROADCAST_FAILED, ws_err)
-
-                    # Don't proceed to onSubmit - return None to indicate validation failure
-                    self.display.zDeclare(
-                        _MSG_ZDIALOG_RETURN_VALIDATION_FAILED, color=self.mycolor, indent=1, style="~"
-                    )
+        while True:
+            from_ws = ws_payload is not None
+            if from_ws:
+                zConv = ws_payload
+                self.logger.info(_LOG_WEBSOCKET_DATA, zConv)
+                ws_payload = None
+            else:
+                zConv = self._collect_form_answers(
+                    zContext, zDialog_obj, title, on_submit
+                )
+                if zConv is None:
                     return None
 
-                self.logger.info(_LOG_AUTO_VALIDATION_PASSED, table_name)
+            # Add collected data to context
+            zContext[KEY_ZCONV] = zConv
 
-            except Exception as val_err:
-                # If auto-validation fails (schema not found, etc.), log warning but proceed
-                # This maintains backward compatibility - forms without valid models still work
-                self.logger.warning(_LOG_AUTO_VALIDATION_ERROR, val_err)
-
-        elif model and not is_insert_operation:
-            self.logger.debug("Auto-validation skipped (not a zData insert operation) - custom handler will validate")
-        elif model:
-            self.logger.debug(_LOG_AUTO_VALIDATION_SKIPPED_PREFIX, model)
-        else:
-            self.logger.debug(_LOG_AUTO_VALIDATION_SKIPPED_NO_MODEL)
-
-        # Handle submission if onSubmit provided
-        try:
-            # In zBifrost mode, if zConv is empty, this is just form display (not submission)
-            # Only execute onSubmit if we have actual form data
-            is_bifrost_display = (
-                self.session.get(SESSION_KEY_ZMODE) == _SESSION_VALUE_ZBIFROST and
-                not zConv  # Empty zConv means form display, not submission
+            # ──────────────────────────────────────────────────────────────────
+            # AUTO-VALIDATION (Week 5.2): Validate form data against zSchema
+            # ──────────────────────────────────────────────────────────────────
+            # Only auto-validate for zData insert operations (registration)
+            # For login/custom operations, let the onSubmit handler validate
+            is_insert_operation = (
+                on_submit and
+                isinstance(on_submit, dict) and
+                'zData' in on_submit and 
+                on_submit['zData'].get('action') == 'insert'
             )
 
-            if on_submit and not is_bifrost_display:
-                self.logger.info(_LOG_ONSUBMIT_EXECUTE)
-                return handle_submit(on_submit, zContext, self.logger, walker=self.walker, zcli=self.zcli)
-            elif is_bifrost_display:
-                self.logger.debug("[zDialog] zBifrost mode - form displayed, onSubmit deferred to form_submit handler")
-                return None  # Return None for walker compatibility (dicts are not hashable nav results)
+            if model and isinstance(model, str) and model.startswith('@') and is_insert_operation:
+                self.logger.info(_LOG_AUTO_VALIDATION_ENABLED, model)
 
-            # No onSubmit - return collected data
+                try:
+                    # Load schema using stripped path (block already resolved above)
+                    schema_dict = self.zcli.loader.handle(_schema_path or model)
+
+                    # Resolve table name: explicit > Data_Label from schema > path tail fallback
+                    if table:
+                        table_name = table
+                    elif schema_dict and isinstance(schema_dict.get('zMeta'), dict):
+                        table_name = schema_dict['zMeta'].get('Data_Label') or model.split(_SCHEMA_PATH_SEPARATOR)[-1]
+                    else:
+                        table_name = model.split(_SCHEMA_PATH_SEPARATOR)[-1]
+
+                    # A field the onSubmit `data:` map supplies itself (e.g.
+                    # `author_id: %session.zVisitor.id`) is NEVER a dialog
+                    # `fields:` control, so it can never be in zConv — validating
+                    # it here against the raw form input would always misfire as
+                    # "required" even though onSubmit is about to fill it in.
+                    # Its real value (session/ambient token or literal) is
+                    # resolved later, at submit time (handle_submit); the zData
+                    # insert layer still enforces type/required/FK on the FINAL
+                    # merged row, so nothing is actually left unchecked — this
+                    # only defers the check past the fields the form never asked
+                    # the user for.
+                    onsubmit_data_keys = set(on_submit.get('zData', {}).get('data', {}).keys()) if isinstance(on_submit, dict) else set()
+                    table_schema = schema_dict.get(table_name) if isinstance(schema_dict, dict) else None
+                    if onsubmit_data_keys and isinstance(table_schema, dict):
+                        schema_dict = dict(schema_dict)
+                        patched_table_schema = dict(table_schema)
+                        for field_name in onsubmit_data_keys:
+                            field_def = patched_table_schema.get(field_name)
+                            if isinstance(field_def, dict) and field_def.get('required'):
+                                patched_table_schema[field_name] = {**field_def, 'required': False}
+                        schema_dict[table_name] = patched_table_schema
+
+                    # Create lightweight validator (no database connection needed)
+                    from zOS.L3_Abstraction.m_zData.zData_modules.shared.validator import DataValidator
+                    validator = DataValidator(schema_dict, self.logger)
+
+                    # Validate collected form data (use validate_insert for new data)
+                    is_valid, errors = validator.validate_insert(table_name, zConv)
+
+                    if not is_valid:
+                        self.logger.warning(_LOG_AUTO_VALIDATION_FAILED, len(errors))
+
+                        # Display validation errors (zDialog has required interface: zcli, logger, display)
+                        from zOS.L3_Abstraction.m_zData.zData_modules.shared.operations.helpers import (
+                            display_validation_errors
+                        )
+                        display_validation_errors(table_name, errors, self)
+
+                        # For zBifrost mode, also emit WebSocket event.
+                        # NOTE: websocket.broadcast() is async — this method is sync,
+                        # so call through websocket_events.send_event(), the SSOT sync
+                        # wrapper (JSON-serializes + asyncio.run_coroutine_threadsafe).
+                        # Calling websocket.broadcast() directly here (a dict, unawaited)
+                        # silently no-ops and prints a RuntimeWarning on every dialog
+                        # navigation with a model but no submitted data yet.
+                        if self.session.get(SESSION_KEY_ZMODE) == _SESSION_VALUE_ZBIFROST:
+                            try:
+                                self.zcli.comm.websocket_events.send_event({
+                                    'event': _EVENT_VALIDATION_ERROR,
+                                    'table': table_name,
+                                    'errors': errors,
+                                    'fields': list(errors.keys())
+                                })
+                            except Exception as ws_err:
+                                self.logger.warning(_LOG_WEBSOCKET_BROADCAST_FAILED, ws_err)
+
+                        # Don't proceed to onSubmit. retry: true offers a zBtn y/n (zCLI).
+                        self.display.zDeclare(
+                            _MSG_ZDIALOG_RETURN_VALIDATION_FAILED, color=self.mycolor, indent=1, style="~"
+                        )
+                        if retry_cli and not from_ws and self._offer_dialog_retry():
+                            continue
+                        return None
+
+                    self.logger.info(_LOG_AUTO_VALIDATION_PASSED, table_name)
+
+                except Exception as val_err:
+                    # If auto-validation fails (schema not found, etc.), log warning but proceed
+                    # This maintains backward compatibility - forms without valid models still work
+                    self.logger.warning(_LOG_AUTO_VALIDATION_ERROR, val_err)
+
+            elif model and not is_insert_operation:
+                self.logger.debug("Auto-validation skipped (not a zData insert operation) - custom handler will validate")
+            elif model:
+                self.logger.debug(_LOG_AUTO_VALIDATION_SKIPPED_PREFIX, model)
+            else:
+                self.logger.debug(_LOG_AUTO_VALIDATION_SKIPPED_NO_MODEL)
+
+            # Handle submission if onSubmit provided
+            try:
+                # In zBifrost mode, if zConv is empty, this is just form display (not submission)
+                # Only execute onSubmit if we have actual form data
+                is_bifrost_display = (
+                    self.session.get(SESSION_KEY_ZMODE) == _SESSION_VALUE_ZBIFROST and
+                    not zConv  # Empty zConv means form display, not submission
+                )
+
+                if on_submit and not is_bifrost_display:
+                    self.logger.info(_LOG_ONSUBMIT_EXECUTE)
+                    result = handle_submit(
+                        on_submit, zContext, self.logger, walker=self.walker, zcli=self.zcli
+                    )
+                    if (
+                        retry_cli
+                        and not from_ws
+                        and submit_failed(on_submit, result, self.session)
+                        and self._offer_dialog_retry()
+                    ):
+                        continue
+                    return dispatch_onsuccess_followup(
+                        zDialog_obj.get(KEY_ONSUCCESS),
+                        on_submit,
+                        result,
+                        zos=self.zcli,
+                        walker=self.walker,
+                        session=self.session,
+                        logger=self.logger,
+                        is_bifrost=self.session.get(SESSION_KEY_ZMODE) == _SESSION_VALUE_ZBIFROST,
+                    )
+                elif is_bifrost_display:
+                    self.logger.debug("[zDialog] zBifrost mode - form displayed, onSubmit deferred to form_submit handler")
+                    return None  # Return None for walker compatibility (dicts are not hashable nav results)
+
+                # No onSubmit - return collected data
+                return zConv
+
+            except Exception as e:
+                self.logger.error(_LOG_ONSUBMIT_FAILED, e, exc_info=True)
+                raise
+
+    def _offer_dialog_retry(self) -> bool:
+        """zCLI: after a red result, the stock zBtn y/n. True → re-collect."""
+        accepted = bool(self.display.button(_LABEL_DIALOG_RETRY))
+        self.logger.info(_LOG_DIALOG_RETRY if accepted else _LOG_DIALOG_RETRY_DECLINE)
+        return accepted
+
+    def _collect_form_answers(
+        self,
+        zContext: Dict[str, Any],
+        zDialog_obj: Dict[str, Any],
+        title: Any,
+        on_submit: Any,
+    ) -> Optional[Any]:
+        """Render and collect zConv. Returns None if confirm-mode cancel."""
+        if zContext.get(KEY_DIALOG_MODE) == DIALOG_MODE_CONFIRM:
+            # Bifrost: send dialog event — frontend reads dialog_mode and renders
+            # confirm button (not a form). Returns {} as usual; onSubmit fires on
+            # form_submit from the frontend click.
+            # zCLI: no form — prompt y/n directly using read_string.
+            is_bifrost = self.session.get(SESSION_KEY_ZMODE) == _SESSION_VALUE_ZBIFROST
+            if is_bifrost:
+                self.display.zDialog(zContext, self.zcli, self.walker)
+                return {}
+            action_label = ""
+            if isinstance(on_submit, dict):
+                action_label = (on_submit.get("zData") or {}).get("action", "")
+            prompt = (
+                f"  {title or 'Confirm'}"
+                f"{' [' + action_label + ']' if action_label else ''} — proceed? (y/n): "
+            )
+            raw = self.display.zPrimitives.read_string(prompt).strip().lower()
+            if raw not in ("y", "yes"):
+                self.logger.info("[zDialog] confirm mode — user cancelled")
+                return None
+            return {}
+
+        # zCLI form collection — with an optional Reset loop.
+        # `zReset: true` turns the post-collection step into a
+        # Submit/Reset chooser: Reset is the terminal truth of a form
+        # reset — discard zConv and re-run collection from field one
+        # (mirrors the GUI "clear to defaults"). Controls are offered
+        # in declaration order (their key order in the zDialog block).
+        is_bifrost_mode = (
+            self.session.get(SESSION_KEY_ZMODE) == _SESSION_VALUE_ZBIFROST
+        )
+        reset_enabled = (
+            flag_on(zDialog_obj.get(KEY_ZRESET)) and not is_bifrost_mode
+        )
+        control_order = [
+            k for k in zDialog_obj.keys()
+            if k in (KEY_ONSUBMIT, KEY_ZRESET)
+        ]
+        while True:
+            zConv = self.display.zDialog(zContext, self.zcli, self.walker)
+            if not reset_enabled:
+                return zConv
+            if self._offer_dialog_controls(control_order) == _CONTROL_RESET:
+                self.logger.info(_LOG_DIALOG_RESET)
+                continue
             return zConv
-
-        except Exception as e:
-            self.logger.error(_LOG_ONSUBMIT_FAILED, e, exc_info=True)
-            raise
 
     def _offer_dialog_controls(self, control_order: list) -> str:
         """zCLI: after fields are collected, offer the form controls and return

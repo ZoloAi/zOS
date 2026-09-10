@@ -481,7 +481,7 @@ class InteractiveInputs:
             label: Icon-aware button label (``bi-*`` tokens become icons).
             action: Optional plugin invocation or action identifier
             color: Button semantic color (primary, success, danger, warning, info, secondary)
-            _context: Context dict (accepted for consistency, not used)
+            _context: Context dict for %variable resolution (same seam as zText)
             **kwargs: Additional parameters
 
         Returns:
@@ -492,8 +492,11 @@ class InteractiveInputs:
             See module docstring for detailed examples and usage patterns.
         """
         from zSys.accessibility import get_icon_mapper  # pylint: disable=import-outside-toplevel
+        from .....d_zParser.parser_modules.parser_functions import resolve_variables
         mapper = get_icon_mapper()
         label = label or ""
+        if "%" in label:
+            label = resolve_variables(label, getattr(self.display, "zos", None), _context)
         icons, text = mapper.split_label(label)
 
         # The icon-aware label IS the contract — authored once, rendered by whichever

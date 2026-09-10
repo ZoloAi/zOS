@@ -78,6 +78,16 @@ def evaluate_gate(predicate: Any, zos: Any, context: Any = None):
     if not isinstance(predicate, dict):
         return False, f"zGate: malformed predicate ({type(predicate).__name__})"
 
+    #note onDenied-on-zGate: onDenied is a reaction ON the gate, not a predicate.
+    #  Strip before combinator/leaf so a nested {zLink:…} is never an attribute
+    #  gate (the old "nesting breaks the gate" failure). Sibling form still
+    #  accepted — zengine_rbac reads both. Doc 15_rbac / zCloud Identity /
+    #  zAgents / zolo-15-rbac.mdc before release.
+    if "onDenied" in predicate:
+        predicate = {k: v for k, v in predicate.items() if k != "onDenied"}
+        if predicate == {}:
+            return True, None
+
     # Combinator node — exactly one combinator key owns the dict.
     combinator = [k for k in _COMBINATORS if k in predicate]
     if combinator:

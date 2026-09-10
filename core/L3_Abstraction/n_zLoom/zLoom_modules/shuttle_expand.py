@@ -137,7 +137,7 @@ def _lower_shuttle(cfg: Dict[str, Any], registry: Dict[str, Any], zos: Any) -> A
 
     zlist: Dict[str, Any] = {
         "source": source,
-        "each": {f"%{pattern}": slots},
+        "zEach": {f"%{pattern}": slots},
     }
     # Optional per-row filter — jinja's ``{% for … if … %}``. loop_ops evaluates it
     # against each row (``%item.*``) via zos.zgate and drops rows that fail. A CONCISE

@@ -19,6 +19,9 @@ knobs: lines inside one `zGate:` block — fail ANY posted rule → turned away
     role: [zAdmin]     — only these role(s); a LIST = any ONE gets in
     require: {tier: pro}— check ANY visitor attribute; must match (a list = membership)
     combine — stack lines → AND; fancier logic speaks `zAll`/`zAny`/`zNot`, but most pages need ONE line
+    #note onDenied-on-zGate: engine now accepts onDenied NESTED on zGate (the reaction
+        belongs to the gate). Sibling still works. Rewrite this leaf before release:
+        `zGate: {authed: true, onDenied: {zLink: @.zViews…}}`.
     onDenied— a COMPANION BESIDE the block, never inside: `onDenied: {zLink: @.zViews…}` where to send someone turned away (a reaction, not a question — nesting it breaks the gate)
 
 where: post the doorman at the SMALLEST door — same block, four homes

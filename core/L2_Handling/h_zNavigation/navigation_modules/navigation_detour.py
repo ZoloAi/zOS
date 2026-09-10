@@ -16,9 +16,11 @@ was. A modal is a glance, not a move, so the detour contract is:
     * dismiss — a zBack raised INSIDE the modal closes it (same return path);
       pure-content modals gate on a "close" pause so they have presence in the
       terminal instead of scrolling past
-    * signal pass-through — "exit"/"stop" (user ends the session from inside),
-      "navigate" (a REPLACE hop staged inside the modal: the modal dies and the
-      trampoline takes over), and "$Block" (delta pick) all propagate untouched
+    * signal pass-through — a REPLACE hop fired inside the modal (onSuccess
+      OR a raw zLink / zDelta / zURL) outlives the CALL: the modal dies and
+      the trampoline takes over. Covered forms: "navigate" / "exit" / "stop",
+      dict {zLink}/{zDelta}/{zCrumb} (zURL compiles to those two), "$Block".
+      Default remains resume-the-caller. zBack inside = dismiss (absorbed).
 
 Ownership split (mirrors the zLink/zDelta seams): zDispatch RECOGNIZES the
 ``zModal`` key and RESOLVES its target forms to a block dict
@@ -39,10 +41,12 @@ no round-trip: trail-invisible by construction, exactly the zCLI contract.
 from zOS import Any, Dict, Optional
 
 from zOS.zVocabulary import CONTROL_RETURN_ZBACK, CONTROL_RETURN_STOP
+from zOS.L3_Abstraction.l_zEngine import sense_force
 
-# Signals the detour must NOT swallow — they outlive the modal. "navigate" is
-# the walker trampoline signal (zWalker.NAV_SIGNAL) staged by a REPLACE hop
-# fired inside the modal; "exit"/"stop" end the session from inside it.
+# String signals the detour must NOT swallow — they outlive the modal.
+# "navigate" is the walker trampoline (zWalker.NAV_SIGNAL); "exit"/"stop"
+# end the session from inside. Dict REPLACE hops (zLink/zDelta/zCrumb —
+# what a raw in-modal zURL compiles to) are classified by sense_force.
 _SIGNAL_NAVIGATE = "navigate"
 _SIGNAL_EXIT = "exit"
 _PASS_THROUGH_SIGNALS = (_SIGNAL_NAVIGATE, _SIGNAL_EXIT, CONTROL_RETURN_STOP)
@@ -109,19 +113,20 @@ class Detour:
         # scope seed, no session route mutation (the zDelegate precedent).
         result = walker.execute_loop(items_dict=block_dict, context=context)
 
-        # A real move fired inside the modal outlives it — propagate untouched.
-        if isinstance(result, str):
-            if result in _PASS_THROUGH_SIGNALS:
-                self.logger.framework.debug(f"{_LOG} pass-through signal: {result}")
-                return result
-            if result.startswith("$"):
-                self.logger.framework.debug(f"{_LOG} delta pick escapes modal: {result}")
-                return result
-            if result == CONTROL_RETURN_ZBACK:
-                # zBack inside the modal = dismiss. The detour absorbs it: the
-                # caller's own trail was never touched, so there is nothing to pop.
-                self.logger.framework.debug(f"{_LOG} dismissed (zBack)")
-                return dict(MODAL_COMPLETED)
+        # A real move fired inside the modal outlives the CALL — propagate.
+        # zBack is a vector too (sense_force), but INSIDE a modal it means
+        # dismiss, not pop the caller's trail. Absorb it before the generic
+        # has_vector check so REPLACE (navigate / {zLink} / {zDelta}) wins
+        # and dismiss stays a glance.
+        if result == CONTROL_RETURN_ZBACK:
+            self.logger.framework.debug(f"{_LOG} dismissed (zBack)")
+            return dict(MODAL_COMPLETED)
+        if isinstance(result, str) and result.startswith("$"):
+            self.logger.framework.debug(f"{_LOG} delta pick escapes modal: {result}")
+            return result
+        if result in _PASS_THROUGH_SIGNALS or sense_force(result).has_vector:
+            self.logger.framework.debug(f"{_LOG} pass-through signal: {result}")
+            return result
 
         # zCLI presence gate: plain content would scroll past without a beat.
         # Self-gating modals (dialog/menu inside) already waited for the user.

@@ -25,7 +25,7 @@ dragging in zDispatch.
 
 from typing import Any, Dict, List, Optional
 
-__all__ = ["coerce_submit_result", "render_submit_signal"]
+__all__ = ["coerce_submit_result", "render_submit_signal", "submit_failed"]
 
 # Per-action success headline. Falls back to "Done" for anything else.
 _ZDATA_VERBS = {"insert": "Saved", "update": "Updated", "delete": "Deleted"}
@@ -57,6 +57,24 @@ def coerce_submit_result(
 
     # zFunc / zLogin / other — trust the action's own envelope.
     return ZResult.coerce(raw_result)
+
+
+def submit_failed(
+    submit_dict: Dict[str, Any],
+    raw_result: Any,
+    session: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """True when onSubmit did not succeed and did not stage a hop.
+
+    A REPLACE vector (navigate / {zLink} / {zDelta}) is a leave, not a retry.
+    Used by ``retry: true`` so a red result can offer the zBtn y/n instead of
+    returning False to the walker (which closes a hosting zModal).
+    """
+    from zOS.L3_Abstraction.l_zEngine import sense_force
+
+    if sense_force(raw_result).has_vector:
+        return False
+    return not coerce_submit_result(submit_dict, raw_result, session).ok
 
 
 def render_submit_signal(display: Any, zr: Any) -> None:

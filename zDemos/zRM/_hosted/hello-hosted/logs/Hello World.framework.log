@@ -1,0 +1,53 @@
+2026-09-03 17:49:24 [SessionFramework] DEBUG [session_framework_logger.py:111]: Session framework logging enabled: Hello World.framework.log
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: zLogger Ready
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [HttpServerConfig] Enabled - localhost:59215 (runner: dev)
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [HttpServerConfig] Serve path: .
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [zBifrost] Initializing WebSocket bridge: localhost:59216
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [zBifrost] Max inbound message size: 32MB
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [zBifrost] WebSocket server started at ws://localhost:59216
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [MountManager] Auto-mounted zsyntax: /zsyntax/1.2.2/ → /Users/galnachshon/Projects/zLSP/zlsp/generated
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [Router] Starting auto-discovery (1 explicit routes)...
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [HTTPRouter] Initialized with 1 total routes (1 explicit + 0 auto-discovered)
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [zServer] Loaded 1 routes from 0 files
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [zServer] Initialized - serving from: /Users/galnachshon/Projects/zOS/zDemos/zRM/_hosted/hello-hosted
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [zServer] Mounts: 4 registered (static, templates, zViews, zsyntax/1.2.2)
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [zServer] Starting in Development mode (http.server)...
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [zServer] Server ready at http://localhost:59215 (serving: /Users/galnachshon/Projects/zOS/zDemos/zRM/_hosted/hello-hosted)
+2026-09-03 17:49:24 [SessionFramework] INFO [bootstrap.py:129]: --- Bootstrap Pre-boot Logs (10 messages, 0.937s) ---
+2026-09-03 17:49:24 [SessionFramework] DEBUG [bootstrap.py:148]: [Bootstrap:17:49:23.923] Python: 3.12.4
+2026-09-03 17:49:24 [SessionFramework] DEBUG [bootstrap.py:148]: [Bootstrap:17:49:23.923] Installation: editable (pip -e) at /Users/galnachshon/Projects/zOS/core
+2026-09-03 17:49:24 [SessionFramework] INFO [bootstrap.py:148]: [Bootstrap:17:49:23.923] zGuard: dev:/Users/galnachshon/Projects/zGuard
+2026-09-03 17:49:24 [SessionFramework] DEBUG [bootstrap.py:148]: [Bootstrap:17:49:23.925] Detected zSpark file: /Users/galnachshon/Projects/zOS/zDemos/zRM/_hosted/hello-hosted/zSpark.zhello.zolo
+2026-09-03 17:49:24 [SessionFramework] DEBUG [bootstrap.py:148]: [Bootstrap:17:49:23.925] Execution: zSpark, Verbose: False, Dev: False
+2026-09-03 17:49:24 [SessionFramework] SESSION [bootstrap.py:148]: [Bootstrap:17:49:23.926] zSpark file: zSpark.zhello.zolo
+2026-09-03 17:49:24 [SessionFramework] SESSION [bootstrap.py:148]: [Bootstrap:17:49:23.926] Configuration keys: 8
+2026-09-03 17:49:24 [SessionFramework] SESSION [bootstrap.py:148]: [Bootstrap:17:49:23.926] zEnv: Production (default)
+2026-09-03 17:49:24 [SessionFramework] SESSION [bootstrap.py:148]: [Bootstrap:17:49:23.927] Mode: zBifrost
+2026-09-03 17:49:24 [SessionFramework] SESSION [bootstrap.py:148]: [Bootstrap:17:49:23.927] zLog: INFO
+2026-09-03 17:49:24 [SessionFramework] INFO [bootstrap.py:155]: --- Bootstrap Injection Complete (0.937s total) ---
+2026-09-03 17:49:24 [SessionFramework] INFO [zspark_command.py:408]: zSpark Configuration Loaded (zSpark.zhello.zolo | Mode: zBifrost)
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [RouteDispatcher] templates/zVaF.html not found — using built-in default chrome (drop templates/zVaF.html in your app dir to customize head/meta/fonts)
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [RouteDispatcher] Extracted zMeta (file) for client: ['zNavBar']
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [RouteDispatcher] Auto-injected <script id='zui-config'> into HTML head
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [RouteDispatcher] Stamped <title>: 'Hello World'
+2026-09-03 17:49:24 [SessionFramework] INFO [session_framework_logger.py:128]: [zServer] 127.0.0.1 - "GET / HTTP/1.1" 200 -
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [zBifrost] [INFO] New connection from ('::1', 59232, 0, 0), path: /
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [zBifrost] Generated session: zS_089cd169:zB_7eeb4c8a for user: anonymous
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [zBifrost] [OK] Client authenticated and connected: anonymous (('::1', 59232, 0, 0))
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [zBifrost] [DISCONNECT] User anonymous disconnected
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [zBifrost] [INFO] New connection from ('::1', 59233, 0, 0), path: /?ztab=mtln5a37v9tz36c7
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [zBifrost] Generated session: zS_089cd169:zB_d212009f for user: anonymous
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [zBifrost] [OK] Client authenticated and connected: anonymous (('::1', 59233, 0, 0))
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [zBifrost] [RECV] Received: {"event": "execute_walker", "zBlock": "zVaF", "zVaFile": "zUI.zhello", "zVaFolder": "@.zViews"}
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [MessageHandler] Walker execution requested
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [MessageHandler] Executing: @.zViews/zUI.zhello.zVaF
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [zEngine] ⚡ Generator-based chunked execution for Bifrost
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [ShorthandExpander] _expand_zheader: key=zH1, indent_level=1
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [HeaderRenderer] Sending GUI header: label=Hello World, indent=1
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [zEngine.chunked] ⏸️  Menu '~Greeting_Actions*' returned None - pausing for user interaction
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [MessageHandler] Chunk 1: ['zH1', 'zText', '~Greeting_Actions*'] (gate=False)
+2026-09-03 17:49:25 [SessionFramework] INFO [session_framework_logger.py:128]: [ShorthandExpander] _expand_zheader: key=zH1, indent_level=1
+2026-09-03 17:49:38 [SessionFramework] INFO [session_framework_logger.py:128]: [zBifrost] [DISCONNECT] User anonymous disconnected
+2026-09-09 18:39:44 [SessionFramework] INFO [session_framework_logger.py:128]: [SIGTERM] Received shutdown signal
+2026-09-09 18:39:44 [SessionFramework] INFO [session_framework_logger.py:128]: [zServer] Stopping HTTP server...
+2026-09-09 18:39:45 [SessionFramework] INFO [session_framework_logger.py:128]: [zServer] HTTP server stopped
